@@ -10,7 +10,7 @@
 #include "RTC_interface.h"
 #include "user_config.h"
 
-// define which RTC chipset is being used. see @ref config.h
+// define which RTC chipset is being used. see @ref user_config.h
 #ifdef USE_DS3231
   #define CLOCK_ADDRESS 0x68
 #endif
@@ -18,7 +18,6 @@
 // public
 
 RTCInterfaceClass::RTCInterfaceClass(){
-  // TODO: set clock to 24hr on startup
   setTo24hr();
 }
 
