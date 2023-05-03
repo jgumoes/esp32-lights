@@ -1,7 +1,12 @@
 #ifndef _DEVICE_TIME_SERVICE_H_
 #define _DEVICE_TIME_SERVICE_H_
 
-#include <bluefruit.h>
+#ifdef NRF52
+  #include <bluefruit.h>
+#endif
+// #ifdef ESP32
+//   #include
+// #endif
 #include "RTC_interface.h"
 
 /* bit values for the Device Time status flags (Device Time Service 3.3.1.5)*/
@@ -122,7 +127,7 @@ struct deviceTimeDataPacket {
 class DeviceTimeClass{
   public:
     RTCInterfaceClass& _RTC;
-
+    NimBLECharacteristic *deviceTimeCharInstance;
     DeviceTimeClass(RTCInterfaceClass& RTC);
 
     deviceTimeDataPacket dataPacket;
@@ -147,7 +152,8 @@ class DeviceTimeClass{
     uint16_t getDTStatus();
 
     void indicateDeviceTime();
-    void writeDeviceTime();
+    void indicateDeviceTime(NimBLECharacteristic* deviceTimeChar);
+    void readDeviceTime(NimBLECharacteristic* deviceTimeChar);
 
     void updateDTStatus(uint16_t update);
 
@@ -156,19 +162,9 @@ class DeviceTimeClass{
     bool _timeFault = 0;
 };
 
-// setup Device Time Service and associated characteristics
-extern BLEService deviceTimeService;
-extern BLECharacteristic deviceTimeFeature;
-extern BLECharacteristic deviceTimeParameters;
-extern BLECharacteristic deviceTime;
-extern BLECharacteristic deviceTimeControlPoint;
-// extern BLECharacteristic timeChangeLogData;
-// extern BLECharacteristic recordAccessControlPoint;
-
 extern DeviceTimeClass DeviceTime;
 // extern DeviceTimeControlPointClass DTCP;
 
-void deviceTimeControlPointWriteCallback(uint16_t conn_hdl, BLECharacteristic* chr, uint8_t* data, uint16_t len);
-void setupDeviceTimeService();
+void setupDeviceTimeService(NimBLEServer *bleServer);
 
 #endif

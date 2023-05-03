@@ -34,27 +34,30 @@
  * TODO: implement End-to-End Cyclic Redundancy Check (E2E CRC)
  * TODO: implement authorization
  */
+#include <NimBLEDevice.h>
 
 #include "DeviceTimeService.h"
 #include "user_config.h"
 
-// setup Device Time Service and associated characteristics
-BLEService deviceTimeService = BLEService(UUID16_SVC_DEVICE_TIME);
-BLECharacteristic deviceTimeFeature = BLECharacteristic(UUID16_CHR_DEVICE_TIME_FEATURE);
-BLECharacteristic deviceTimeParameters = BLECharacteristic(UUID16_CHR_DEVICE_TIME_PARAMETERS);
-BLECharacteristic deviceTime = BLECharacteristic(UUID16_CHR_DEVICE_TIME);
-BLECharacteristic deviceTimeControlPoint = BLECharacteristic(UUID16_CHR_DEVICE_TIME_CONTROL_POINT);
-// BLECharacteristic timeChangeLogData = BLECharacteristic(UUID16_CHR_TIME_CHANGE_LOG_DATA);
-// BLECharacteristic recordAccessControlPoint = BLECharacteristic(UUID16_CHR_RECORD_ACCESS_CONTROL_POINT);
+// static const NimBLEDevice* bleDevice = new NimBLEDevice();
+// bleDevice.init("remove this from DeviceTimeService.cpp");
+  // NimBLEServer *pServer = NimBLEDevice::createServer();
 
+NimBLEService *deviceTimeService;
+NimBLECharacteristic *deviceTimeFeatureChar;
+NimBLECharacteristic *deviceTimeParametersChar;
+NimBLECharacteristic *deviceTimeChar;
+NimBLECharacteristic *deviceTimeControlPointChar;
 
 /* DeviceTimeClass */
+
 /* public methods*/
 
 /*
  * Responsible for time keeping
  * DS3231 doesn't support dst or timezones on the chip
  * those will have to be handled by this class & saved to file
+ * // TODO: this should 1000% be handled in the RTC interface class
  * @param RTC an instance of the RTCInterfaceClass
  */
 DeviceTimeClass::DeviceTimeClass(RTCInterfaceClass& RTC)
@@ -154,7 +157,7 @@ bool DeviceTimeClass::setDSTOffset(uint8_t offset){
 void DeviceTimeClass::raiseTimeFault(){
   dataPacket.DTStatus |= (DT_STATUS_TIME_FAULT | DT_STATUS_PROPOSE_TIME_UPDATE_REQUEST); // raise time fault and ask for a time update
   dataPacket.DTStatus &= ~(DT_STATUS_UTC_ALIGNED | DT_STATUS_QUALIFIED_LOCAL_TIME_SYNCH); // set time quality bits to 0;
-  indicateDeviceTime();
+  indicateDeviceTime(deviceTimeCharInstance);
 }
 
 /*
@@ -204,17 +207,22 @@ void DeviceTimeClass::updateDTStatus(uint16_t update){
  * @note manually tested to work OK
  */
 void DeviceTimeClass::indicateDeviceTime(){
-  dataPacket.baseTime = getBaseTime(); 
-  deviceTime.indicate(&dataPacket, 8);
+  dataPacket.baseTime = getBaseTime();
+  deviceTimeCharInstance->indicate((const uint8_t*)&dataPacket, 8);
+}
+/*
+ * indicates dataPacket to the GATT server
+ * @note manually tested to work OK
+ */
+void DeviceTimeClass::indicateDeviceTime(NimBLECharacteristic* deviceTimeChar){
+  deviceTimeCharInstance = deviceTimeChar;
+  indicateDeviceTime();
 }
 
-/*
- * writes a dataPacket to the GATT server
- * TODO: when a device connects, this must be called every second by a low-priority scheduled task
- */
-void DeviceTimeClass::writeDeviceTime(){
+
+void DeviceTimeClass::readDeviceTime(NimBLECharacteristic* deviceTimeChar){
   dataPacket.baseTime = getBaseTime(); 
-  deviceTime.write(&dataPacket, 8);
+  deviceTimeChar->setValue((const uint8_t*)&dataPacket, 8);
 }
 
 /* Device Time Class private methods */
@@ -232,7 +240,7 @@ class DeviceTimeControlPointClass {
      * handles the write callback for the Device Time Control Point characteristic
      * This method should ideally be the single entry- and exit-point of the class.
      */
-    void handleCallback(uint16_t conn_hdl, BLECharacteristic* chr, uint8_t* dataPacket, uint16_t len){
+    void handleCallback(NimBLEAttValue value, uint16_t len){
       if (handelingResponse == 1){
         response(0X07);
 
@@ -241,6 +249,7 @@ class DeviceTimeControlPointClass {
         #endif
         return;
       }; // reject packet if request is already being handled
+      const uint8_t* dataPacket = value.data();
       handelingResponse = 1;
       opcode = dataPacket[0];
       switch (opcode){
@@ -271,7 +280,7 @@ class DeviceTimeControlPointClass {
     /*
      * unpacks the incoming data into actual variables
      */
-    bool unpackTimeUpdateData(uint8_t* dataPacket, uint16_t len){
+    bool unpackTimeUpdateData(const uint8_t* dataPacket, uint16_t len){
       if(len > 11){
         response(DTCP_RESPONSE_INVALID_OPERAND);
         #ifdef DEBUG_PRINT_DEVICE_TIME_CP_ENABLE
@@ -353,7 +362,7 @@ class DeviceTimeControlPointClass {
      */
     void response(uint8_t responseCode){
       uint8_t responseObject[3] = { 0x09, opcode, responseCode }; // DTCP response, request opcode, response code
-      deviceTimeControlPoint.indicate(responseObject, 3);
+      deviceTimeControlPointChar->indicate(responseObject, 3);
     };
     
     /*
@@ -361,7 +370,7 @@ class DeviceTimeControlPointClass {
     */
     void rejectProcedure(){
       uint8_t responseObject[5] = { 0x09, opcode, 0x05, rejFlag1, rejFlag0 }; // DTCP response, request opcode, response code,
-      deviceTimeControlPoint.indicate(responseObject, 5);
+      deviceTimeControlPointChar->indicate(responseObject, 5);
       handelingResponse = 0;
     }
   
@@ -379,57 +388,51 @@ class DeviceTimeControlPointClass {
 
 bool DeviceTimeControlPointClass::handelingResponse = 0;  // must be initiated outside of class, after class definition
 
-
 DeviceTimeClass DeviceTime = DeviceTimeClass(RTCInterface);
 DeviceTimeControlPointClass DTCP = DeviceTimeControlPointClass();
 
-void deviceTimeControlPointWriteCallback(uint16_t conn_hdl, BLECharacteristic* chr, uint8_t* data, uint16_t len){
-
-  #ifdef DEBUG_PRINT_DEVICE_TIME_CP_ENABLE
-    Serial.println("Device Time Control Point write request has been made");
-  #endif
-
-  // should throw an error if a client writes without enabling indicate, but doesn't
-  if ( !chr->indicateEnabled(conn_hdl) )
-  {
-    ble_gatts_rw_authorize_reply_params_t reply = { .type = BLE_GATTS_AUTHORIZE_TYPE_WRITE };
-    reply.params.write.gatt_status = BLE_GATT_STATUS_ATTERR_CPS_CCCD_CONFIG_ERROR;
-    sd_ble_gatts_rw_authorize_reply(conn_hdl, &reply);
-
-    #ifdef DEBUG_PRINT_DEVICE_TIME_CP_ENABLE
-      Serial.println("Write request rejected (indicate CCCD wasn't written)");
-    #endif
-    return;
+class DeviceTimeCallbacksClass : public NimBLECharacteristicCallbacks {
+  void onRead(NimBLECharacteristic* pCharacteristic){
+    Serial.println("Device Time is being read");
+    DeviceTime.readDeviceTime(pCharacteristic);
   }
-  // the actual callback
-  #ifdef DEBUG_PRINT_DEVICE_TIME_CP_ENABLE
-    Serial.println("Write request accepted");
-  #endif
-  DTCP.handleCallback(conn_hdl, chr, data, len);
-}
 
-void deviceTimeIndicateCallback(uint16_t connHdl, BLECharacteristic* chr, uint16_t cccdValue){
-  if (chr->indicateEnabled(connHdl)){
-    DeviceTime.indicateDeviceTime();  // indicate when indicate is enabled (as per DTS standard)
+  void onIndicate(NimBLECharacteristic* pCharacteristic){
+    Serial.println("Device Time is being indicated");
+    DeviceTime.indicateDeviceTime(pCharacteristic);  // indicate when indicate is enabled (as per DTS standard)
   }
-  #ifdef DEBUG_PRINT_DEVICE_TIME_ENABLE
-    Serial.print("Device Time indicate CCCD set to: "); Serial.println(chr->indicateEnabled(connHdl));
-  #endif
-}
+};
 
-void setupDeviceTimeService(void){
+class DeviceTimeControlPointCallbacksClass : public NimBLECharacteristicCallbacks {
+  void onWrite(NimBLECharacteristic* deviceTimeControlPointChar){
+    Serial.println("Device Time Control Point is getting written to");
+    DTCP.handleCallback(deviceTimeControlPointChar->getValue(), deviceTimeControlPointChar->getDataLength());
+  }
+};
+
+static DeviceTimeCallbacksClass DeviceTimeCallbacks;
+static DeviceTimeControlPointCallbacksClass DeviceTimeControlPointCallbacks;
+
+// shouldn't be necessary
+// class DeviceTimeFeatureCallbacks : public NimBLECharacteristicCallbacks {
+//   void onRead(){
+//     deviceTimeFeatureChar->getValue();
+//     deviceTimeFeatureChar->
+//   }
+// }
+
+void setupDeviceTimeService(NimBLEServer *bleServer){
+  // create the service
   #ifdef DEBUG_PRINT_DEVICE_TIME_SERVICE_ENABLE
     Serial.println("setting up device time service");
   #endif
-  deviceTimeService.begin();
+  deviceTimeService = bleServer->createService(NimBLEUUID((uint16_t)0x1847));
 
+  // setup Device Time Service and associated characteristics
   #ifdef DEBUG_PRINT_DEVICE_TIME_SERVICE_ENABLE
     Serial.println("setting up device time feature characteristic");
   #endif
-  deviceTimeFeature.setProperties(CHR_PROPS_READ);
-  deviceTimeFeature.setPermission(SECMODE_OPEN, SECMODE_NO_ACCESS);
-  deviceTimeFeature.setFixedLen(4);
-  deviceTimeFeature.begin();
+  deviceTimeFeatureChar = deviceTimeService->createCharacteristic(NimBLEUUID((uint16_t)0x2B8E), READ, 2);
   // 0: E2E-CRC                             = 0 (TODO: implement)
   // 1: Time Change Logging                 = 0 (TODO: implement)
   // 2: Base Time use fractions of second   = 0
@@ -444,34 +447,33 @@ void setupDeviceTimeService(void){
   // 11: Propose Non-Logged Time Adjustment = 0
   // 12: Retrieve Active Time Adjustments   = 0
   // 13 - 15: Reserved
-  uint16_t dtfData[2] = { 0xFFFF, 0b0000010010000000 };
-  deviceTimeFeature.write(dtfData, 4);
+  uint8_t dtfData[4] = { 0xFF, 0xFF, 0b00000100, 0b10000000 };
+  deviceTimeFeatureChar->setValue(dtfData, 4);
+  // deviceTimeFeatureChar->setCallbacks();
 
   #ifdef DEBUG_PRINT_DEVICE_TIME_SERVICE_ENABLE
     Serial.println("setting up device time parameters characteristic");
   #endif
-  deviceTimeParameters.setProperties(CHR_PROPS_READ);
-  deviceTimeParameters.setPermission(SECMODE_OPEN, SECMODE_NO_ACCESS);
-  deviceTimeParameters.setFixedLen(2);
-  deviceTimeParameters.begin();
-  deviceTimeParameters.write16(0xFFFF);  // only clock resolution gets written
+  deviceTimeParametersChar = deviceTimeService->createCharacteristic(NimBLEUUID((uint16_t)0x2B8F), READ, 2);
+  deviceTimeParametersChar->setValue(0xFFFF);  // only clock resolution gets written
+  // deviceTimeParametersChar->setCallbacks();
 
   #ifdef DEBUG_PRINT_DEVICE_TIME_SERVICE_ENABLE
     Serial.println("setting up device time characteristic");
   #endif
-  deviceTime.setProperties( CHR_PROPS_READ | CHR_PROPS_INDICATE);
-  deviceTime.setPermission(SECMODE_OPEN, SECMODE_NO_ACCESS);
-  deviceTime.setFixedLen(8);
-  deviceTime.setCccdWriteCallback(deviceTimeIndicateCallback);
-  deviceTime.begin();
+  deviceTimeChar = deviceTimeService->createCharacteristic(NimBLEUUID((uint16_t)0x2B90), READ | INDICATE, 8);
+  deviceTimeChar->setCallbacks(&DeviceTimeCallbacks);
 
   #ifdef DEBUG_PRINT_DEVICE_TIME_SERVICE_ENABLE
     Serial.println("setting up device time control point characteristic");
   #endif
-  deviceTimeControlPoint.setProperties(CHR_PROPS_WRITE | CHR_PROPS_INDICATE);
-  deviceTimeControlPoint.setPermission(SECMODE_OPEN, SECMODE_OPEN);
-  deviceTimeControlPoint.setMaxLen(18);
-  // deviceTimeControlPoint.setCccdWriteCallback(dtcpCccdWriteCallback);
-  deviceTimeControlPoint.setWriteCallback(deviceTimeControlPointWriteCallback);
-  deviceTimeControlPoint.begin();
+  deviceTimeControlPointChar = deviceTimeService->createCharacteristic(NimBLEUUID((uint16_t)0x2B91), WRITE | INDICATE, 18);
+  deviceTimeControlPointChar->setCallbacks(&DeviceTimeControlPointCallbacks);
+
+  // timeChangeLogData =  = deviceTimeService->createCharacteristic(NimBLEUUID((uint16_t)0x2B92), NOTIFY);
+  // recordAccessControlPoint =  = deviceTimeService->createCharacteristic(NimBLEUUID((uint16_t)0x2A52), WRITE | INDICATE);
+  deviceTimeService->start();
+
+  NimBLEAdvertising* pAdvertising = NimBLEDevice::getAdvertising();
+  pAdvertising->addServiceUUID(deviceTimeService->getUUID());
 }
