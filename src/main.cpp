@@ -27,6 +27,7 @@ class ServerCallbacks: public NimBLEServerCallbacks {
 };
 
 void setup() {
+  Wire.begin();
   Serial.begin(9600);
   Serial.println("setting up MCPWM");
   setup_PWM();
