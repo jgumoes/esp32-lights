@@ -39,10 +39,6 @@
 #include "DeviceTimeService.h"
 #include "user_config.h"
 
-// static const NimBLEDevice* bleDevice = new NimBLEDevice();
-// bleDevice.init("remove this from DeviceTimeService.cpp");
-  // NimBLEServer *pServer = NimBLEDevice::createServer();
-
 NimBLEService *deviceTimeService;
 NimBLECharacteristic *deviceTimeFeatureChar;
 NimBLECharacteristic *deviceTimeParametersChar;
@@ -388,9 +384,11 @@ class DeviceTimeControlPointClass {
 
 bool DeviceTimeControlPointClass::handelingResponse = 0;  // must be initiated outside of class, after class definition
 
+/* Declare the classes*/
 DeviceTimeClass DeviceTime = DeviceTimeClass(RTCInterface);
 DeviceTimeControlPointClass DTCP = DeviceTimeControlPointClass();
 
+/* Create callback classes */
 class DeviceTimeCallbacksClass : public NimBLECharacteristicCallbacks {
   void onRead(NimBLECharacteristic* pCharacteristic){
     Serial.println("Device Time is being read");
@@ -410,16 +408,52 @@ class DeviceTimeControlPointCallbacksClass : public NimBLECharacteristicCallback
   }
 };
 
+template<std::size_t dataSize>
+/*
+ * pass data using (const uint8_t*)data
+ */
+class ReadOnlyCallbacksClass : public NimBLECharacteristicCallbacks {
+  // const size_t dataLength;
+  uint8_t data[dataSize];
+
+  public:
+  ReadOnlyCallbacksClass(uint8_t *value) {
+    for(int i=0;i<dataSize;++i){
+      data[i] = value[i];
+    }
+  }
+
+  void onRead(NimBLECharacteristic* pCharacteristic){
+    Serial.println("Device Time is being read");
+    pCharacteristic->setValue(data, dataSize);
+  }
+};
+
+
 static DeviceTimeCallbacksClass DeviceTimeCallbacks;
 static DeviceTimeControlPointCallbacksClass DeviceTimeControlPointCallbacks;
 
-// shouldn't be necessary
-// class DeviceTimeFeatureCallbacks : public NimBLECharacteristicCallbacks {
-//   void onRead(){
-//     deviceTimeFeatureChar->getValue();
-//     deviceTimeFeatureChar->
-//   }
-// }
+#define dtfDataSize 4
+// 0: E2E-CRC                             = 0 (TODO: implement)
+// 1: Time Change Logging                 = 0 (TODO: implement)
+// 2: Base Time use fractions of second   = 0
+// 3: Time or Date Displayed to User      = 0
+// 4: Displayed Formats                   = 0
+// 5: Displayed Formats Changeable        = 0
+// 6: Seperate User Timeline              = 0 (may be needed for timezones and DST)
+// 7: Authorization Required              = 0 (TODO: implement)
+// 8: RTC Drift Tracking                  = 0
+// 9: Use 1900 as epoch year              = 0
+// 10: use 2000 as epoch year             = 1
+// 11: Propose Non-Logged Time Adjustment = 0
+// 12: Retrieve Active Time Adjustments   = 0
+// 13 - 15: Reserved
+uint8_t dtfData[dtfDataSize] = { 0xFF, 0xFF, 0b00000100, 0b10000000 };
+static ReadOnlyCallbacksClass<dtfDataSize> DeviceTimeFeatureCallback(dtfData);
+
+#define timeParamsSize 2
+uint8_t timeParams[timeParamsSize] = {0xFF, 0xFF};
+static ReadOnlyCallbacksClass<timeParamsSize> DeviceTimeParametersCallback(timeParams);
 
 void setupDeviceTimeService(NimBLEServer *bleServer){
   // create the service
@@ -432,31 +466,14 @@ void setupDeviceTimeService(NimBLEServer *bleServer){
   #ifdef DEBUG_PRINT_DEVICE_TIME_SERVICE_ENABLE
     Serial.println("setting up device time feature characteristic");
   #endif
-  deviceTimeFeatureChar = deviceTimeService->createCharacteristic(NimBLEUUID((uint16_t)0x2B8E), READ, 2);
-  // 0: E2E-CRC                             = 0 (TODO: implement)
-  // 1: Time Change Logging                 = 0 (TODO: implement)
-  // 2: Base Time use fractions of second   = 0
-  // 3: Time or Date Displayed to User      = 0
-  // 4: Displayed Formats                   = 0
-  // 5: Displayed Formats Changeable        = 0
-  // 6: Seperate User Timeline              = 0 (may be needed for timezones and DST)
-  // 7: Authorization Required              = 0 (TODO: implement)
-  // 8: RTC Drift Tracking                  = 0
-  // 9: Use 1900 as epoch year              = 0
-  // 10: use 2000 as epoch year             = 1
-  // 11: Propose Non-Logged Time Adjustment = 0
-  // 12: Retrieve Active Time Adjustments   = 0
-  // 13 - 15: Reserved
-  uint8_t dtfData[4] = { 0xFF, 0xFF, 0b00000100, 0b10000000 };
-  deviceTimeFeatureChar->setValue(dtfData, 4);
-  // deviceTimeFeatureChar->setCallbacks();
+  deviceTimeFeatureChar = deviceTimeService->createCharacteristic(NimBLEUUID((uint16_t)0x2B8E), READ, dtfDataSize);
+  deviceTimeFeatureChar->setCallbacks(&DeviceTimeFeatureCallback);
 
   #ifdef DEBUG_PRINT_DEVICE_TIME_SERVICE_ENABLE
     Serial.println("setting up device time parameters characteristic");
   #endif
-  deviceTimeParametersChar = deviceTimeService->createCharacteristic(NimBLEUUID((uint16_t)0x2B8F), READ, 2);
-  deviceTimeParametersChar->setValue(0xFFFF);  // only clock resolution gets written
-  // deviceTimeParametersChar->setCallbacks();
+  deviceTimeParametersChar = deviceTimeService->createCharacteristic(NimBLEUUID((uint16_t)0x2B8F), READ, timeParamsSize);
+  deviceTimeParametersChar->setCallbacks(&DeviceTimeParametersCallback);
 
   #ifdef DEBUG_PRINT_DEVICE_TIME_SERVICE_ENABLE
     Serial.println("setting up device time characteristic");
