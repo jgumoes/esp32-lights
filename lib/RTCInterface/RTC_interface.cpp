@@ -3,6 +3,16 @@
  * Currently only supports the DS3231, but I will add other chips
  * as I buy them ;-)
  * 
+ * Theory of Operation:
+ *  - TODO: stored timezone and daylight savings offsets are passed to the class constructor by the KeeperOfTime module
+ *  - new UTC timestamp, timezone, and/or daylight savings offsets are passed to the class
+ *  - the new values are stored in a temporary struct
+ *  - when commitChanges() is called, the values are combined to create a local timestamp
+ *  - (if a new UTC timestamp isn't given, the old one is used instead)
+ *  - the class will attempt to write the new local timestamp to the chip
+ *  - if the write is successful, the new offsets will be saved as instance variables.
+ *      commitChanges() will return true, and the KeeperOfTime module should save the new offsets to file
+ * 
  * There is a known bug where a timestamp for 1/3/2024 (a leap year)
  * gets interpreted as 2/3/2024
  */
@@ -85,30 +95,42 @@ uint32_t RTCInterfaceClass::getUTCTimestamp(){
  * @param time UTC timestamp in seconds
  * @param timezone offset in seconds
  * @param DST offset in seconds
+ * @return if the write was successful
  */
-void RTCInterfaceClass::setUTCTimestamp(uint32_t time, int32_t timezone, uint16_t dst){
+bool RTCInterfaceClass::setUTCTimestamp(uint32_t time, int32_t timezone, uint16_t dst){
   setTimezoneOffset(timezone);
   setDSTOffset(dst);
   setUTCTimestamp(time);
-  updateTime();
+  return commitUpdates();
 }
 
 /*
  * Sets the time using a UTC timezone
  * @param time the UTC timestamp in seconds
  * @note the timezone and dst offsets must be set BEFORE calling this function
+ * @return if the write was successful
  */
-void RTCInterfaceClass::setUTCTimestamp(uint32_t time){
+bool RTCInterfaceClass::setUTCTimestamp(uint32_t time){
   pendingUpdates.timestamp = time;
   pendingUpdates.timestampPending = true;
+  return commitUpdates();
 }
 
 /*
- * @param seconds timezone offset in seconds
+ * Set pending timezone, comforming to Device Time Service.
+ * call commitUpdates() to commit the new timezone.
+ * @param seconds timezone offset in 15 minute increments
  */
 void RTCInterfaceClass::setTimezoneOffset(int32_t seconds){
   pendingUpdates.timezone = seconds;
   pendingUpdates.timezonePending = true;
+}
+
+/*
+ * @return the timezone offset in seconds
+ */
+int32_t RTCInterfaceClass::getTimezoneOffset(){
+  return _timeZoneSecs;
 }
 
 /*
@@ -119,19 +141,30 @@ void RTCInterfaceClass::setDSTOffset(uint16_t seconds){
   pendingUpdates.DSTPending = true;
 }
 
-/*
- * sends pending updates to the RTC and resets pending updates buffer.
- */
-void RTCInterfaceClass::updateTime(){
-  uint32_t timestamp = (pendingUpdates.timestampPending) ? pendingUpdates.timestamp : getUTCTimestamp();  // set a new time or update the current one
-  if(pendingUpdates.DSTPending){ _DSTOffsetSecs = pendingUpdates.DST; }
-  if(pendingUpdates.timezonePending){ _timeZoneSecs = pendingUpdates.timezonePending; }
-  updateLocalTimestamp(timestamp + _timeZoneSecs + _DSTOffsetSecs);
-  resetPendingUpdates();
+uint16_t RTCInterfaceClass::getDSTOffset(){
+  return _DSTOffsetSecs;
 }
 
 /*
- * breaks a 2000 epoch timestamp it into datetime values
+ * sends pending updates to the RTC and saves the offsets to file.
+ * Resets pending updates buffer on success.
+ * @returns if commit was successful
+ */
+bool RTCInterfaceClass::commitUpdates(){
+  uint32_t timestamp = (pendingUpdates.timestampPending) ? pendingUpdates.timestamp : getUTCTimestamp();  // set a new time or update the current one
+  timestamp += (pendingUpdates.DSTPending) ? pendingUpdates.DST : _DSTOffsetSecs;                         // add the new DST offset or use the current one
+  timestamp += (pendingUpdates.timezonePending) ? pendingUpdates.timezone : _timeZoneSecs;                // add the new timezone offset or use the current one
+  bool res = updateLocalTimestamp(timestamp + _timeZoneSecs + _DSTOffsetSecs);
+  if(res){
+    if(pendingUpdates.DSTPending){ _DSTOffsetSecs = pendingUpdates.DST; }
+    if(pendingUpdates.timezonePending){ _timeZoneSecs = pendingUpdates.timezonePending; }
+  }
+  resetPendingUpdates();
+  return res;
+}
+
+/*
+ * breaks a 2000 epoch timestamp into datetime values
  * @param time local timestamp in seconds
  */
 void RTCInterfaceClass::convertLocalTimestamp(uint32_t time){
@@ -204,16 +237,18 @@ void RTCInterfaceClass::resetPendingUpdates(){
 /*
  * Writes a local timestamp to the RTC chip.
  * @param time local timestamp in seconds
+ * @return if operation was performed without any errors
  */
-void RTCInterfaceClass::updateLocalTimestamp(uint32_t time){
+bool RTCInterfaceClass::updateLocalTimestamp(uint32_t time){
+  bool anyErrors = 0;
   convertLocalTimestamp(time);
-  transmit2Bytes(0x00, decToBcd(datetime._seconds));
-  transmit2Bytes(0x01, decToBcd(datetime._minutes));
-  transmit2Bytes(0x02, decToBcd(datetime._hours));
-  transmit2Bytes(0x03, datetime._day);
-  transmit2Bytes(0x04, decToBcd(datetime._date));
-  transmit2Bytes(0x05, decToBcd(datetime._month));
-  transmit2Bytes(0x06, decToBcd(datetime._years));
+  anyErrors |= !transmit2Bytes(0x00, decToBcd(datetime._seconds));
+  anyErrors |= !transmit2Bytes(0x01, decToBcd(datetime._minutes));
+  anyErrors |= !transmit2Bytes(0x02, decToBcd(datetime._hours));
+  anyErrors |= !transmit2Bytes(0x03, datetime._day);
+  anyErrors |= !transmit2Bytes(0x04, decToBcd(datetime._date));
+  anyErrors |= !transmit2Bytes(0x05, decToBcd(datetime._month));
+  anyErrors |= !transmit2Bytes(0x06, decToBcd(datetime._years));
 
   #ifdef DEBUG_PRINT_RTC_DATETIME
     Serial.println("RTC Interface written time:");
@@ -225,12 +260,16 @@ void RTCInterfaceClass::updateLocalTimestamp(uint32_t time){
     Serial.print("RTC month: "); Serial.println(datetime._month);
     Serial.print("RTC years: "); Serial.println(datetime._years);
   #endif
+
+  return !anyErrors;
 }
 
-// sets the rtc to use 24 hour time
-// NOTE: as it sets the rtc to the same time it just read,
-// there's a non-zero chance the hour could change and set
-// the time back by up to a minute
+/*
+ * sets the rtc to use 24 hour time
+ * NOTE: as it sets the rtc to the same time it just read,
+ * there's a non-zero chance the hour could change and set
+ * the time back by up to a minute
+ */
 void RTCInterfaceClass::setTo24hr(){
   byte temp_buffer;
   transmitByte(0x02);
@@ -245,21 +284,33 @@ void RTCInterfaceClass::setTo24hr(){
 
 }
 
-// transmits a single byte, AKA the address to be read from
-// note: device address is set by CLOCK_ADDRESS
-void RTCInterfaceClass::transmitByte(byte address){
+/*
+ * transmits a single byte, AKA the address to be read from
+ * note: device address is set by CLOCK_ADDRESS
+ * @return if operation was performed without any errors
+ */
+bool RTCInterfaceClass::transmitByte(byte address){
   Wire.beginTransmission(CLOCK_ADDRESS);
   Wire.write(address);
-  Wire.endTransmission();
+  if(Wire.endTransmission() != 0){
+    return false;
+  }
+  return true;
 }
 
-// transmits 2 byte packets, AKA the address and th value
-// note: device address is set by CLOCK_ADDRESS
-void RTCInterfaceClass::transmit2Bytes(byte address, byte value){
+/*
+ * transmits 2 byte packets, AKA the address and the value
+ * note: device address is set by CLOCK_ADDRESS
+ * @return if operation was performed without any errors
+ */
+bool RTCInterfaceClass::transmit2Bytes(byte address, byte value){
   Wire.beginTransmission(CLOCK_ADDRESS);
   Wire.write(address);
   Wire.write(value);
-  Wire.endTransmission();
+  if(Wire.endTransmission() != 0){
+    return false;
+  }
+  return true;
 }
 
 RTCInterfaceClass RTCInterface = RTCInterfaceClass();

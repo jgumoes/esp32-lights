@@ -18,12 +18,12 @@ struct DateTimeStruct{
 };
 
 struct PendingUpdatesStruct{
-  bool timezonePending;
-  int32_t timezone;
-  bool DSTPending;
-  uint16_t DST;
-  bool timestampPending;
-  uint32_t timestamp; // incoming timestamps will always be UTC as per BLE DTS specification
+  bool timezonePending = false;
+  int32_t timezone = 0;
+  bool DSTPending = false;
+  uint16_t DST = 0;
+  bool timestampPending = false;
+  uint32_t timestamp = 0; // incoming timestamps will always be UTC as per BLE DTS specification
 };
 
 /*
@@ -32,7 +32,7 @@ struct PendingUpdatesStruct{
  *
  * Changing the time:
  * the user must use setX(y) to change the intended values,
- * then call updateTime() to write the changes to the RTC chip
+ * then call commitUpdates() to write the changes to the RTC chip
  */
 class RTCInterfaceClass{
   public:
@@ -40,18 +40,18 @@ class RTCInterfaceClass{
 
     DateTimeStruct datetime;
     const uint8_t monthDays[12] = {31,28,31,30,31,30,31,31,30,31,30,31};
-    int32_t _timeZoneSecs = 0;
-    uint16_t _DSTOffsetSecs = 0;
 
     uint32_t getLocalTimestamp();
     uint32_t getUTCTimestamp();
 
     void setTimezoneOffset(int32_t seconds);
+    int32_t getTimezoneOffset();
     void setDSTOffset(uint16_t seconds);
-    void setUTCTimestamp(uint32_t time, int32_t timezone, uint16_t dst);
-    void setUTCTimestamp(uint32_t time);
+    uint16_t getDSTOffset();
+    bool setUTCTimestamp(uint32_t time, int32_t timezone, uint16_t dst);
+    bool setUTCTimestamp(uint32_t time);
 
-    void updateTime();
+    bool commitUpdates();
 
     uint8_t bcd2bin (uint8_t val);
     byte decToBcd(byte val);
@@ -59,17 +59,19 @@ class RTCInterfaceClass{
     void resetDatetime();
 
   private:
+    int32_t _timeZoneSecs = 0;    // timezone offset in seconds
+    uint16_t _DSTOffsetSecs = 0;  // daylight savings offset in seconds
+
     void fetchTime();
-    // uint32_t UTCTimestamp;
     uint32_t localTimestamp;
     PendingUpdatesStruct pendingUpdates;
     void resetPendingUpdates();
 
-    void updateLocalTimestamp(uint32_t time);
+    bool updateLocalTimestamp(uint32_t time);
 
     void setTo24hr();
-    void transmitByte(byte address);
-    void transmit2Bytes(byte address, byte value);
+    bool transmitByte(byte address);
+    bool transmit2Bytes(byte address, byte value);
 };
 
 extern RTCInterfaceClass RTCInterface;

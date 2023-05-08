@@ -33,6 +33,20 @@
  * TODO: time update needs to be timed and monitored
  * TODO: implement End-to-End Cyclic Redundancy Check (E2E CRC)
  * TODO: implement authorization
+ * 
+ * TODO: seperate core timekeeping logic into a different file. this file should only interface with time keeping, not contain it
+ * 
+ * Loading Procedure
+ * - mutable server values are loaded from the file system,
+ *    this includes daylight savings and timezone offset, but not the UTC timestamp
+ * - If using an RTC chip that handles DST and timezone, then obviously don't load from file. however, I don't think such a chip exists
+ * - the loaded values are used to initialise the characteristics and the RTC interface
+ * 
+ * Update Procedure
+ * - DeviceTimeControlPointClass receives all write requests
+ * - It unpacks the data and sends to appropriate place
+ * - it saves the new service variables to file
+ * - if the file write and/or RTC time update are not successful, it responds with Operation Failed
  */
 #include <NimBLEDevice.h>
 
@@ -50,10 +64,10 @@ NimBLECharacteristic *deviceTimeControlPointChar;
 /* public methods*/
 
 /*
- * Responsible for time keeping
- * DS3231 doesn't support dst or timezones on the chip
- * those will have to be handled by this class & saved to file
- * // TODO: this should 1000% be handled in the RTC interface class
+ * Responsible for time keeping.
+ * DS3231 doesn't support dst or timezones on the chip.
+ * This class will save and load them in DTS form, convert them to seconds
+ * and send them to the RTC interface.
  * @param RTC an instance of the RTCInterfaceClass
  */
 DeviceTimeClass::DeviceTimeClass(RTCInterfaceClass& RTC)
@@ -175,7 +189,7 @@ void DeviceTimeClass::setProposeTimeUpdateRequest(bool ptur){
  */
 bool DeviceTimeClass::commitChanges(){
   // indicateDeviceTime();  // do not call, as indicating to the client that's performed a time update breaks DST protocol
-  _RTC.updateTime();
+  _RTC.commitUpdates();
   // TODO: check the time update worked
   // TODO: save offsets to file
   return 1;

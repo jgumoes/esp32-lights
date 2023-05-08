@@ -1,12 +1,11 @@
+/*
+ * TODO: the core logic needs to be seperated from BLE logic
+ * Device time will also need to be set using the internet
+ */
+
 #ifndef _DEVICE_TIME_SERVICE_H_
 #define _DEVICE_TIME_SERVICE_H_
 
-#ifdef NRF52
-  #include <bluefruit.h>
-#endif
-// #ifdef ESP32
-//   #include
-// #endif
 #include "RTC_interface.h"
 
 /* bit values for the Device Time status flags (Device Time Service 3.3.1.5)*/
