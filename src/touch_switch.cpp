@@ -12,9 +12,9 @@ void touchInterrupt(){
  * Setup the interrupt for the touch switch. May not work
  * on ESP32S3.
  */
-void setupTouch(){
+void setupTouch(uint touchPin){
   touch_pad_set_meas_time(150000 / 5, 0xffff);  // limit how quickly the light state cycles by setting the touch measurement to the slowest possible
-  touchAttachInterrupt(TOUCH_PIN, touchInterrupt, TOUCH_THRESHOULD);
+  touchAttachInterrupt(touchPin, touchInterrupt, TOUCH_THRESHOULD);
 }
 
 /*

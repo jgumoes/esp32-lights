@@ -20,6 +20,6 @@ bool get_Lights_State();
 
 void update_Lights();
 
-void setup_PWM();
+void setup_PWM(uint pwm0, uint pwm1);
 
 #endif

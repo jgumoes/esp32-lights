@@ -3,6 +3,6 @@
 
 void delayTouch();
 void touchInterrupt();
-void setupTouch();
+void setupTouch(uint touchPin);
 void print_Touch();
 #endif

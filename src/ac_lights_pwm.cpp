@@ -60,15 +60,15 @@ void update_Lights(){
       .duty_mode = MCPWM_DUTY_MODE_0,
       .counter_mode = MCPWM_UP_COUNTER
     };
-    delayMicroseconds(100); // the timers are definitely in sync, or else it it would show on the oscilloscope
     const esp_err_t init_timer_0 = mcpwm_init(MCPWM_UNIT_0, MCPWM_TIMER_0, &init_config_2);
     ESP_LOGV(TAG, "initialising mcpwm timer 0: %d", init_timer_0);
 
+    delayMicroseconds(100); // the timers are definitely not in sync, this delay shows up on the oscilloscope
     const mcpwm_config_t init_config_1 = {
       .frequency = PWM_FREQ,
       .cmpr_a = duty_cycle,
-      .duty_mode = MCPWM_DUTY_MODE_0,
-      .counter_mode = MCPWM_DOWN_COUNTER
+      .duty_mode = MCPWM_DUTY_MODE_1,
+      .counter_mode = MCPWM_UP_COUNTER
     };
     const esp_err_t init_timer_1 = mcpwm_init(MCPWM_UNIT_0, MCPWM_TIMER_1, &init_config_1);
     ESP_LOGV(TAG, "initialising mcpwm timer 1: %d", init_timer_1);
@@ -81,16 +81,16 @@ void update_Lights(){
   }
 }
 
-void setup_PWM(){
+void setup_PWM(uint pwm0, uint pwm1){
   
-  set_PWM_Duty(50);
+  set_PWM_Duty(100);
   const mcpwm_pin_config_t pin_config = {
-    .mcpwm0a_out_num = PWM_0,
-    .mcpwm1a_out_num = PWM_1,
+    .mcpwm0a_out_num = pwm0,
+    .mcpwm1a_out_num = pwm1,
   };
   const esp_err_t set_pin = mcpwm_set_pin(MCPWM_UNIT_0, &pin_config);
   ESP_LOGV(TAG, "setting pins: %d", set_pin);
 
-  // esp_err_t start = mcpwm_start(MCPWM_UNIT_0, MCPWM_TIMER_0);
-  // Serial.print("starting: "); Serial.println(esp_err_to_name(start));
+  esp_err_t start = mcpwm_start(MCPWM_UNIT_0, MCPWM_TIMER_0);
+  Serial.print("starting: "); Serial.println(esp_err_to_name(start));
 }
