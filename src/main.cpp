@@ -32,7 +32,7 @@ void loop() {
 // #endif
   // update_Lights();
 
-  Serial.print("lights state: "); Serial.println(get_Lights_State());
-  Serial.print("duty cycle: "); Serial.println(get_PWM_Duty());
+  // Serial.print("lights state: "); Serial.println(get_Lights_State());
+  // Serial.print("duty cycle: "); Serial.println(get_PWM_Duty());
   delay(200);
 }

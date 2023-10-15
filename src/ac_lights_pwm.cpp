@@ -7,6 +7,7 @@
 
 #include <Arduino.h>
 #include "driver/mcpwm.h"
+#include "driver/ledc.h"
 #include "defines.h"
 #include "ac_lights_pwm.h"
 
@@ -54,43 +55,52 @@ bool get_Lights_State(){
  */
 void update_Lights(){
   if(lights_on){
-    const mcpwm_config_t init_config_2 = {
-      .frequency = PWM_FREQ,
-      .cmpr_a = duty_cycle,
-      .duty_mode = MCPWM_DUTY_MODE_0,
-      .counter_mode = MCPWM_UP_COUNTER
-    };
-    const esp_err_t init_timer_0 = mcpwm_init(MCPWM_UNIT_0, MCPWM_TIMER_0, &init_config_2);
-    ESP_LOGV(TAG, "initialising mcpwm timer 0: %d", init_timer_0);
-
-    delayMicroseconds(100); // the timers are definitely not in sync, this delay shows up on the oscilloscope
-    const mcpwm_config_t init_config_1 = {
-      .frequency = PWM_FREQ,
-      .cmpr_a = duty_cycle,
-      .duty_mode = MCPWM_DUTY_MODE_1,
-      .counter_mode = MCPWM_UP_COUNTER
-    };
-    const esp_err_t init_timer_1 = mcpwm_init(MCPWM_UNIT_0, MCPWM_TIMER_1, &init_config_1);
-    ESP_LOGV(TAG, "initialising mcpwm timer 1: %d", init_timer_1);
+    
   }
   else{
-    const esp_err_t stop_timer_0 = mcpwm_stop(MCPWM_UNIT_0, MCPWM_TIMER_0);
-    ESP_LOGV(TAG, "stopping mcpwm timer 0: %d", stop_timer_0);
-    const esp_err_t stop_timer_1 = mcpwm_stop(MCPWM_UNIT_0, MCPWM_TIMER_1);
-    ESP_LOGV(TAG, "stopping mcpwm timer 1: %d", stop_timer_1);
+    
   }
 }
 
 void setup_PWM(uint pwm0, uint pwm1){
-  
-  set_PWM_Duty(100);
-  const mcpwm_pin_config_t pin_config = {
-    .mcpwm0a_out_num = pwm0,
-    .mcpwm1a_out_num = pwm1,
-  };
-  const esp_err_t set_pin = mcpwm_set_pin(MCPWM_UNIT_0, &pin_config);
-  ESP_LOGV(TAG, "setting pins: %d", set_pin);
 
-  esp_err_t start = mcpwm_start(MCPWM_UNIT_0, MCPWM_TIMER_0);
-  Serial.print("starting: "); Serial.println(esp_err_to_name(start));
+  ledc_timer_config_t timer_config_0 = {
+    .speed_mode = LEDC_LOW_SPEED_MODE,
+    .duty_resolution = LEDC_TIMER_8_BIT,
+    .timer_num = LEDC_TIMER_0,
+    .freq_hz = 1000,
+  };
+  esp_err_t timer_err = ledc_timer_config(&timer_config_0);
+  Serial.print("timer config: "); Serial.println(esp_err_to_name(timer_err));
+
+  ledc_channel_config_t channel_config_0 = {
+    .gpio_num = pwm0,
+    .speed_mode = LEDC_LOW_SPEED_MODE,
+    .channel = LEDC_CHANNEL_0,
+    .intr_type = LEDC_INTR_DISABLE,
+    .timer_sel = LEDC_TIMER_0,
+    .duty = 127,
+    .hpoint = 0,
+    .flags{
+      .output_invert = 0
+    }
+  };
+  esp_err_t channel_0_err= ledc_channel_config(&channel_config_0);
+  Serial.print("channel 0 config: "); Serial.println(esp_err_to_name(channel_0_err));
+
+  ledc_channel_config_t channel_config_1 = {
+    .gpio_num = pwm1,
+    .speed_mode = LEDC_LOW_SPEED_MODE,
+    .channel = LEDC_CHANNEL_0,
+    .intr_type = LEDC_INTR_DISABLE,
+    .timer_sel = LEDC_TIMER_0,
+    .duty = 127,
+    .hpoint = 0,
+    .flags{
+      .output_invert = 1
+    }
+  };
+  esp_err_t channel_1_err= ledc_channel_config(&channel_config_1);
+  Serial.print("channel 1 config: "); Serial.println(esp_err_to_name(channel_1_err));
+  
 }
