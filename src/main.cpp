@@ -16,9 +16,17 @@ void setup() {
   // setupTouch(TOUCH_PAD_NUM1);
 
 }
+uint led_brightness = 0;
+uint led_brightness_increment = 255/4;
+
+void cycle_led_brightness(){
+  led_brightness += led_brightness_increment;
+  led_brightness &= 255;
+  set_PWM_Duty(led_brightness);
+}
 
 void loop() {
-
+  cycle_led_brightness();
 // #ifdef DEVKIT
 //   uint pot_val = analogRead(15);
 //   // uint duty = map(pot_val, 0, 4095, 0, 50);
@@ -34,5 +42,5 @@ void loop() {
 
   // Serial.print("lights state: "); Serial.println(get_Lights_State());
   // Serial.print("duty cycle: "); Serial.println(get_PWM_Duty());
-  delay(200);
+  delay(800);
 }

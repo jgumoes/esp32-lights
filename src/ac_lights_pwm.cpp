@@ -6,12 +6,10 @@
  */
 
 #include <Arduino.h>
-#include "driver/mcpwm.h"
 #include "driver/ledc.h"
 #include "defines.h"
 #include "ac_lights_pwm.h"
 
-static const char* TAG = "ac_lights_pwm";
 
 bool lights_on = true;
 float duty_cycle = 50;
@@ -24,6 +22,11 @@ float duty_cycle = 50;
 void set_PWM_Duty(float duty){
   duty_cycle = duty / 2;
   update_Lights();
+  // ledc_set_duty_and_update(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, duty_cycle, 0);
+  ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, duty_cycle);
+  ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, 255 - duty_cycle);
+  ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0);
+  ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1);
 }
 
 float get_PWM_Duty(){
@@ -49,18 +52,6 @@ bool get_Lights_State(){
   return lights_on;
 }
 
-/*
- * Sets the physical PWM lights to lights_state.
- * Set the state first using [toggle_Lights_state()] of set_Lights_State
- */
-void update_Lights(){
-  if(lights_on){
-    
-  }
-  else{
-    
-  }
-}
 
 void setup_PWM(uint pwm0, uint pwm1){
 
@@ -91,7 +82,7 @@ void setup_PWM(uint pwm0, uint pwm1){
   ledc_channel_config_t channel_config_1 = {
     .gpio_num = pwm1,
     .speed_mode = LEDC_LOW_SPEED_MODE,
-    .channel = LEDC_CHANNEL_0,
+    .channel = LEDC_CHANNEL_1,
     .intr_type = LEDC_INTR_DISABLE,
     .timer_sel = LEDC_TIMER_0,
     .duty = 127,
