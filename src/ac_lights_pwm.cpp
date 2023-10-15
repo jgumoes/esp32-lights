@@ -10,27 +10,37 @@
 #include "defines.h"
 #include "ac_lights_pwm.h"
 
+#define SPEED_MODE LEDC_LOW_SPEED_MODE
+
 
 bool lights_on = true;
-float duty_cycle = 50;
+float powerLevel = 100;
+
+
+/*
+ * sets the pwm duty cycle by integer value 
+ */
+void setDutyCycle(uint duty_value){
+  // ledc_set_duty_and_update(SPEED_MODE, LEDC_CHANNEL_0, powerLevel, 0);
+  ledc_set_duty(SPEED_MODE, LEDC_CHANNEL_0, duty_value);
+  ledc_set_duty(SPEED_MODE, LEDC_CHANNEL_1, MAX_DUTY - duty_value + 1);
+  ledc_update_duty(SPEED_MODE, LEDC_CHANNEL_0);
+  ledc_update_duty(SPEED_MODE, LEDC_CHANNEL_1);
+}
 
 /*
  * Configures and starts two opposite pwms that can
  * be used create a modulated AC wave.
  * @param duty - duty cycle between 0.00% and 100.00%
  */
-void set_PWM_Duty(float duty){
-  duty_cycle = duty / 2;
-  update_Lights();
-  // ledc_set_duty_and_update(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, duty_cycle, 0);
-  ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, duty_cycle);
-  ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, 255 - duty_cycle);
-  ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0);
-  ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1);
+void setPowerLevel(float power){
+  powerLevel = power;
+  uint dutyCycle = MAX_DUTY * powerLevel/200;
+  setDutyCycle(dutyCycle);
 }
 
-float get_PWM_Duty(){
-  return duty_cycle;
+float getPowerLevel(){
+  return powerLevel;
 }
 
 /*
@@ -45,7 +55,16 @@ void toggle_Lights_State(){
  * Sets the lights state.
  */
 void set_Lights_State(bool state){
+  if(state == lights_on){
+    return;
+  }
   lights_on = state;
+  if(lights_on){
+    setPowerLevel(powerLevel);
+  }
+  else{
+    setDutyCycle(0);
+  }
 }
 
 bool get_Lights_State(){
@@ -56,7 +75,7 @@ bool get_Lights_State(){
 void setup_PWM(uint pwm0, uint pwm1){
 
   ledc_timer_config_t timer_config_0 = {
-    .speed_mode = LEDC_LOW_SPEED_MODE,
+    .speed_mode = SPEED_MODE,
     .duty_resolution = LEDC_TIMER_8_BIT,
     .timer_num = LEDC_TIMER_0,
     .freq_hz = 1000,
@@ -66,7 +85,7 @@ void setup_PWM(uint pwm0, uint pwm1){
 
   ledc_channel_config_t channel_config_0 = {
     .gpio_num = pwm0,
-    .speed_mode = LEDC_LOW_SPEED_MODE,
+    .speed_mode = SPEED_MODE,
     .channel = LEDC_CHANNEL_0,
     .intr_type = LEDC_INTR_DISABLE,
     .timer_sel = LEDC_TIMER_0,
@@ -81,7 +100,7 @@ void setup_PWM(uint pwm0, uint pwm1){
 
   ledc_channel_config_t channel_config_1 = {
     .gpio_num = pwm1,
-    .speed_mode = LEDC_LOW_SPEED_MODE,
+    .speed_mode = SPEED_MODE,
     .channel = LEDC_CHANNEL_1,
     .intr_type = LEDC_INTR_DISABLE,
     .timer_sel = LEDC_TIMER_0,

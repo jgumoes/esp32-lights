@@ -14,26 +14,26 @@ void setup() {
   setup_PWM(2, 3);
   
   // setupTouch(TOUCH_PAD_NUM1);
+  pinMode(D0, INPUT_PULLUP);
 
+  // setPowerLevel(100);
+  setDutyCycle(127);
 }
 uint led_brightness = 0;
-uint led_brightness_increment = 255/4;
+uint led_brightness_increment = 100/4;
 
 void cycle_led_brightness(){
-  led_brightness += led_brightness_increment;
-  led_brightness &= 255;
-  set_PWM_Duty(led_brightness);
+  led_brightness = (led_brightness + led_brightness_increment) % 101;
+  setPowerLevel(led_brightness);
+  Serial.print("led brightness:"); Serial.println(led_brightness);
 }
 
 void loop() {
-  cycle_led_brightness();
-// #ifdef DEVKIT
-//   uint pot_val = analogRead(15);
-//   // uint duty = map(pot_val, 0, 4095, 0, 50);
-//   float duty = 100. * pot_val / 4095;
-//   set_PWM_Duty(duty);
-//   // Serial.print("duty cycle: "); Serial.print(duty); Serial.println("%");
-// #endif
+  set_Lights_State(digitalRead(D0));
+
+  if(get_Lights_State()){
+    // cycle_led_brightness();
+  }
 
 // #ifdef PRINT_TOUCH
   // print_Touch();
@@ -41,6 +41,6 @@ void loop() {
   // update_Lights();
 
   // Serial.print("lights state: "); Serial.println(get_Lights_State());
-  // Serial.print("duty cycle: "); Serial.println(get_PWM_Duty());
+  // Serial.print("duty cycle: "); Serial.println(getPowerLevel());
   delay(800);
 }

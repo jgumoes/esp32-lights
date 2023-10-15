@@ -9,10 +9,11 @@
 #define __LIGHTS_PWM_H__
 
 #include <Arduino.h>
-#include "driver/mcpwm.h"
+#define MAX_DUTY 255
 
-void set_PWM_Duty(float);
-float get_PWM_Duty();
+void setPowerLevel(float);
+float getPowerLevel();
+void setDutyCycle(uint duty_value);
 
 void toggle_Lights_State();
 void set_Lights_State(bool);
