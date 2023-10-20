@@ -13,14 +13,14 @@
 #define SPEED_MODE LEDC_LOW_SPEED_MODE
 
 
-bool lights_on = true;
-float powerLevel = 100;
+volatile bool lights_on = true;
+volatile uint dutyCycle = MAX_DUTY / 2;
 
 
 /*
- * sets the pwm duty cycle by integer value 
+ * write the duty cycles, without changing dutyCycle
  */
-void setDutyCycle(uint duty_value){
+void _writeDutyCycle(uint duty_value){
   // ledc_set_duty_and_update(SPEED_MODE, LEDC_CHANNEL_0, powerLevel, 0);
   ledc_set_duty(SPEED_MODE, LEDC_CHANNEL_0, duty_value);
   ledc_set_duty(SPEED_MODE, LEDC_CHANNEL_1, MAX_DUTY - duty_value + 1);
@@ -29,17 +29,28 @@ void setDutyCycle(uint duty_value){
 }
 
 /*
+ * sets the pwm duty cycle by integer value 
+ */
+void setDutyCycle(uint duty_value){
+  dutyCycle = duty_value;
+  _writeDutyCycle(dutyCycle);
+}
+
+/*
  * Configures and starts two opposite pwms that can
  * be used create a modulated AC wave.
  * @param duty - duty cycle between 0.00% and 100.00%
  */
-void setPowerLevel(float power){
-  powerLevel = power;
-  uint dutyCycle = MAX_DUTY * powerLevel/200;
-  setDutyCycle(dutyCycle);
+void setPowerLevel(float powerLevel){
+  setDutyCycle(MAX_DUTY * powerLevel/200);
+}
+
+bool isLightsOn(){
+  return lights_on;
 }
 
 float getPowerLevel(){
+  float powerLevel = (dutyCycle * 200 / MAX_DUTY) ;
   return powerLevel;
 }
 
@@ -48,7 +59,7 @@ float getPowerLevel(){
  * i.e. if the lights are on, this sets them to off
  */
 void toggle_Lights_State(){
-  lights_on = !lights_on;
+  set_Lights_State(!lights_on);
 }
 
 /*
@@ -58,13 +69,15 @@ void set_Lights_State(bool state){
   if(state == lights_on){
     return;
   }
+  Serial.print("setting lights to: "); Serial.println(state);
   lights_on = state;
-  if(lights_on){
-    setPowerLevel(powerLevel);
-  }
-  else{
-    setDutyCycle(0);
-  }
+  _writeDutyCycle(lights_on * dutyCycle);
+  // if(lights_on){
+  //   setPowerLevel(powerLevel);
+  // }
+  // else{
+  //   setDutyCycle(0);
+  // }
 }
 
 bool get_Lights_State(){

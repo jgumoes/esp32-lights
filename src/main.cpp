@@ -10,14 +10,12 @@
 
 void setup() {
   Serial.begin(9600);
-  Serial.println("setting up MCPWM");
-  setup_PWM(2, 3);
+  Serial.println("setting up...");
+  setup_PWM(D1, D2);
   
-  // setupTouch(TOUCH_PAD_NUM1);
-  pinMode(D0, INPUT_PULLUP);
+  setupTouch(TOUCH_PAD_NUM7);
 
-  // setPowerLevel(100);
-  setDutyCycle(127);
+  setPowerLevel(100);
 }
 uint led_brightness = 0;
 uint led_brightness_increment = 100/4;
@@ -29,11 +27,12 @@ void cycle_led_brightness(){
 }
 
 void loop() {
-  set_Lights_State(digitalRead(D0));
-
-  if(get_Lights_State()){
-    // cycle_led_brightness();
-  }
+  // toggle_Lights_State();
+  Serial.print("power level: "); Serial.println(getPowerLevel());
+  Serial.print("lights state: "); Serial.println(isLightsOn());
+  // if(get_Lights_State()){
+  //   cycle_led_brightness();
+  // }
 
 // #ifdef PRINT_TOUCH
   // print_Touch();

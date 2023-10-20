@@ -7,7 +7,7 @@
 
   // defines for touch_switch
   #define TOUCH_PIN 1 // touch pad 4, gpio pin D0
-  #define TOUCH_THRESHOULD 50
+  #define TOUCH_THRESHOULD 50000
   #define TOUCH_DELAY 500 // minimum time between touch events, in milliseconds
 #endif
 

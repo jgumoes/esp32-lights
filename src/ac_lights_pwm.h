@@ -18,6 +18,7 @@ void setDutyCycle(uint duty_value);
 void toggle_Lights_State();
 void set_Lights_State(bool);
 bool get_Lights_State();
+bool isLightsOn();
 
 void update_Lights();
 
