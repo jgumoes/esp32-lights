@@ -1,0 +1,3 @@
+[submodule "lib/RTC_interface"]
+	path = lib/RTC_interface
+	url = https://github.com/jgumoes/RTC_interface

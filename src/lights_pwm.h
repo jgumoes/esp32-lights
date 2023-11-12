@@ -14,6 +14,7 @@
 void setPowerLevel(float);
 float getPowerLevel();
 void setDutyCycle(uint duty_value);
+uint getDutyCycle();
 
 void toggle_Lights_State();
 void set_Lights_State(bool);
@@ -22,6 +23,7 @@ bool isLightsOn();
 
 void update_Lights();
 
-void setup_PWM(uint pwm0, uint pwm1);
+void setup_PWM(uint pin, uint freq, uint initialDuty);
+void setup_symmetrical_PWM(uint pwm0, uint pwm1);
 
 #endif

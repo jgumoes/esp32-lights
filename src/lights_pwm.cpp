@@ -8,13 +8,19 @@
 #include <Arduino.h>
 #include "driver/ledc.h"
 #include "defines.h"
-#include "ac_lights_pwm.h"
+#include "lights_pwm.h"
 
 #define SPEED_MODE LEDC_LOW_SPEED_MODE
 
 
 volatile bool lights_on = true;
-volatile uint dutyCycle = MAX_DUTY / 2;
+#ifdef LIGHTS_PWM_SYMMETRICAL_OUTPUTS
+  volatile uint dutyCycle = AC_MAX_DUTY / 2;
+  #define LIGHTS_PWM_PERCENTAGE_DIVIDER 200
+#else
+  volatile uint dutyCycle = MAX_DUTY;
+  #define LIGHTS_PWM_PERCENTAGE_DIVIDER 100
+#endif
 
 
 /*
@@ -23,34 +29,55 @@ volatile uint dutyCycle = MAX_DUTY / 2;
 void _writeDutyCycle(uint duty_value){
   // ledc_set_duty_and_update(SPEED_MODE, LEDC_CHANNEL_0, powerLevel, 0);
   ledc_set_duty(SPEED_MODE, LEDC_CHANNEL_0, duty_value);
-  ledc_set_duty(SPEED_MODE, LEDC_CHANNEL_1, MAX_DUTY - duty_value + 1);
   ledc_update_duty(SPEED_MODE, LEDC_CHANNEL_0);
-  ledc_update_duty(SPEED_MODE, LEDC_CHANNEL_1);
+#ifdef LIGHTS_PWM_SYMMETRICAL_OUTPUTS
+  ledc_set_duty(AC_SPEED_MODE, LEDC_CHANNEL_1, AC_MAX_DUTY - duty_value + 1);
+  ledc_update_duty(AC_SPEED_MODE, LEDC_CHANNEL_1);
+#endif
 }
 
 /*
- * sets the pwm duty cycle by integer value 
+ * sets the pwm duty cycle by integer value between 0 and MAX_DUTY.
  */
-void setDutyCycle(uint duty_value){
-  dutyCycle = duty_value;
+void setDutyCycle(uint dutyValue){
+  if(dutyValue == 0){
+    lights_on = false;
+  }
+  else{
+    lights_on = true;
+  }
+  dutyCycle = dutyValue;
   _writeDutyCycle(dutyCycle);
 }
 
-/*
- * Configures and starts two opposite pwms that can
+/**
+ * @brief Get the raw Duty Cycle value
+ * 
+ * @return duty cycle
+ */
+uint getDutyCycle(){
+  return dutyCycle;
+}
+
+/**
+ * @brief and starts two opposite pwms that can
  * be used create a modulated AC wave.
+ * 
  * @param duty - duty cycle between 0.00% and 100.00%
  */
 void setPowerLevel(float powerLevel){
-  setDutyCycle(MAX_DUTY * powerLevel/200);
+  setDutyCycle((MAX_DUTY * powerLevel)/LIGHTS_PWM_PERCENTAGE_DIVIDER);
 }
 
+/**
+ * @brief Returns true if lights are on and duty cycle is over 0.
+ */
 bool isLightsOn(){
-  return lights_on;
+  return lights_on  && (dutyCycle > 0);
 }
 
 float getPowerLevel(){
-  float powerLevel = (dutyCycle * 200 / MAX_DUTY) ;
+  float powerLevel = ((dutyCycle * LIGHTS_PWM_PERCENTAGE_DIVIDER) / MAX_DUTY) ;
   return powerLevel;
 }
 
@@ -72,21 +99,66 @@ void set_Lights_State(bool state){
   Serial.print("setting lights to: "); Serial.println(state);
   lights_on = state;
   _writeDutyCycle(lights_on * dutyCycle);
-  // if(lights_on){
-  //   setPowerLevel(powerLevel);
-  // }
-  // else{
-  //   setDutyCycle(0);
-  // }
 }
 
 bool get_Lights_State(){
   return lights_on;
 }
 
+/**
+ * @brief Setup the single-channel PWM.
+ * 
+ * @param pin output pin
+ * @param freg frequency in hertz
+ */
+void setup_PWM(uint pin, uint freq){
+  setup_PWM(pin, freq, 0);
+}
 
-void setup_PWM(uint pwm0, uint pwm1){
+/**
+ * @brief Setup the single-channel PWM.
+ * 
+ * @param pin output pin
+ * @param freg frequency in hertz
+ * @param initialDuty the duty to turn on with from 0 to MAX_DUTY
+ */
+void setup_PWM(uint pin, uint freq, uint initialDuty){
+  if(initialDuty == 0){
+    lights_on = false;
+  }
 
+  ledc_timer_config_t timer_config_0 = {
+    .speed_mode = SPEED_MODE,
+    .duty_resolution = LEDC_TIMER_8_BIT,
+    .timer_num = LEDC_TIMER_0,
+    .freq_hz = freq,
+  };
+  esp_err_t timer_err = ledc_timer_config(&timer_config_0);
+  Serial.print("timer config: "); Serial.println(esp_err_to_name(timer_err));
+
+  ledc_channel_config_t channel_config_0 = {
+    .gpio_num = pin,
+    .speed_mode = SPEED_MODE,
+    .channel = LEDC_CHANNEL_0,
+    .intr_type = LEDC_INTR_DISABLE,
+    .timer_sel = LEDC_TIMER_0,
+    .duty = initialDuty,
+    .hpoint = 0,
+    .flags{
+      .output_invert = 0
+    }
+  };
+  esp_err_t channel_0_err= ledc_channel_config(&channel_config_0);
+  Serial.print("channel 0 config: "); Serial.println(esp_err_to_name(channel_0_err));
+}
+
+/**
+ * @brief Setup the symmetrical PWM. LIGHTS_PWM_SYMMETRICAL_OUTPUTS must be defined
+ * 
+ * @param pwm0 output pin 0
+ * @param pwm1 output pin 1
+ */
+void setup_symmetrical_PWM(uint pwm0, uint pwm1){
   ledc_timer_config_t timer_config_0 = {
     .speed_mode = SPEED_MODE,
     .duty_resolution = LEDC_TIMER_8_BIT,
@@ -125,5 +197,4 @@ void setup_PWM(uint pwm0, uint pwm1){
   };
   esp_err_t channel_1_err= ledc_channel_config(&channel_config_1);
   Serial.print("channel 1 config: "); Serial.println(esp_err_to_name(channel_1_err));
-  
 }

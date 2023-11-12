@@ -2,15 +2,19 @@
 #include "defines.h"
 #include "driver/touch_sensor.h"
 #include "touch_switch.h"
-#include "ac_lights_pwm.h"
+#include "lights_pwm.h"
 
 static touch_pad_t _touchPin = TOUCH_PAD_NUM1;
 
 void IRAM_ATTR touchInterrupt(){
+#if SOC_TOUCH_VERSION_1
+  toggle_Lights_State();
+#elif SOC_TOUCH_VERSION_2
   if(touchInterruptGetLastStatus(_touchPin)){
     Serial.println("toggling lights state");
     toggle_Lights_State();
   }
+#endif
 }
 
 /*
@@ -22,10 +26,17 @@ void setupTouch(touch_pad_t touchPin){
   Serial.println("setting up touchpad");
   _touchPin = touchPin;
   touch_pad_init();
-  touch_pad_config(touchPin);
-  
+
+#if SOC_TOUCH_VERSION_1
+  touch_pad_config(touchPin, 50000);
   touch_pad_set_meas_time(150000 / 5, 0xffff);  // limit how quickly the light state cycles by setting the touch measurement to the slowest possible
-  touch_pad_set_thresh(touchPin, 50000);
+  touchInterruptSetThresholdDirection(true);
+#elif SOC_TOUCH_VERSION_2
+  touch_pad_config(touchPin);
+  touch_pad_set_meas_time(150000 / 5, 0xffff);  // limit how quickly the light state cycles by setting the touch measurement to the slowest possible
+  touch_pad_set_thresh(touchPin, TOUCH_THRESHOULD);
+#endif
+  
   touchAttachInterrupt(touchPin, touchInterrupt, TOUCH_THRESHOULD);
 }
 
