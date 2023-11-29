@@ -1,0 +1,16 @@
+
+javascript helper functions:
+
+``` javascript
+const offset = 946684800
+
+function convertFromTimestamp(timestamp){
+    const resDate = new Date((timestamp + 946684800) * 1000)
+    return resDate
+}
+
+function convertToTimestamp(year, month, date, hours, minutes, seconds){
+    const resDate = new Date(year + 2000, month - 1, date, hours, minutes, seconds)
+    return (resDate.getTime() / 1000) - 946684800
+}
+```
