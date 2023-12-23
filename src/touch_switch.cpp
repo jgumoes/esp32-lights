@@ -44,6 +44,6 @@ void setupTouch(touch_pad_t touchPin){
  * Reads the touch value and prints it to serial
  */
 void print_Touch(){
-  uint touch_val = touchRead(_touchPin);
+  uint8_t touch_val = touchRead(_touchPin);
   Serial.print("touch value: "); Serial.println(touch_val);
 }
