@@ -39,27 +39,27 @@ duty_t _findBrightness_constRate(uint64_t currentTimestamp){
 duty_t (*_find_brightness_function)(uint64_t) = &_findBrightness_interpolation;
 WaveModes _currentWaveMode;
 
-void setLightsToConstRate(
-  float rate,
-  uint64_t currentTimestamp,
-  duty_t finalBrightness
-  ){
-  _initialTime = currentTimestamp;
-  _initialBrightness = getDutyCycleValue();
-  _slope = rate;
-  _find_brightness_function = _findBrightness_constRate;
-}
+// void setLightsToConstRate(
+//   float rate,
+//   uint64_t currentTimestamp,
+//   duty_t finalBrightness
+//   ){
+//   _initialTime = currentTimestamp;
+//   _initialBrightness = getDutyCycleValue();
+//   _slope = rate;
+//   _find_brightness_function = _findBrightness_constRate;
+// }
 
 duty_t findBrightness(uint64_t currentTimestamp){
   return _find_brightness_function(currentTimestamp);
 }
 
-duty_t updateBrightness(uint64_t currentTimestamp){
-  duty_t brightness = _find_brightness_function(currentTimestamp);
-  _previousBrightness = brightness;
-  _previousTimestamp = currentTimestamp;
-  return brightness;
-}
+// duty_t updateBrightness(uint64_t currentTimestamp){
+//   duty_t brightness = _find_brightness_function(currentTimestamp);
+//   _previousBrightness = brightness;
+//   _previousTimestamp = currentTimestamp;
+//   return brightness;
+// }
 
 /**
  * @brief Set the Lights Mode. Used for non-repeating non-wave modes.
@@ -71,41 +71,41 @@ duty_t updateBrightness(uint64_t currentTimestamp){
  * @param initialBrightness 
  * @param endBrightness 
  */
-void setLightsMode(
-  LightModes lightMode,
-  uint64_t initialTime,
-  uint64_t currentTime,
-  uint64_t endTime,
-  duty_t initialBrightness,
-  duty_t endBrightness
-  ) {
-  _initialTime = initialTime;
-  _initialBrightness = initialBrightness;
-  _previousBrightness = initialBrightness;
-  _endTime = endTime;
-  _endBrightness = endBrightness;
+// void setLightsMode(
+//   LightModes lightMode,
+//   uint64_t initialTime,
+//   uint64_t currentTime,
+//   uint64_t endTime,
+//   duty_t initialBrightness,
+//   duty_t endBrightness
+//   ) {
+//   _initialTime = initialTime;
+//   _initialBrightness = initialBrightness;
+//   _previousBrightness = initialBrightness;
+//   _endTime = endTime;
+//   _endBrightness = endBrightness;
 
-  switch (lightMode)
-  {
-  case constantBrightness:
-    _find_brightness_function = _findBrightness_constantBrightness;
-    break;
-  case interpolation:
-    if(endBrightness > initialBrightness){
-      _initialDirection = 1;
-    }
-    else {
-      _initialDirection = -1;
-    }
-      _find_brightness_function = _findBrightness_interpolation;
-    break;
-  case constRate:
-      _timeDiff = endTime - initialTime;
-      setLightsToConstRate((_initialBrightness - endBrightness) / _timeDiff, currentTime, endBrightness);
-    break;
+//   switch (lightMode)
+//   {
+//   case constantBrightness:
+//     _find_brightness_function = _findBrightness_constantBrightness;
+//     break;
+//   case interpolation:
+//     if(endBrightness > initialBrightness){
+//       _initialDirection = 1;
+//     }
+//     else {
+//       _initialDirection = -1;
+//     }
+//       _find_brightness_function = _findBrightness_interpolation;
+//     break;
+//   case constRate:
+//       _timeDiff = endTime - initialTime;
+//       setLightsToConstRate((_initialBrightness - endBrightness) / _timeDiff, currentTime, endBrightness);
+//     break;
   
-  default:
-    _find_brightness_function = _findBrightness_interpolation;
-    break;
-  }
-}
+//   default:
+//     _find_brightness_function = _findBrightness_interpolation;
+//     break;
+//   }
+// }

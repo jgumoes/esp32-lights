@@ -10,4 +10,4 @@ void setTimestamp_uS(uint64_t startTime);
 void setTimestamp(uint64_t timeNow);
 void getTimestamp_uS(uint64_t& time);
 
-#endif _TIMESTAMP_H_
+#endif

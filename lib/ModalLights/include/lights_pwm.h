@@ -17,7 +17,7 @@
 #if LED_LIGHTS_DUTY_BITs <= 8
   #define LED_LIGHTS_MAX_DUTY 255
   #define duty_t uint8_t
-#elif LED_LIGHTS_DUTY_BITs <= 12
+#elif LED_LIGHTS_DUTY_BITs <= 10
   #define LED_LIGHTS_MAX_DUTY 1023
   typedef uint16_t duty_t;
 #else
@@ -38,5 +38,24 @@ bool areLightsOn();
 
 void setup_PWM(uint8_t pin, uint8_t freq, duty_t initialDuty);
 void setup_symmetrical_PWM(uint8_t pwm0, uint8_t pwm1);
+
+/**
+ * deals with the actual hardware brightness.
+ * 
+ * note: multiple instances could be created for multi-dimensional lights i.e. NeoPixels
+ *        - they could report to the same class, that only sends the values once all
+ *          dimensions are found. good for serial-addressed lights
+*/
+class LED_HAL
+{
+private:
+  /* data */
+public:
+  LED_HAL(/* args */);
+
+  virtual void setDutyCycle(duty_t duty_value);
+  
+  // virtual duty_t getDutyCycleValue();
+};
 
 #endif
