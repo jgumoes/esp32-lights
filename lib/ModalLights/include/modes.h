@@ -3,75 +3,43 @@
 #include <stdint.h>
 #include "lights_pwm.h"
 
-// namespace ModalLights {
-enum LightModes {
-  constantBrightness, // no time-based adjustments. brightness and state are managed by user interface only
-  interpolation, // interpolation that always takes the same time
-  constRate, // interpolation that occurs at a constant rate i.e. B = m*t + B0
-  triangle,
-  sine
+struct LightStateStruct {
+  duty_t dutyLevel = 0;   // the duty cycle of the lights. can have a value even when off
+  bool state = 0;         // i.e. on or off
+
+  /**
+   * @brief returns the brightness of the lights
+  */
+  duty_t brightness(){
+    return dutyLevel * state;
+  };
 };
-
-enum WaveModes {
-  WaveMode_none,
-  WaveMode_wave, // wave with constant f (default)
-  WaveMode_chirp // wave with increasing or decreasing chirp
-};
-
-void setLightsMode(
-  LightModes lightMode,
-  uint64_t initialTime,
-  uint64_t currentTime,
-  uint64_t endTime,
-  duty_t initialBrightness,
-  duty_t endBrightness
-);
-
-/**
- * @brief finds the correct brightness for the given timestamp.
- * should be called by updateBrightness
- * 
- * @param currentTimestamp the current timestamp in microseconds
- * @return duty_t the PWM duty
- */
-// duty_t findBrightness(uint64_t currentTimestamp);
-
-/**
- * @brief updates the brightness. should be called from the main loop or RTOS
- * TODO: move to library header
- * 
- * @param currentTimestamp 
- * @return duty_t the new brightness
- */
-// duty_t updateBrightness(uint64_t currentTimestamp);
-
-/*
- * call when the brightness is manually adjusted
- */
-// void setBrightness(duty_t brightness);
-// }
 
 class ModalStrategy
 {
 public:
-  virtual ~ModalStrategy() = default;
+  // virtual ~ModalStrategy();
 
   /**
-   * @brief calculates and returns a new brightness value based
+   * @brief calculates and updates the light values based
    * on the current timestamp
    * 
    * @param currentTimestamp the current timestamp in microseconds
-   * @returns the new brightness value
   */
-  virtual duty_t updateBrightness(uint64_t currentTimestamp) = 0;
+  virtual void updateBrightness(uint64_t currentTimestamp, LightStateStruct* lightVals){};
 
   /**
-   * @brief re-adjusts the strategy params, and returns the correct 
-   * brightness (i.e. if the brightness is being set above a maximum)
+   * @brief re-adjusts the strategy params, and updates lightVals with
+   * correct values accordingly
+   * (i.e. if the brightness is being set above a maximum)
   */
-  virtual duty_t setBrightness(duty_t brightness) = 0;
+  virtual void checkLightVals(LightStateStruct* lightVals){};
+
 };
 
+#ifndef CONSTANT_BRIGHTNESS_MINIMUM
+  #define CONSTANT_BRIGHTNESS_MINIMUM (LED_LIGHTS_MAX_DUTY * 0.05)
+#endif
 class ConstantBrightnessMode : public ModalStrategy
 {
 private:
@@ -80,14 +48,19 @@ private:
 public:
   ConstantBrightnessMode(duty_t brightness) : _maxBrightness(brightness){};
 
-  // set the brightness of the lights
-  duty_t setBrightness(duty_t brightness){
-    return brightness <= _maxBrightness ? brightness : _maxBrightness;
+  void checkLightVals(LightStateStruct* lightVals) override {
+    // state shouldn't effect it
+    if(lightVals->dutyLevel > _maxBrightness){
+      lightVals->dutyLevel = _maxBrightness;
+    }
+
+    if(lightVals->state && lightVals->dutyLevel == 0){
+      lightVals->dutyLevel = CONSTANT_BRIGHTNESS_MINIMUM;
+    }
   }
-  
-  // find and set the next brightness
-  duty_t updateBrightness(uint64_t currentTimestamp) {
-    return getDutyLevel();
+
+  void updateBrightness(uint64_t currentTimestamp, LightStateStruct* lightVals) override {
+    return;
   }
 };
 
