@@ -3,6 +3,7 @@
 
 #include <memory>
 #include "modes.h"
+#include "lightDefines.h"
 
 /**
  * LightsClass must have method setDutyCycle(duty_t)
@@ -13,10 +14,6 @@ class ModalLightsController
 private:
   /* data */
   std::unique_ptr<ModalStrategy> _mode = std::make_unique<ConstantBrightnessMode>(0);
-//   std::unique_ptr<LED_HAL> _lights;
-// LED_HAL& _lights;
-// void setDutyCycle(duty_t duty_value)
-   // std::function<void(duty_t)> _dutyCycleSetter;
 
    LightsClass _lights;
 
@@ -24,8 +21,6 @@ private:
   LightStateStruct _lightVals;  // duty cycle & state of the lights. gets checked and possibly changed by strategy instance
 
 public:
-//   ModalLightsController(LED_HAL& lightsHAL) : _lights(lightsHAL){};
-//   ModalLightsController();
 
   /**
    * @brief sets the mode to Constant Brightness

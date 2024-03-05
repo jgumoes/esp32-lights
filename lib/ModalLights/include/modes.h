@@ -1,19 +1,7 @@
 #ifndef _LIGHT_MODES_H_
 #define _LIGHT_MODES_H_
 #include <stdint.h>
-#include "lights_pwm.h"
-
-struct LightStateStruct {
-  duty_t dutyLevel = 0;   // the duty cycle of the lights. can have a value even when off
-  bool state = 0;         // i.e. on or off
-
-  /**
-   * @brief returns the brightness of the lights
-  */
-  duty_t brightness(){
-    return dutyLevel * state;
-  };
-};
+#include "lightDefines.h"
 
 class ModalStrategy
 {
