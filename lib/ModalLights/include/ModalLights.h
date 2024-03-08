@@ -29,12 +29,11 @@ public:
   */
   void setConstantBrightnessMode(duty_t maxBrightness){
     _mode = std::make_unique<ConstantBrightnessMode>(maxBrightness);
-   // _mode = std::move(std::make_unique<ConstantBrightnessMode>(maxBrightness));
   };
 
   void updateLights(uint64_t currentTimestamp){
     _mode->updateBrightness(currentTimestamp, &_lightVals);
-    _lights.setDutyCycle(_lightVals.brightness());
+    _lights.setDutyCycle(_lightVals.getBrightness());
   };
   
   /**
@@ -42,22 +41,36 @@ public:
    * then sets the returned brightness
   */
   void setBrightnessLevel(duty_t brightness){
-    _lightVals.dutyLevel = brightness;
-    if(brightness > 0){
-      _lightVals.state = 1;
-    }
+    _lightVals.setBrightness(brightness);
     _mode->checkLightVals(&_lightVals);
-    _lights.setDutyCycle(_lightVals.brightness());
+    _lights.setDutyCycle(_lightVals.getBrightness());
   };
 
   duty_t getBrightnessLevel(){
-    return _lightVals.brightness();
+    return _lightVals.getBrightness();
   };
 
   void setState(bool newState){
     _lightVals.state = newState;
     _mode->checkLightVals(&_lightVals);
-    _lights.setDutyCycle(_lightVals.brightness());
+    _lights.setDutyCycle(_lightVals.getBrightness());
+  }
+
+  void adjustBrightness(duty_t amount, bool direction){
+    // check the adjustment won't do anything weird
+    duty_t newBrightness;
+    const duty_t currentBrightness = _lightVals.getBrightness();
+    if(direction){
+      newBrightness = (LED_LIGHTS_MAX_DUTY - currentBrightness < amount) ?
+        LED_LIGHTS_MAX_DUTY : currentBrightness + amount;
+    }
+    else{
+      newBrightness = (currentBrightness < amount) ? 0 : currentBrightness - amount;
+    }
+
+    _lightVals.setBrightness(newBrightness);
+    _mode->checkLightVals(&_lightVals);
+    _lights.setDutyCycle(_lightVals.getBrightness());
   }
 };
 
