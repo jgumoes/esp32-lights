@@ -3,7 +3,7 @@
 
 duty_t mockHardwareDutyCycle = 0;
 
-class TestLEDClass
+class TestLEDClass : public VirtualLightsClass
 {
 public:
 
@@ -29,11 +29,9 @@ void initialisation(void){
   // i.e. what happens to the brightness when the mode changes
   const duty_t testBrightness = 200;
   const uint64_t endTime = 1000000000;  
-
-  TestLEDClass ledSpy;
   
   { // should initialise with the previous brightness
-    ModalLightsController<TestLEDClass> testController;
+    ModalLightsController testController(std::make_unique<TestLEDClass>());
     testController.setConstantBrightnessMode(LED_LIGHTS_MAX_DUTY);
     testController.setBrightnessLevel(testBrightness);
     testController.setConstantBrightnessMode(LED_LIGHTS_MAX_DUTY);
@@ -42,7 +40,7 @@ void initialisation(void){
   }
 
   { // brightness should decrease to the max when the initial brightness is too high
-    ModalLightsController<TestLEDClass> testController;
+    ModalLightsController testController(std::make_unique<TestLEDClass>());
     testController.setConstantBrightnessMode(150);
     testController.setBrightnessLevel(testBrightness);
     TEST_ASSERT_EQUAL(150, testController.getBrightnessLevel());
@@ -60,7 +58,7 @@ void updateLights_suite(void){
   const uint64_t endTime = 1000000000;
 
   { // start of time
-    ModalLightsController<TestLEDClass> testController;
+    ModalLightsController testController(std::make_unique<TestLEDClass>());
     testController.setConstantBrightnessMode(LED_LIGHTS_MAX_DUTY);
     testController.setBrightnessLevel(testBrightness);
     testController.updateLights(0);
@@ -69,7 +67,7 @@ void updateLights_suite(void){
   }
 
   { // middle of time
-    ModalLightsController<TestLEDClass> testController;
+    ModalLightsController testController(std::make_unique<TestLEDClass>());
     testController.setConstantBrightnessMode(LED_LIGHTS_MAX_DUTY);
     testController.setBrightnessLevel(testBrightness);
     testController.updateLights(endTime/2);
@@ -78,7 +76,7 @@ void updateLights_suite(void){
   }
 
   { // end of time
-    ModalLightsController<TestLEDClass> testController;
+    ModalLightsController testController(std::make_unique<TestLEDClass>());
     testController.setConstantBrightnessMode(LED_LIGHTS_MAX_DUTY);
     testController.setBrightnessLevel(testBrightness);
     testController.updateLights(endTime);
@@ -87,7 +85,7 @@ void updateLights_suite(void){
   }
 
   { // after end of time
-    ModalLightsController<TestLEDClass> testController;
+    ModalLightsController testController(std::make_unique<TestLEDClass>());
     testController.setConstantBrightnessMode(LED_LIGHTS_MAX_DUTY);
     testController.setBrightnessLevel(testBrightness);
     testController.updateLights(endTime + 100);
@@ -100,7 +98,7 @@ void setBrightness_suite(void){
   const duty_t testBrightness = 200;
 
   { // brightness can be set
-    ModalLightsController<TestLEDClass> testController;
+    ModalLightsController testController(std::make_unique<TestLEDClass>());
     testController.setConstantBrightnessMode(LED_LIGHTS_MAX_DUTY);
     testController.setBrightnessLevel(5);
     testController.setBrightnessLevel(testBrightness);
@@ -109,7 +107,7 @@ void setBrightness_suite(void){
   }
 
   { // brightness can't exceed max
-    ModalLightsController<TestLEDClass> testController;
+    ModalLightsController testController(std::make_unique<TestLEDClass>());
     testController.setConstantBrightnessMode(150);
     testController.setBrightnessLevel(200);
     TEST_ASSERT_EQUAL(150, testController.getBrightnessLevel());
@@ -117,7 +115,7 @@ void setBrightness_suite(void){
   }
 
   { // brightness can be set below min
-    ModalLightsController<TestLEDClass> testController;
+    ModalLightsController testController(std::make_unique<TestLEDClass>());
     testController.setConstantBrightnessMode(150);
     testController.setBrightnessLevel(1);
     TEST_ASSERT_EQUAL(1, testController.getBrightnessLevel());
@@ -125,7 +123,7 @@ void setBrightness_suite(void){
   }
 
   { // setting brightness above 0 when lights are at 0, turns the lights on
-    ModalLightsController<TestLEDClass> testController;
+    ModalLightsController testController(std::make_unique<TestLEDClass>());
     testController.setConstantBrightnessMode(150);
     testController.setBrightnessLevel(0);
     testController.setBrightnessLevel(200);
@@ -134,7 +132,7 @@ void setBrightness_suite(void){
   }
 
   { // setting brightness above 0 when lights are off, turns the lights on
-    ModalLightsController<TestLEDClass> testController;
+    ModalLightsController testController(std::make_unique<TestLEDClass>());
     testController.setConstantBrightnessMode(255);
     testController.setState(0);
     testController.setBrightnessLevel(200);
@@ -147,7 +145,7 @@ void switchingState_suite(void){
 
   {
     // switching brightness off sets duty to 0
-    ModalLightsController<TestLEDClass> testController;
+    ModalLightsController testController(std::make_unique<TestLEDClass>());
     testController.setConstantBrightnessMode(200);
     testController.setBrightnessLevel(150);
     testController.setState(0);
@@ -157,7 +155,7 @@ void switchingState_suite(void){
 
   {
     // switching off then on returns brightness to previous value
-    ModalLightsController<TestLEDClass> testController;
+    ModalLightsController testController(std::make_unique<TestLEDClass>());
     testController.setConstantBrightnessMode(200);
     testController.setBrightnessLevel(150);
     testController.setState(0);
@@ -168,7 +166,7 @@ void switchingState_suite(void){
 
   {
     // setting brightness to 0 then switching on sets brightness to a default min
-    ModalLightsController<TestLEDClass> testController;
+    ModalLightsController testController(std::make_unique<TestLEDClass>());
     testController.setConstantBrightnessMode(200);
     testController.setBrightnessLevel(0);
     testController.setState(1);
@@ -180,7 +178,7 @@ void switchingState_suite(void){
 void brightnessAdjust(){
 
   { // brightness can be adjusted upwards
-    ModalLightsController<TestLEDClass> testController;
+    ModalLightsController testController(std::make_unique<TestLEDClass>());
     testController.setConstantBrightnessMode(200);
     testController.setBrightnessLevel(100);
     testController.adjustBrightness(10, 1);
@@ -189,7 +187,7 @@ void brightnessAdjust(){
   }
 
   { //brightness can be adjusted downwards
-    ModalLightsController<TestLEDClass> testController;
+    ModalLightsController testController(std::make_unique<TestLEDClass>());
     testController.setConstantBrightnessMode(200);
     testController.setBrightnessLevel(100);
     testController.adjustBrightness(10, 0);
@@ -198,7 +196,7 @@ void brightnessAdjust(){
   }
 
   { // brightness can't go above the modal maximum
-    ModalLightsController<TestLEDClass> testController;
+    ModalLightsController testController(std::make_unique<TestLEDClass>());
     testController.setConstantBrightnessMode(200);
     testController.setBrightnessLevel(190);
     testController.adjustBrightness(20, 1);
@@ -207,7 +205,7 @@ void brightnessAdjust(){
   }
 
   { // brightness can't go above the hardware maximum
-    ModalLightsController<TestLEDClass> testController;
+    ModalLightsController testController(std::make_unique<TestLEDClass>());
     testController.setConstantBrightnessMode(LED_LIGHTS_MAX_DUTY);
     testController.setBrightnessLevel(100);
     testController.adjustBrightness(200, 1);
@@ -220,7 +218,7 @@ void brightnessAdjust(){
   }
 
   { // brightness can't go below the hardware minimum
-    ModalLightsController<TestLEDClass> testController;
+    ModalLightsController testController(std::make_unique<TestLEDClass>());
     testController.setConstantBrightnessMode(LED_LIGHTS_MAX_DUTY);
     testController.setBrightnessLevel(100);
     testController.adjustBrightness(200, 0);

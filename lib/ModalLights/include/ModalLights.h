@@ -5,23 +5,32 @@
 #include "modes.h"
 #include "lightDefines.h"
 
+class VirtualLightsClass{
+  public:
+  virtual ~VirtualLightsClass() = default;
+  virtual void setDutyCycle(duty_t duty) = 0;
+};
+
 /**
  * LightsClass must have method setDutyCycle(duty_t)
 */
-template <class LightsClass>
 class ModalLightsController
 {
 private:
   /* data */
   std::unique_ptr<ModalStrategy> _mode = std::make_unique<ConstantBrightnessMode>(0);
 
-   LightsClass _lights;
+   std::unique_ptr<VirtualLightsClass> _lights;
 
+  // std::unique_ptr<LightsInterfaceClass> _lights;
+  // std::unique_ptr<BrightnessStrategy> _mode = std::make_unique<ConstantBrightnessMode>(0);
+  // std::unique_ptr<ColourStrategy> _mode = std::make_unique<SingleChannel>(0);
 
   LightStateStruct _lightVals;  // duty cycle & state of the lights. gets checked and possibly changed by strategy instance
 
 public:
 
+  ModalLightsController(std::unique_ptr<VirtualLightsClass> lightsClass) : _lights(std::move(lightsClass)){}
   /**
    * @brief sets the mode to Constant Brightness
    * 
@@ -33,7 +42,8 @@ public:
 
   void updateLights(uint64_t currentTimestamp){
     _mode->updateBrightness(currentTimestamp, &_lightVals);
-    _lights.setDutyCycle(_lightVals.getBrightness());
+    // TODO: pass lightVals to colour mode
+    _lights->setDutyCycle(_lightVals.getBrightness());
   };
   
   /**
@@ -43,17 +53,25 @@ public:
   void setBrightnessLevel(duty_t brightness){
     _lightVals.setBrightness(brightness);
     _mode->checkLightVals(&_lightVals);
-    _lights.setDutyCycle(_lightVals.getBrightness());
+    _lights->setDutyCycle(_lightVals.getBrightness());
   };
 
   duty_t getBrightnessLevel(){
     return _lightVals.getBrightness();
   };
 
+  bool getState(){
+    return _lightVals.state;
+  }
+  
   void setState(bool newState){
     _lightVals.state = newState;
     _mode->checkLightVals(&_lightVals);
-    _lights.setDutyCycle(_lightVals.getBrightness());
+    _lights->setDutyCycle(_lightVals.getBrightness());
+  }
+
+  void toggleState(){
+    setState(!_lightVals.state);
   }
 
   void adjustBrightness(duty_t amount, bool direction){
@@ -70,7 +88,7 @@ public:
 
     _lightVals.setBrightness(newBrightness);
     _mode->checkLightVals(&_lightVals);
-    _lights.setDutyCycle(_lightVals.getBrightness());
+    _lights->setDutyCycle(_lightVals.getBrightness());
   }
 };
 

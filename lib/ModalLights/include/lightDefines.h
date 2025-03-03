@@ -14,6 +14,8 @@
 
 #include <stdint.h>
 
+typedef uint8_t modeUUID;
+
 #ifndef LED_LIGHTS_DUTY_BITs
   #define LED_LIGHTS_DUTY_BITs 12
 #endif

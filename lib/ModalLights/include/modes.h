@@ -6,7 +6,6 @@
 class ModalStrategy
 {
 public:
-  // virtual ~ModalStrategy();
 
   /**
    * @brief calculates and updates the light values based
@@ -32,6 +31,7 @@ class ConstantBrightnessMode : public ModalStrategy
 {
 private:
   duty_t _maxBrightness;
+  time_t _brightnessAdjRate = 2000000;  // how long adjust brightness from 0 to max, in microseconds
 
 public:
   ConstantBrightnessMode(duty_t brightness) : _maxBrightness(brightness){};
