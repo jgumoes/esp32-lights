@@ -57,21 +57,21 @@ class DeviceTimeClass{
      * 
      * @return uint64_t timestamp in seconds
      */
-    uint64_t getSeconds();
+    uint64_t getTimestampSeconds();
 
     /**
      * @brief gets the local timestamp in microseconds
      * 
      * @return uint64_t timestamp in microseconds
      */
-    uint64_t getMicros();
+    uint64_t getTimestampMicros();
 
     /**
      * @brief gets the local timestamp in milliseconds
      * 
      * @return uint64_t timestamp in milliseconds
      */
-    uint64_t getMillis();
+    uint64_t getTimestampMillis();
 
     /**
      * @brief gets the current day of the week from 1-7 where 1 is Monday
@@ -155,17 +155,17 @@ class DeviceTimeClass{
 template<typename WireClassDependancy>
 uint64_t DeviceTimeClass<WireClassDependancy>::getUTCTimestamp(){
   RTCConfigsStruct configVals = _configManager->getRTCConfigs();
-  return getSeconds() - configVals.DST - configVals.timezone;
+  return getTimestampSeconds() - configVals.DST - configVals.timezone;
 }
 
 template<typename WireClassDependancy>
-uint64_t DeviceTimeClass<WireClassDependancy>::getSeconds(){
-  uint64_t time = getMicros();
+uint64_t DeviceTimeClass<WireClassDependancy>::getTimestampSeconds(){
+  uint64_t time = getTimestampMicros();
   return (time / 1000000) + (time % 1000000 >= 500000);
 }
 
 template<typename WireClassDependancy>
-uint64_t DeviceTimeClass<WireClassDependancy>::getMicros(){
+uint64_t DeviceTimeClass<WireClassDependancy>::getTimestampMicros(){
   uint64_t time_uS = _onboardTimestamp->getTimestamp_uS();
   if(time_uS > _timeofLastSync + _maxTimeBetweenSyncs || time_uS == 0){
     time_uS = _rtcChip.getLocalTimestamp() * 1000000;
@@ -176,43 +176,43 @@ uint64_t DeviceTimeClass<WireClassDependancy>::getMicros(){
 }
 
 template<typename WireClassDependancy>
-uint64_t DeviceTimeClass<WireClassDependancy>::getMillis(){
-  uint64_t time = getMicros();
+uint64_t DeviceTimeClass<WireClassDependancy>::getTimestampMillis(){
+  uint64_t time = getTimestampMicros();
   return (time / 1000) + (time % 1000 >= 500);
 }
 
 template<typename WireClassDependancy>
 uint8_t DeviceTimeClass<WireClassDependancy>::getDay(){
   DateTimeStruct dt;
-  convertFromLocalTimestamp(getSeconds(), &dt);
+  convertFromLocalTimestamp(getTimestampSeconds(), &dt);
   return dt.dayOfWeek;
 }
 
 template<typename WireClassDependancy>
 uint8_t DeviceTimeClass<WireClassDependancy>::getMonth(){
   DateTimeStruct dt;
-  convertFromLocalTimestamp(getSeconds(), &dt);
+  convertFromLocalTimestamp(getTimestampSeconds(), &dt);
   return dt.month;
 }
 
 template<typename WireClassDependancy>
 uint8_t DeviceTimeClass<WireClassDependancy>::getYear(){
   DateTimeStruct dt;
-  convertFromLocalTimestamp(getSeconds(), &dt);
+  convertFromLocalTimestamp(getTimestampSeconds(), &dt);
   return dt.years;
 }
 
 template<typename WireClassDependancy>
 uint8_t DeviceTimeClass<WireClassDependancy>::getDate(){
   DateTimeStruct dt;
-  convertFromLocalTimestamp(getSeconds(), &dt);
+  convertFromLocalTimestamp(getTimestampSeconds(), &dt);
   return dt.date;
 }
 
 template<typename WireClassDependancy>
 uint64_t DeviceTimeClass<WireClassDependancy>::getStartOfDay(){
   DateTimeStruct dt;
-  convertFromLocalTimestamp(getSeconds(), &dt);
+  convertFromLocalTimestamp(getTimestampSeconds(), &dt);
   dt.hours = 0;
   dt.minutes = 0;
   dt.seconds = 0;
@@ -222,9 +222,8 @@ uint64_t DeviceTimeClass<WireClassDependancy>::getStartOfDay(){
 template<typename WireClassDependancy>
 uint64_t DeviceTimeClass<WireClassDependancy>::getTimeInDay(){
   uint64_t startOfDay = getStartOfDay();
-  uint64_t timeInDay = getMicros() - startOfDay;
-  uint64_t uSecondsInDay = 24*60*60;
-  uSecondsInDay *= 1000000;
+  uint64_t timeInDay = getTimestampMicros() - startOfDay;
+  uint64_t uSecondsInDay = (uint64_t)1000000*24*60*60 -1;
   if(timeInDay > uSecondsInDay){
     // if midnight occurs during function call, call it again
     return getTimeInDay();

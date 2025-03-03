@@ -34,7 +34,7 @@ DeviceTimeClass<MockWire> deviceTimeFactory(TestParamsStruct initTimeParams = te
 
 template <typename WireDependancy>
 void testLocalGetters_helper(TestParamsStruct& testParams, DeviceTimeClass<WireDependancy>& deviceTime){
-  TEST_ASSERT_EQUAL_MESSAGE(testParams.localTimestamp, deviceTime.getSeconds(), testParams.testName.c_str());
+  TEST_ASSERT_EQUAL_MESSAGE(testParams.localTimestamp, deviceTime.getTimestampSeconds(), testParams.testName.c_str());
   TEST_ASSERT_EQUAL_MESSAGE(testParams.dayOfWeek, deviceTime.getDay(), testParams.testName.c_str());
   TEST_ASSERT_EQUAL_MESSAGE(testParams.month, deviceTime.getMonth(), testParams.testName.c_str());
   TEST_ASSERT_EQUAL_MESSAGE(testParams.years, deviceTime.getYear(), testParams.testName.c_str());
@@ -51,7 +51,7 @@ void tearDown(void) {
     // clean stuff up here
 }
 
-// i.e. test getMillis() and getMicros()
+// i.e. test getTimestampMillis() and getTimestampMicros()
 void getTimestampRounding(void){
   // setup
   OnboardTimestamp testingTimer;
@@ -61,25 +61,25 @@ void getTimestampRounding(void){
 
   // gets correct time when initiated
   {
-    uint64_t actualSeconds = deviceTime.getSeconds();
+    uint64_t actualSeconds = deviceTime.getTimestampSeconds();
     TEST_ASSERT_EQUAL_MESSAGE(time1.localTimestamp, actualSeconds, time1.testName.c_str());
-    TEST_ASSERT_EQUAL_MESSAGE(time1.localTimestamp * 1000, deviceTime.getMillis(), time1.testName.c_str());
-    TEST_ASSERT_EQUAL_MESSAGE(time1.localTimestamp * 1000000, deviceTime.getMicros(), time1.testName.c_str());
+    TEST_ASSERT_EQUAL_MESSAGE(time1.localTimestamp * 1000, deviceTime.getTimestampMillis(), time1.testName.c_str());
+    TEST_ASSERT_EQUAL_MESSAGE(time1.localTimestamp * 1000000, deviceTime.getTimestampMicros(), time1.testName.c_str());
   }
 
   // rounds timestamp properly
   {
     uint64_t timestamp2 = time1.localTimestamp * 1000000 + 513296;
     testingTimer.setTimestamp_uS(timestamp2);
-    TEST_ASSERT_EQUAL_MESSAGE(timestamp2, deviceTime.getMicros(), time1.testName.c_str());
-    TEST_ASSERT_EQUAL_MESSAGE(time1.localTimestamp + 1, deviceTime.getSeconds(), time1.testName.c_str());
-    TEST_ASSERT_EQUAL_MESSAGE(time1.localTimestamp * 1000 + 513, deviceTime.getMillis(), time1.testName.c_str());
+    TEST_ASSERT_EQUAL_MESSAGE(timestamp2, deviceTime.getTimestampMicros(), time1.testName.c_str());
+    TEST_ASSERT_EQUAL_MESSAGE(time1.localTimestamp + 1, deviceTime.getTimestampSeconds(), time1.testName.c_str());
+    TEST_ASSERT_EQUAL_MESSAGE(time1.localTimestamp * 1000 + 513, deviceTime.getTimestampMillis(), time1.testName.c_str());
 
     uint64_t timestamp3 = time1.localTimestamp * 1000000 + 13896;
     testingTimer.setTimestamp_uS(timestamp3);
-    TEST_ASSERT_EQUAL_MESSAGE(time1.localTimestamp, deviceTime.getSeconds(), time1.testName.c_str());
-    TEST_ASSERT_EQUAL_MESSAGE(time1.localTimestamp * 1000 + 14, deviceTime.getMillis(), time1.testName.c_str());
-    TEST_ASSERT_EQUAL_MESSAGE(timestamp3, deviceTime.getMicros(), time1.testName.c_str());
+    TEST_ASSERT_EQUAL_MESSAGE(time1.localTimestamp, deviceTime.getTimestampSeconds(), time1.testName.c_str());
+    TEST_ASSERT_EQUAL_MESSAGE(time1.localTimestamp * 1000 + 14, deviceTime.getTimestampMillis(), time1.testName.c_str());
+    TEST_ASSERT_EQUAL_MESSAGE(timestamp3, deviceTime.getTimestampMicros(), time1.testName.c_str());
   }
 }
 
@@ -161,7 +161,7 @@ void testTimeBetweenSyncs(void){
   DeviceTimeClass<MockWire> deviceTime(configs, wire, secondsInADay);
 
   // check test is properly initialise
-  TEST_ASSERT_EQUAL(initTimeParams.localTimestamp, deviceTime.getSeconds());
+  TEST_ASSERT_EQUAL(initTimeParams.localTimestamp, deviceTime.getTimestampSeconds());
 
   // increase time in RTCInterface by a day plus a seconds
   TestParamsStruct finalTimeParams = {"mar_2_2024", 762716714, 14, 45, 17, 6, 2, 3, 24, 0, 0};
@@ -179,12 +179,12 @@ void testTimeBetweenSyncs(void){
   // increment onboardTimer by a day minus a second
   uint64_t timestamp1 = initTimeParams.localTimestamp + secondsInADay - 1;
   onboardTimestamp->setTimestamp_S(timestamp1);
-  TEST_ASSERT_EQUAL(timestamp1, deviceTime.getSeconds());
+  TEST_ASSERT_EQUAL(timestamp1, deviceTime.getTimestampSeconds());
 
   // change onboardTimer to initial timestamp + secondsInADay
   uint64_t timestamp2 = initTimeParams.localTimestamp + secondsInADay;
-  TEST_ASSERT_NOT_EQUAL(timestamp2, deviceTime.getSeconds());
-  TEST_ASSERT_EQUAL(finalTimeParams.localTimestamp, deviceTime.getSeconds());
+  TEST_ASSERT_NOT_EQUAL(timestamp2, deviceTime.getTimestampSeconds());
+  TEST_ASSERT_EQUAL(finalTimeParams.localTimestamp, deviceTime.getTimestampSeconds());
 }
 
 void RUN_UNITY_TESTS(){
