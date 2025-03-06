@@ -18,6 +18,7 @@
 
 #include "onboardTimestamp.h"
 #include "ConfigManager.h"
+#include "timeHelpers.h"
 
 template<typename WireClassDependancy>
 class DeviceTimeClass{

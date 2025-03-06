@@ -20,7 +20,7 @@ struct TimeEventDataStruct {
 };
 
 struct StoredEventStruct {
-  uint64_t nextAlarmTime;
+  uint64_t nextTriggerTime;
   modeUUID modeID;
   uint32_t timeOfDay;
   uint8_t daysOfWeek; // lsb = Monday, msb-1 = Sunday, msb is reserved, i.e. 0b01100000 = saturday and sunday
@@ -28,7 +28,7 @@ struct StoredEventStruct {
   bool isActive;
 };
 
-typedef uint8_t eventError_t;
+typedef int8_t eventError_t;
 
 namespace EventManagerErrors {
   constexpr eventError_t bad_time = -2;
@@ -37,40 +37,44 @@ namespace EventManagerErrors {
   constexpr eventError_t success = 1;
 };
 
-// class EventObject
-// {
-// private:
-//   uint64_t _nextEventTime;  // time of the next event
-//   TimeEventDataStruct _eventData;
-// public:
-// EventObject(TimeEventDataStruct eventData, uint64_t currentTime);
-//   ~EventObject();
-
-//   /**
-//    * @brief finds the time of the next event, starting at the current time minus (eventWindow - 1 second)
-//    * 
-//    * @param currentTime 
-//    * @return uint64_t 
-//    */
-//   uint64_t findNextEventTime(uint64_t currentTime);
-
-//   /**
-//    * @brief calls the event function. 
-//    * 
-//    */
-//   void callEvent();
-// };
-
 class EventManager
 {
 private:
+  std::shared_ptr<ModalLightsInterface> _modalLights;
+
   std::map<eventUUID, StoredEventStruct> _events; // map of stored EventObjects. keys are UUIDs
-  eventUUID _nextEvent = 0; // UUID of the next event to trigger
+  uint64_t _nextEventID = 0; // UUID of the next event to trigger
   uint64_t _nextEventTime = ~0; // time of next event, in seconds
 
-  uint64_t _findNextTriggerTime(uint64_t timestamp, StoredEventStruct event);
+  uint64_t _previousBackgroundEventTime = 0;  // addEvent uses this to check if a new brackground event should be triggered
+
+  /**
+ * @brief finds the next trigger time for a given event.
+ * 
+ * @param timestampS current timestamp in microseconds
+ * @param event 
+ * @return uint64_t event time in seconds
+ */
+  uint64_t _findNextTriggerTime(uint64_t timestampS, eventUUID eventID);
+
+  void _findNextEvent();
+
+  // TODO: load default event window from configs
+  uint32_t _defaultEventWindow = 60*60; // system default event window
+
+  /**
+   * @brief calls the given event and finds the new trigger time for that event
+   * 
+   * @param timestampS 
+   */
+  void _callEvent(uint64_t timestampS, eventUUID eventID);
+
+  eventError_t _addEvent(uint64_t timestampS, TimeEventDataStruct newEvent);
 public:
-  EventManager(uint64_t timestamp, std::vector<TimeEventDataStruct> eventStructs);
+  EventManager(
+    std::shared_ptr<ModalLightsInterface> modalLights,
+    uint64_t timestampS,
+    std::vector<TimeEventDataStruct> eventStructs);
   ~EventManager(){};
 
   /**
@@ -80,7 +84,22 @@ public:
    */
   uint64_t getNextEventTime(){ return _nextEventTime;};
   
-  eventError_t addEvent(uint64_t timestamp, TimeEventDataStruct newEvent);
+  /**
+   * @brief adds a new event, and checks if it should trigger. the mode should already
+   * be registered with ModalController
+   * 
+   * @param timestampS 
+   * @param newEvent 
+   * @return eventError_t 
+   */
+  eventError_t addEvent(uint64_t timestampS, TimeEventDataStruct newEvent);
+
+  /**
+   * @brief checks to see if nextEvent should be called, and finds the new nextEvent
+   * 
+   * @param timestampS current local time in seconds
+   */
+  void check(uint64_t timestampS);
 };
 
 #endif

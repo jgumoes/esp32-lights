@@ -11,6 +11,30 @@ class VirtualLightsClass{
   virtual void setDutyCycle(duty_t duty) = 0;
 };
 
+class ModalLightsInterface{
+  // private:
+    // derived classes can't access private members of parent classes
+    // TODO: delete me when concrete ModalLights is implemented
+    // modeUUID _activeMode = 0;
+    // modeUUID _backgroundMode = 0;
+    // duty_t _modeInitialBrightness;
+    // uint64_t _modeInitialTime;      // must be UTC to tolerate DST changes mid-mode
+
+    // std::shared_ptr<ModeStorageClassInterface> _storage;
+  public:
+    // ModalLightsInterface(std::shared_ptr<ModeStorageClassInterface> storage) : _storage(storage){};
+    // ModalLightsInterface(std::shared_ptr<ModeStorageClassInterface> storage);
+    virtual ~ModalLightsInterface() = default;
+    /**
+     * @brief Set the mode by UUID. collects the mode from storage
+     * and uses the datapacket to determine if the mode is active or background.
+     * TODO: should alert the homeserver if mode doesn't exist
+     * 
+     * @param modeID 
+     */
+    virtual void setModeByUUID(modeUUID modeID) = 0;
+};
+
 /**
  * LightsClass must have method setDutyCycle(duty_t)
 */
