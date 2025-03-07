@@ -10,6 +10,18 @@ RTCConfigsStruct ConfigManagerClass::getRTCConfigs(){
 bool ConfigManagerClass::setRTCConfigs(RTCConfigsStruct rtcConfigs){
   _configs.DST = rtcConfigs.DST;
   _configs.timezone = rtcConfigs.timezone;
-  _configHAL->setRTCConfigs(rtcConfigs);
-  return true;
+  return _configHAL->setConfigs(_configs);
+}
+
+EventManagerConfigsStruct ConfigManagerClass::getEventManagerConfigs()
+{
+  EventManagerConfigsStruct eventConfigs;
+  eventConfigs.defaultEventWindow = _configs.defaultEventWindow;
+  return eventConfigs;
+}
+
+bool ConfigManagerClass::setEventManagerConfigs(EventManagerConfigsStruct eventConfigs)
+{
+  _configs.defaultEventWindow = eventConfigs.defaultEventWindow;
+  return _configHAL->setConfigs(_configs);
 }

@@ -27,9 +27,16 @@ void ConfigManagerWorksWithMockHal(void){
   TEST_ASSERT_EQUAL(92384, retTimezone);
 }
 
+void ConfigManagerEventManager(void){
+  // TODO: rejects eventWindow = 0
+  // TODO: uses hardwareDefaultEventWindow if configs can't be loaded
+  TEST_ASSERT(false);
+}
+
 void RUN_UNITY_TESTS(){
   UNITY_BEGIN();
   RUN_TEST(ConfigManagerWorksWithMockHal);
+  RUN_TEST(ConfigManagerEventManager);
   UNITY_END();
 }
 

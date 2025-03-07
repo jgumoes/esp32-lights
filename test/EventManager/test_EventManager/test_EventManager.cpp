@@ -16,6 +16,7 @@ let convert2000To1970 = (timestamp) => {
 #include <ModalLights.h>
 
 #include "testEvents.h"
+#include "../../nativeMocksAndHelpers/mockConfig.h"
 
 void setUp(void) {
     // set stuff up here
@@ -24,6 +25,15 @@ void setUp(void) {
 void tearDown(void) {
     // clean stuff up here
 }
+
+auto makeTestConfigManager(){
+  ConfigsStruct configs;
+  configs.defaultEventWindow = 60*60;
+  auto mockConfigHal = std::make_unique<MockConfigHal>();
+  mockConfigHal->setConfigs(configs);
+  std::shared_ptr<ConfigManagerClass> configsManager = std::make_shared<ConfigManagerClass>(std::move(mockConfigHal));
+  return configsManager;
+};
 
 class MockModalLights : public ModalLightsInterface{
   private:
@@ -60,29 +70,50 @@ class MockModalLights : public ModalLightsInterface{
     }
 };
 
+void InitialisingWithNoEvents(void){
+  std::vector<TimeEventDataStruct> emptyEvents = {};
+  // initialising with no events shouldn't cause an issue
+  std::shared_ptr<MockModalLights> modalLights = std::make_shared<MockModalLights>();
+  auto configs = makeTestConfigManager();
+  EventManager testClass(modalLights, configs, mondayAtMidnight, emptyEvents);
+  TEST_ASSERT_EQUAL(0, testClass.getNextEventID());
+  TEST_ASSERT_EQUAL(0, modalLights->getSetModeCount());
+
+  // checking with no events shouldn't cause an issue
+  testClass.check(mondayAtMidnight + timeToSeconds(6, 0, 0));
+  TEST_ASSERT_EQUAL(0, testClass.getNextEventID());
+  TEST_ASSERT_EQUAL(0, modalLights->getSetModeCount());
+
+  // adding a good event should work fine
+  testClass.addEvent(mondayAtMidnight + testEvent1.timeOfDay +1, testEvent1);
+  TEST_ASSERT_EQUAL(testEvent1.eventID, testClass.getNextEventID());
+  TEST_ASSERT_EQUAL(testEvent1.modeID, modalLights->getMostRecentMode());
+  TEST_ASSERT_EQUAL(1, modalLights->getSetModeCount());
+}
+
 void EventManagerFindsNextEventOnConstruction(void){
   uint64_t morningTimestamp = 794281114; // Monday 1:38:34 3/3/25 epoch=2000
   uint64_t eveningTimestamp = 794252745; // Sunday 17:45:45 2/3/25
   std::shared_ptr<MockModalLights> modalLights = std::make_shared<MockModalLights>();
-  
+  auto configs = makeTestConfigManager();
   // testEvent1, morning
   {
     uint64_t expectedTimestamp = 794299500; // Monday 6:45
     std::vector<TimeEventDataStruct> testEvents = {testEvent1};
     for(int i = 0; i < 5; i++){
       modalLights->resetInstance();
-      EventManager testClass1(modalLights, morningTimestamp + secondsInDay*i, testEvents);
+      EventManager testClass1(modalLights, configs, morningTimestamp + secondsInDay*i, testEvents);
       TEST_ASSERT_EQUAL(expectedTimestamp + secondsInDay*i, testClass1.getNextEventTime());
       TEST_ASSERT_EQUAL(0, modalLights->getModeCallCount(testEvent1.modeID));
     }
     uint64_t secondExpectedTimestamp = expectedTimestamp + 7 * secondsInDay;
     modalLights->resetInstance();
-    EventManager testClass2(modalLights, morningTimestamp + secondsInDay*5, testEvents);
+    EventManager testClass2(modalLights, configs, morningTimestamp + secondsInDay*5, testEvents);
     TEST_ASSERT_EQUAL(secondExpectedTimestamp, testClass2.getNextEventTime());
     TEST_ASSERT_EQUAL(0, modalLights->getModeCallCount(testEvent1.modeID));
 
     modalLights->resetInstance();
-    EventManager testClass3(modalLights, morningTimestamp + secondsInDay*6, testEvents);
+    EventManager testClass3(modalLights, configs, morningTimestamp + secondsInDay*6, testEvents);
     TEST_ASSERT_EQUAL(secondExpectedTimestamp, testClass3.getNextEventTime());
     TEST_ASSERT_EQUAL(0, modalLights->getModeCallCount(testEvent1.modeID));
   }
@@ -92,18 +123,18 @@ void EventManagerFindsNextEventOnConstruction(void){
     std::vector<TimeEventDataStruct> testEvents = {testEvent1};
     for(int i = 0; i < 5; i++){
       modalLights->resetInstance();
-      EventManager testClass1(modalLights, eveningTimestamp + secondsInDay*i, testEvents);
+      EventManager testClass1(modalLights, configs, eveningTimestamp + secondsInDay*i, testEvents);
       TEST_ASSERT_EQUAL(expectedTimestamp + secondsInDay*i, testClass1.getNextEventTime());
     }
     uint64_t secondExpectedTimestamp = expectedTimestamp + 7 * secondsInDay;
     modalLights->resetInstance();
 
-    EventManager testClass2(modalLights, eveningTimestamp + secondsInDay*5, testEvents);
+    EventManager testClass2(modalLights, configs, eveningTimestamp + secondsInDay*5, testEvents);
     TEST_ASSERT_EQUAL(secondExpectedTimestamp, testClass2.getNextEventTime());
     TEST_ASSERT_EQUAL(0, modalLights->getModeCallCount(testEvent1.modeID));
 
     modalLights->resetInstance();
-    EventManager testClass3(modalLights, eveningTimestamp + secondsInDay*6, testEvents);
+    EventManager testClass3(modalLights, configs, eveningTimestamp + secondsInDay*6, testEvents);
     TEST_ASSERT_EQUAL(secondExpectedTimestamp, testClass3.getNextEventTime());
     TEST_ASSERT_EQUAL(0, modalLights->getModeCallCount(testEvent1.modeID));
   }
@@ -115,27 +146,27 @@ void EventManagerFindsNextEventOnConstruction(void){
     for(int i = 0; i < 4; i++){
       // mon-thu
       modalLights->resetInstance();
-      EventManager testClass1(modalLights, justAfterAlarm + secondsInDay*i, testEvents);
+      EventManager testClass1(modalLights, configs, justAfterAlarm + secondsInDay*i, testEvents);
       TEST_ASSERT_EQUAL(expectedTimestamp + secondsInDay*(i+1), testClass1.getNextEventTime());
       TEST_ASSERT_EQUAL(1, modalLights->getModeCallCount(testEvent1.modeID));
     }
     // friday
     modalLights->resetInstance();
     uint64_t secondExpectedTimestamp = expectedTimestamp + 7 * secondsInDay;
-    EventManager testClass2(modalLights, justAfterAlarm + secondsInDay*4, testEvents);
+    EventManager testClass2(modalLights, configs, justAfterAlarm + secondsInDay*4, testEvents);
     TEST_ASSERT_EQUAL(secondExpectedTimestamp, testClass2.getNextEventTime());
     TEST_ASSERT_EQUAL(1, modalLights->getModeCallCount(testEvent1.modeID));
 
     // saturday
     modalLights->resetInstance();
     // uint64_t secondExpectedTimestamp = expectedTimestamp + 7 * secondsInDay;
-    EventManager testClass3(modalLights, justAfterAlarm + secondsInDay*5, testEvents);
+    EventManager testClass3(modalLights, configs, justAfterAlarm + secondsInDay*5, testEvents);
     TEST_ASSERT_EQUAL(secondExpectedTimestamp, testClass2.getNextEventTime());
     TEST_ASSERT_EQUAL(0, modalLights->getModeCallCount(testEvent1.modeID));
 
     //sunday
     modalLights->resetInstance();
-    EventManager testClass4(modalLights, justAfterAlarm + secondsInDay*6, testEvents);
+    EventManager testClass4(modalLights, configs, justAfterAlarm + secondsInDay*6, testEvents);
     TEST_ASSERT_EQUAL(secondExpectedTimestamp, testClass3.getNextEventTime());
     TEST_ASSERT_EQUAL(0, modalLights->getModeCallCount(testEvent1.modeID));
   }
@@ -145,6 +176,7 @@ void EventManagerSelectsCorrectBackgroundMode(void){
   // shove in some background modes only, test accross different times of day on different days
   std::vector<TimeEventDataStruct> testEvents = {testEvent3, testEvent4, testEvent5};
   std::shared_ptr<MockModalLights> modalLights = std::make_shared<MockModalLights>();
+  auto configs = makeTestConfigManager();
 
   std::map<uint32_t, modeUUID> testTimesAndExpectedModes = {
     {timeToSeconds(0, 0, 0), 3},
@@ -163,7 +195,7 @@ void EventManagerSelectsCorrectBackgroundMode(void){
       for(const auto& [time, expectedMode] : testTimesAndExpectedModes){
         modalLights->resetInstance();
         uint64_t testTimestamp = mondayAtMidnight + time + i*secondsInDay;
-        EventManager testClass(modalLights, testTimestamp, testEvents);
+        EventManager testClass(modalLights, configs, testTimestamp, testEvents);
         TEST_ASSERT_EQUAL(expectedMode, modalLights->getMostRecentMode());
         TEST_ASSERT_EQUAL(1, modalLights->getModeCallCount(expectedMode));
         TEST_ASSERT_EQUAL(1, modalLights->getSetModeCount());
@@ -176,7 +208,7 @@ void EventManagerSelectsCorrectBackgroundMode(void){
     uint8_t expectedSetCount = 0;
     modeUUID previousMode = 0;
     modalLights->resetInstance();
-    EventManager testClass(modalLights, mondayAtMidnight, testEvents);
+    EventManager testClass(modalLights, configs, mondayAtMidnight, testEvents);
     for(int i = 0; i < 7; i++){
       for(const auto& [time, expectedMode] : testTimesAndExpectedModes){
         uint64_t testTimestamp = mondayAtMidnight + time + i*secondsInDay;
@@ -196,7 +228,7 @@ void EventManagerSelectsCorrectBackgroundMode(void){
   // handles forward time-skips well i.e. adjustment after onboard clock looses time
   {
     modalLights->resetInstance();
-    EventManager testClass(modalLights, mondayAtMidnight, testEvents);
+    EventManager testClass(modalLights, configs, mondayAtMidnight, testEvents);
     testClass.check(mondayAtMidnight + timeToSeconds(8, 59, 0));
     TEST_ASSERT_EQUAL(3, modalLights->getMostRecentMode());
     TEST_ASSERT_EQUAL(1, modalLights->getSetModeCount());
@@ -212,7 +244,27 @@ void EventManagerSelectsCorrectBackgroundMode(void){
 
   // handles reverse time-skips well i.e. adjustment after onboard clock gains time
   {
+    modalLights->resetInstance();
+    EventManager testClass(modalLights, configs, mondayAtMidnight + timeToSeconds(9, 0, 0), testEvents);
+    TEST_ASSERT_EQUAL(testEvent5.modeID, modalLights->getMostRecentMode());
 
+    // rebuild trigger times
+    modalLights->resetInstance();
+    testClass.rebuildTriggerTimes(mondayAtMidnight + timeToSeconds(8, 59, 0));
+    TEST_ASSERT_EQUAL(testEvent4.modeID, modalLights->getMostRecentMode());
+    // TEST_ASSERT_EQUAL(1, modalLights->getSetModeCount());
+  }
+
+  // eventWindow is ignored for background modes
+  {
+    modalLights->resetInstance();
+    EventManager testClass(modalLights, configs, mondayAtMidnight + timeToSeconds(8, 59, 0), testEvents);
+    TEST_ASSERT_EQUAL(testEvent4.modeID, modalLights->getMostRecentMode());
+
+    uint64_t eventWindow = testEvent5.eventWindow;
+    TEST_ASSERT(eventWindow > hardwareMinimumEventWindow);  // just in case it gets changed for some reason
+    testClass.check(mondayAtMidnight + testEvent5.timeOfDay + eventWindow + 10);
+    TEST_ASSERT_EQUAL(testEvent5.modeID, modalLights->getMostRecentMode());
   }
 }
 
@@ -220,12 +272,13 @@ void onlyMostRecentActiveModeIsTriggered(void){
   // shove in background modes and two missed active modes with overlapping windows
   std::vector<TimeEventDataStruct> testEvents = {testEvent1, testEvent3, testEvent4, testEvent5, testEvent6};
   std::shared_ptr<MockModalLights> modalLights = std::make_shared<MockModalLights>();
+  auto configs = makeTestConfigManager();
 
   uint64_t testTimestamp = mondayAtMidnight + timeToSeconds(7, 0, 0);
   // on construction
   {
     modalLights->resetInstance();
-    EventManager testClass(modalLights, testTimestamp, testEvents);
+    EventManager testClass(modalLights, configs, testTimestamp, testEvents);
     // TEST_ASSERT_EQUAL(5, modalLights->getMostRecentMode());
     TEST_ASSERT_EQUAL(0, modalLights->getModeCallCount(2));
     TEST_ASSERT_EQUAL(1, modalLights->getModeCallCount(3));
@@ -248,12 +301,13 @@ void activeAndBackgroundModesWithSameTimeAreBothTriggered(void){
   // the active mode should be called first, then the background mode
   std::vector<TimeEventDataStruct> testEvents = {testEvent1, testEvent3, testEvent4, testEvent5, testEvent6, testEvent7};
   std::shared_ptr<MockModalLights> modalLights = std::make_shared<MockModalLights>();
+  auto configs = makeTestConfigManager();
 
   uint64_t testTimestamp = mondayAtMidnight + timeToSeconds(7, 0, 0);
   // on construction
   {
     modalLights->resetInstance();
-    EventManager testClass(modalLights, testTimestamp, testEvents);
+    EventManager testClass(modalLights, configs, testTimestamp, testEvents);
     TEST_ASSERT_EQUAL(0, modalLights->getModeCallCount(2));
     TEST_ASSERT_EQUAL(1, modalLights->getModeCallCount(6));
     TEST_ASSERT_EQUAL(1, modalLights->getModeCallCount(5));
@@ -262,7 +316,7 @@ void activeAndBackgroundModesWithSameTimeAreBothTriggered(void){
 
   // on time change
   {
-    EventManager testClass(modalLights, mondayAtMidnight + timeToSeconds(6, 45, 0), testEvents);
+    EventManager testClass(modalLights, configs, mondayAtMidnight + timeToSeconds(6, 45, 0), testEvents);
     modalLights->resetInstance();
     testClass.check(testTimestamp);
     TEST_ASSERT_EQUAL(0, modalLights->getModeCallCount(2));
@@ -275,9 +329,10 @@ void activeAndBackgroundModesWithSameTimeAreBothTriggered(void){
 void missedActiveEventsAreSkippedAfterTimeWindowClosses(void){
   std::vector<TimeEventDataStruct> testEvents = {testEvent1, testEvent7};
   std::shared_ptr<MockModalLights> modalLights = std::make_shared<MockModalLights>();
+  auto configs = makeTestConfigManager();
 
   uint64_t testTimestamp = mondayAtMidnight + timeToSeconds(6, 0, 0);
-  EventManager testClass(modalLights, testTimestamp, testEvents);
+  EventManager testClass(modalLights, configs, testTimestamp, testEvents);
   modalLights->resetInstance();
   testClass.check(mondayAtMidnight + timeToSeconds(12, 0, 0));
   TEST_ASSERT_EQUAL(0, modalLights->getModeCallCount(2));
@@ -291,9 +346,10 @@ void missedActiveEventsAreSkippedAfterTimeWindowClosses(void){
 void addEventChecksTheNewEvent(void){
   std::vector<TimeEventDataStruct> testEvents = {testEvent7};
   std::shared_ptr<MockModalLights> modalLights = std::make_shared<MockModalLights>();
+  auto configs = makeTestConfigManager();
 
   uint64_t testTimestamp = mondayAtMidnight + timeToSeconds(6, 46, 0);
-  EventManager testClass(modalLights, testTimestamp, testEvents);
+  EventManager testClass(modalLights, configs, testTimestamp, testEvents);
 
   // active event should trigger whn added
   modalLights->resetInstance();
@@ -344,14 +400,85 @@ void addEventChecksTheNewEvent(void){
 }
 
 void eventWindow0ShouldUseSystemDefault(void){
-  TEST_ASSERT(false);
+  // start configs with eventWindow = 1 hour
+  auto configs = makeTestConfigManager();
+  EventManagerConfigsStruct configStruct;
+  configStruct.defaultEventWindow = 60*60;
+  configs->setEventManagerConfigs(configStruct);
+  std::shared_ptr<MockModalLights> modalLights = std::make_shared<MockModalLights>();
+
+  TimeEventDataStruct testDefaultActiveEvent = testEvent1;
+  testDefaultActiveEvent.eventWindow = 0;
+  std::vector<TimeEventDataStruct> testEvents = {testDefaultActiveEvent};
+
+  const uint64_t testTimestamp = mondayAtMidnight + testDefaultActiveEvent.timeOfDay - 1;
+  // constructor should use default event window
+  {
+    // construct with time = triggerTime + eventWindow/2
+    modalLights->resetInstance();
+    EventManager eventManager(modalLights, configs, testTimestamp + (configStruct.defaultEventWindow/2), testEvents);
+    TEST_ASSERT_EQUAL(testDefaultActiveEvent.modeID, modalLights->getMostRecentMode());
+    
+    
+    // construct with eventWindow = 0 and time = triggerTime - 1 second
+    // skip forward 1 minute
+    modalLights->resetInstance();
+    EventManager eventManager2(modalLights, configs, testTimestamp, testEvents);
+    TEST_ASSERT_EQUAL(0, modalLights->getModeCallCount(testDefaultActiveEvent.modeID));
+    eventManager2.check(testTimestamp + (configStruct.defaultEventWindow/2));
+    TEST_ASSERT_EQUAL(testDefaultActiveEvent.modeID, modalLights->getMostRecentMode());
+    TEST_ASSERT_EQUAL(1, modalLights->getModeCallCount(testDefaultActiveEvent.modeID));
+  }
+
+  // addEvent should use default event window
+  {
+    // change default eventWindow to 30 minutes
+    configStruct.defaultEventWindow = 30*60;
+    configs->setEventManagerConfigs(configStruct);
+
+    std::vector<TimeEventDataStruct> testEvents2 = {testEvent4};
+    
+    // should trigger during eventWindow
+    modalLights->resetInstance();
+    EventManager eventManager(modalLights, configs, testTimestamp, testEvents2);
+    // add the event before it's trigger window
+    eventManager.addEvent(mondayAtMidnight + testDefaultActiveEvent.timeOfDay - 1, testDefaultActiveEvent);
+    TEST_ASSERT_EQUAL(0, modalLights->getModeCallCount(testDefaultActiveEvent.modeID));
+    eventManager.check(mondayAtMidnight + testDefaultActiveEvent.timeOfDay + configStruct.defaultEventWindow -10);
+    TEST_ASSERT_EQUAL(1, modalLights->getModeCallCount(testDefaultActiveEvent.modeID));
+    TEST_ASSERT_EQUAL(testDefaultActiveEvent.modeID, modalLights->getMostRecentMode());
+
+
+    // shouldn't trigger after the window
+    modalLights->resetInstance();
+    EventManager eventManager2(modalLights, configs, testTimestamp, testEvents2);
+    // time of alarm + defaultEventWindow (30 mins) - 10 seconds
+    const uint64_t checkingTimestamp = mondayAtMidnight + testDefaultActiveEvent.timeOfDay + configStruct.defaultEventWindow + 10;
+    // add the event after it's trigger window
+    eventManager2.addEvent(checkingTimestamp, testDefaultActiveEvent);
+    TEST_ASSERT_EQUAL(0, modalLights->getModeCallCount(testDefaultActiveEvent.modeID));
+
+    // if defaultEventWindow changes such that a missed event should be triggered,
+    // rebuildTriggerTimes should trigger the missed event
+    modalLights->resetInstance();
+    // change the defaultEventWindow to 1 hour
+    configStruct.defaultEventWindow = 60*60;
+    configs->setEventManagerConfigs(configStruct);
+    // check the event can trigger
+    modalLights->resetInstance();
+    eventManager2.rebuildTriggerTimes(checkingTimestamp);
+    TEST_ASSERT_EQUAL(1, modalLights->getModeCallCount(testDefaultActiveEvent.modeID));
+    TEST_ASSERT_EQUAL(2, modalLights->getSetModeCount()); // active + background should be called
+  }
 }
+
 void somethingSomethingDST(void){
-  TEST_ASSERT(false);
+  TEST_IGNORE();
 }
 
 void RUN_UNITY_TESTS(){
   UNITY_BEGIN();
+  RUN_TEST(InitialisingWithNoEvents);
   RUN_TEST(EventManagerFindsNextEventOnConstruction);
   RUN_TEST(EventManagerSelectsCorrectBackgroundMode);
   RUN_TEST(onlyMostRecentActiveModeIsTriggered);

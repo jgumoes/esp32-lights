@@ -1,5 +1,5 @@
-#include <ModalLights.h>
 #include <unity.h>
+#include <ModalLights.h>
 
 duty_t mockHardwareDutyCycle = 0;
 
@@ -227,6 +227,10 @@ void brightnessAdjust(){
   }
 }
 
+void testDSTChanges(void){
+  TEST_ASSERT(false);
+}
+
 void RUN_UNITY_TESTS(){
   UNITY_BEGIN();
   RUN_TEST(initialisation);
@@ -234,6 +238,7 @@ void RUN_UNITY_TESTS(){
   RUN_TEST(setBrightness_suite);
   RUN_TEST(switchingState_suite);
   RUN_TEST(brightnessAdjust);
+  RUN_TEST(testDSTChanges);
   UNITY_END();
 }
 

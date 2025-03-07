@@ -1,8 +1,11 @@
 #ifndef __CONFIGMANAGER_H__
 #define __CONFIGMANAGER_H__
 
+#include <Arduino.h>
 #include <memory>
-#include "RTC_interface.h"
+// #include "RTC_interface.h"
+
+#include "projectDefines.h"
 
 /**
  * the config hal should get the entire configs array when initialised. the array should populate an ordered map. 
@@ -14,8 +17,12 @@
 
 struct ConfigsStruct
 {
+  // RTC_interface
   int32_t timezone = 0;  // timezone offset in seconds
   uint16_t DST = 0;      // daylight savings offset in seconds
+
+  // EventManager
+  uint32_t defaultEventWindow = hardwareDefaultEventWindow;
 };
 
 
@@ -28,13 +35,24 @@ class ConfigAbstractHAL{
     virtual ~ConfigAbstractHAL() = default;
     virtual ConfigsStruct getAllConfigs() = 0;
 
-    virtual RTCConfigsStruct getRTCConfigs() = 0;
-    virtual bool setRTCConfigs(RTCConfigsStruct rtcConfigs) = 0;
+    virtual bool setConfigs(ConfigsStruct configs) = 0;
+
+    /**
+     * @brief reload the configs from storage
+     * 
+     * @return bool if operation was successful
+     */
+    virtual bool reloadConfigs() = 0;
+    // virtual RTCConfigsStruct getRTCConfigs() = 0;
+    // virtual bool setRTCConfigs(RTCConfigsStruct rtcConfigs) = 0;
+
+    // virtual EventManagerConfigsStruct getEventManagerConfigs() = 0;
+    // virtual bool setEventManagerConfigs() = 0;
 };
 
-template <typename ConcreteClass>
+template <typename ConcreteConfigHALClass>
 std::unique_ptr<ConfigAbstractHAL> makeConcreteConfigHal(){
-  return std::make_unique<ConcreteClass>();
+  return std::make_unique<ConcreteConfigHALClass>();
 }
 
 // should store the config structs locally for quick reference. setters should set the local config, then commit to storage. checking that configs are stored correctly is the responsibility of the concrete HAL
@@ -51,7 +69,7 @@ class ConfigManagerClass {
     //   _configs = _configHAL->getAllConfigs();
     // };
 
-    ConfigManagerClass(std::unique_ptr<ConfigAbstractHAL> configHAL) : _configHAL(std::move(configHAL)){
+    ConfigManagerClass(std::unique_ptr<ConfigAbstractHAL>&& configHAL) : _configHAL(std::move(configHAL)){
       // _configHAL = std::move(configHAL);
       _configs = _configHAL->getAllConfigs();
     };
@@ -59,6 +77,10 @@ class ConfigManagerClass {
     // RTC_interface configs
     RTCConfigsStruct getRTCConfigs();
     bool setRTCConfigs(RTCConfigsStruct rtcConfigs);
+
+    // EventManager configs
+    EventManagerConfigsStruct getEventManagerConfigs();
+    bool setEventManagerConfigs(EventManagerConfigsStruct eventConfigs);
 };
 
 #endif
