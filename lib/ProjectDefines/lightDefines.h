@@ -14,22 +14,27 @@
 
 #include <stdint.h>
 
-typedef uint8_t modeUUID;
-
-#ifndef LED_LIGHTS_DUTY_BITs
-  #define LED_LIGHTS_DUTY_BITs 12
+#ifndef NUMBER_OF_LIGHTS_CHANNELS
+  // TODO: this should be defined in the lights HAL
+  #define NUMBER_OF_LIGHTS_CHANNELS 1
 #endif
+typedef uint8_t duty_t;   // 255 is absolutely fine. lightsHal can interpolate up if needed
+#define LED_LIGHTS_MAX_DUTY 255
+// TODO: delete below once lights interface is implemented
+// #ifndef LED_LIGHTS_DUTY_BITs
+//   #define LED_LIGHTS_DUTY_BITs 12
+// #endif
 
-#if LED_LIGHTS_DUTY_BITs <= 8
-  #define LED_LIGHTS_MAX_DUTY 255
-  #define duty_t uint8_t
-#elif LED_LIGHTS_DUTY_BITs <= 10
-  #define LED_LIGHTS_MAX_DUTY 1023
-  typedef uint16_t duty_t;
-#else
-  #define LED_LIGHTS_MAX_DUTY 255
-  typedef uint8_t duty_t;
-#endif
+// #if LED_LIGHTS_DUTY_BITs <= 8
+//   #define LED_LIGHTS_MAX_DUTY 255
+//   #define duty_t uint8_t
+// #elif LED_LIGHTS_DUTY_BITs <= 10
+//   #define LED_LIGHTS_MAX_DUTY 1023
+//   typedef uint16_t duty_t;
+// #else
+//   #define LED_LIGHTS_MAX_DUTY 255
+//   typedef uint8_t duty_t;
+// #endif
 
 struct LightStateStruct {
   duty_t dutyLevel = 0;   // the duty cycle of the lights. can have a value even when off

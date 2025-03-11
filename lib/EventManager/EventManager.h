@@ -5,30 +5,20 @@
 #include <map>
 #include <cmath>
 
-// NOTE: projectDefines in ConfigManager contains some defines used in this file
+#include "ProjectDefines.h"
 #include "ConfigManager.h"
 
 #include "ModalLights.h"
 #include "DeviceTime.h"
 
-typedef uint8_t eventUUID;
-
-struct TimeEventDataStruct {
-  eventUUID eventID;
-  modeUUID modeID;
-  uint32_t timeOfDay;
-  uint8_t daysOfWeek; // lsb = Monday, msb-1 = Sunday, msb is reserved, i.e. 0b01100000 = saturday and sunday
-  uint32_t eventWindow; // TODO: delete me! how long after the time should the event trigger? should equal "timeout" in the Mode Data Struct
-  bool isActive;
-};
-
-struct StoredEventStruct {
-  uint64_t nextTriggerTime;
-  modeUUID modeID;
-  uint32_t timeOfDay;
-  uint8_t daysOfWeek; // lsb = Monday, msb-1 = Sunday, msb is reserved, i.e. 0b01100000 = saturday and sunday
-  uint32_t eventWindow; // how long after the time should the event trigger? should equal "timeout" in the Mode Data Struct
-  bool isActive;
+// the struct that EventManager uses to map the events
+struct EventMappingStruct {
+  uint64_t nextTriggerTime = 0;
+  modeUUID modeID = 0;
+  uint32_t timeOfDay = 0;
+  uint8_t daysOfWeek = 0; // lsb = Monday, msb-1 = Sunday, msb is reserved, i.e. 0b01100000 = saturday and sunday
+  uint32_t eventWindow = 0; // how long after the time should the event trigger? should equal "timeout" in the Mode Data Struct
+  bool isActive = 0;
 };
 
 typedef int8_t eventError_t;
@@ -46,7 +36,7 @@ private:
   std::shared_ptr<ModalLightsInterface> _modalLights;
   std::shared_ptr<ConfigManagerClass> _configs;
 
-  std::map<eventUUID, StoredEventStruct> _events; // map of stored EventObjects. keys are UUIDs
+  std::map<eventUUID, EventMappingStruct> _events; // map of stored EventObjects. keys are UUIDs
   uint64_t _nextEventID = 0; // UUID of the next event to trigger
   uint64_t _nextEventTime = ~0; // time of next event, in seconds
 
@@ -95,7 +85,7 @@ private:
  * @param newEvent 
  * @return eventError_t 
  */
-  eventError_t _addEvent(uint64_t timestampS, TimeEventDataStruct newEvent);
+  eventError_t _addEvent(uint64_t timestampS, EventDataPacket newEvent);
 
   /**
    * @brief loops through the stored modes to find the initial triggers.
@@ -110,7 +100,7 @@ public:
     std::shared_ptr<ModalLightsInterface> modalLights,
     std::shared_ptr<ConfigManagerClass> configs,
     uint64_t timestampS,
-    std::vector<TimeEventDataStruct> eventStructs);
+    std::vector<EventDataPacket> eventStructs);
   ~EventManager(){};
 
   /**
@@ -130,7 +120,7 @@ public:
    * @param newEvent 
    * @return eventError_t 
    */
-  eventError_t addEvent(uint64_t timestampS, TimeEventDataStruct newEvent);
+  eventError_t addEvent(uint64_t timestampS, EventDataPacket newEvent);
 
   /**
    * @brief rechecks event times given the current timestamp. should be used after hardware changes

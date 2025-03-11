@@ -3,7 +3,7 @@
 #define maxTimeOfDay 86399
 #define daysOfWeekMask 0b01111111
 
-uint64_t inline findPreviousTriggerTime(StoredEventStruct event, UsefulTimeStruct timeStruct){
+uint64_t inline findPreviousTriggerTime(EventMappingStruct event, UsefulTimeStruct timeStruct){
   uint8_t today = timeStruct.dayOfWeek - 1;
   uint32_t timeInDay = timeStruct.timeInDay;
   for(int x = 0; x < 7; x++){
@@ -20,10 +20,10 @@ uint64_t inline findPreviousTriggerTime(StoredEventStruct event, UsefulTimeStruc
   return 0;
 };
 
-EventManager::EventManager(std::shared_ptr<ModalLightsInterface> modalLights, std::shared_ptr<ConfigManagerClass> configs, uint64_t timestampS, std::vector<TimeEventDataStruct> eventStructs) : _modalLights(modalLights), _configs(configs)
+EventManager::EventManager(std::shared_ptr<ModalLightsInterface> modalLights, std::shared_ptr<ConfigManagerClass> configs, uint64_t timestampS, std::vector<EventDataPacket> eventStructs) : _modalLights(modalLights), _configs(configs)
 {
   uint32_t defaultEventWindow = _configs->getEventManagerConfigs().defaultEventWindow;
-  for(TimeEventDataStruct event : eventStructs){
+  for(EventDataPacket event : eventStructs){
     // timestampS - eventWindow in case there was an alarm that should have triggered just before reboot
     if(_addEvent(timestampS - (_checkEventWindow(event.eventWindow) * event.isActive), event) != EventManagerErrors::success){
       // TODO: alert server of the error
@@ -37,7 +37,7 @@ EventManager::EventManager(std::shared_ptr<ModalLightsInterface> modalLights, st
   check(timestampS);
 };
 
-eventError_t EventManager::_addEvent(uint64_t timestampS, TimeEventDataStruct newEvent)
+eventError_t EventManager::_addEvent(uint64_t timestampS, EventDataPacket newEvent)
 {
   if(newEvent.eventID == 0
     || newEvent.modeID == 0
@@ -53,7 +53,7 @@ eventError_t EventManager::_addEvent(uint64_t timestampS, TimeEventDataStruct ne
   }
   // TODO: alert server of bad event packets
 
-  StoredEventStruct event = {
+  EventMappingStruct event = {
     0,
     newEvent.modeID,
     newEvent.timeOfDay,
@@ -118,7 +118,7 @@ void EventManager::_findNextEvent()
   }
 }
 
-eventError_t EventManager::addEvent(uint64_t timestampS, TimeEventDataStruct newEvent)
+eventError_t EventManager::addEvent(uint64_t timestampS, EventDataPacket newEvent)
 {
   eventUUID newEventID = newEvent.eventID;
   uint64_t searchTimestamp = newEvent.isActive
