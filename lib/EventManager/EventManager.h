@@ -102,11 +102,12 @@ private:
    */
   eventUUID _findInitialTriggers(uint64_t timestampS);
 public:
+  // TODO: integrate ErrorManager
   EventManager(
     std::shared_ptr<ModalLightsInterface> modalLights,
     std::shared_ptr<ConfigManagerClass> configs,
-    uint64_t timestampS,
-    std::vector<EventDataPacket> eventStructs);
+    EventStorageIterator events,
+    uint64_t timestampS);
   ~EventManager(){};
 
   /**

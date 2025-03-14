@@ -20,12 +20,13 @@ uint64_t inline findPreviousTriggerTime(EventMappingStruct event, UsefulTimeStru
   return 0;
 };
 
-EventManager::EventManager(std::shared_ptr<ModalLightsInterface> modalLights, std::shared_ptr<ConfigManagerClass> configs, uint64_t timestampS, std::vector<EventDataPacket> eventStructs) : _modalLights(modalLights), _configs(configs)
+EventManager::EventManager(std::shared_ptr<ModalLightsInterface> modalLights, std::shared_ptr<ConfigManagerClass> configs, EventStorageIterator events, uint64_t timestampS) : _modalLights(modalLights), _configs(configs)
 {
   uint32_t defaultEventWindow = _configs->getEventManagerConfigs().defaultEventWindow;
-  for(EventDataPacket event : eventStructs){
+  // for(EventDataPacket event : eventStructs){
+  while(events.hasMore()){
     // timestampS - eventWindow in case there was an alarm that should have triggered just before reboot
-    if(_addEvent(timestampS, event) != EventManagerErrors::success){
+    if(_addEvent(timestampS, events.getNext()) != EventManagerErrors::success){
       // TODO: alert server of the error
     };
   };
