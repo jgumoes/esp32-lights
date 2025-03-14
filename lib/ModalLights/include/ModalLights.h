@@ -27,12 +27,21 @@ class ModalLightsInterface{
     virtual ~ModalLightsInterface() = default;
     /**
      * @brief Set the mode by UUID. collects the mode from storage
-     * and uses the datapacket to determine if the mode is active or background.
+     * and uses the datapacket to determine if the mode is active or background. changes are actioned next time update() is called.
      * TODO: should alert the homeserver if mode doesn't exist
      * 
      * @param modeID 
+     * @param triggerTimeLocal the local timestamp that the event should have triggered at
+     * @param isActive 
      */
-    virtual void setModeByUUID(modeUUID modeID) = 0;
+    virtual void setModeByUUID(modeUUID modeID, uint64_t triggerTimeLocal, bool isActive) = 0;
+
+    /**
+     * @brief cancels the mode by ID. if the mode is active, it gets set to 0. if the mode is background, it gets set to constant brightness. changes are actioned next time update() is called.
+     * 
+     * @param modeID 
+     */
+    virtual void cancelMode(modeUUID modeID) = 0;
 };
 
 /**

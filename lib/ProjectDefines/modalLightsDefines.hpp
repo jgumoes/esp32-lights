@@ -6,7 +6,7 @@
 #include "lightDefines.h"
 
 enum class ModeTypes {
-  noChange = 0,             // don't switch modes. this ID gets sent to the server if an error occurs
+  nullMode = 0,             // this ID cancels the active mode, and gets sent to the server if an error occurs
   constantBrightness = 1,   // normal, dimmable lamp
   sunrise = 2,              // increasing brightness that reaches max at a defined time. not dimmable, toggle switches to constant brightness
   sunset = 3,               // brightness dims at a constant rate
@@ -25,7 +25,7 @@ struct ChannelDataPacket{
 
 struct ModeDataPacket{
   modeUUID modeID = 0;
-  ModeTypes type = ModeTypes::noChange;
+  ModeTypes type = ModeTypes::nullMode;
   bool isActive = 0;
   ChannelDataPacket channelData[NUMBER_OF_LIGHTS_CHANNELS];
 };

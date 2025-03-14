@@ -43,7 +43,16 @@ private:
   uint64_t _previousBackgroundEventTime = 0;  // addEvent uses this to check if a new brackground event should be triggered
 
   /**
- * @brief finds the next trigger time for a given event.
+   * @brief checks the new event and returns the appropriate error code. skips the eventID check if `updating = true`
+   * 
+   * @param newEvent 
+   * @param updating is newEvent actually an update of an existing event?
+   * @return eventError_t 
+   */
+  eventError_t _isNewEventValid(EventDataPacket newEvent, bool updating = false);
+
+  /**
+ * @brief finds the next trigger time for a given event. Does not perform any side effects.
  * 
  * @param timestampS current timestamp in microseconds
  * @param event 
@@ -66,9 +75,6 @@ private:
     return eventWindow;
   }
 
-  // TODO: load default event window from configs
-  // uint32_t _defaultEventWindow = 60*60; // system default event window
-
   /**
    * @brief calls the given event and finds the new trigger time for that event
    * 
@@ -77,19 +83,19 @@ private:
   void _callEvent(uint64_t timestampS, eventUUID eventID);
 
   /**
- * @brief adds a new event to the Event Manager, but will not store it.
- * performs some checks, but will not check that two events share a trigger time (simultaneous
+ * @brief adds a new event to the Event Manager. Uses time window for active events, and checks previous trigger time for background events.
+ * Performs some checks, but will not check that two events share a trigger time (simultaneous
  * events should still be triggered consecutively, but the order won't be guaranteed)
  * 
  * @param timestampS current timestamp in seconds
  * @param newEvent 
+ * @param updating is newEvent an update of an existing event?
  * @return eventError_t 
  */
-  eventError_t _addEvent(uint64_t timestampS, EventDataPacket newEvent);
+  eventError_t _addEvent(uint64_t timestampS, EventDataPacket newEvent, bool updating = false);
 
   /**
-   * @brief loops through the stored modes to find the initial triggers.
-   * i.e. if multiple active events overlap, it returns the latest active eventID and sets the trigger times for the missed events to the next trigger time
+   * @brief loops through the stored modes to find the background mode that should be triggered, and the next active mode to trigger. If overlapping active events should have triggered at the current time, it returns the latest active eventID and sets the trigger times for the missed events to the next trigger time
    * 
    * @param timestampS 
    * @return eventUUID 
@@ -123,12 +129,51 @@ public:
   eventError_t addEvent(uint64_t timestampS, EventDataPacket newEvent);
 
   /**
+   * @brief removes the given events and rebuilds the trigger times
+   * 
+   * @param timestampS current timestamp in seconds
+   * @param eventIDs array of eventIDs to remove
+   * @param number number of events to remove
+   * @return eventError_t 
+   */
+  void removeEvents(uint64_t timestampS, eventUUID *eventIDs, nEvents_t number);
+
+  /**
+   * @brief removes a single given event and rebuilds the trigger times
+   * 
+   * @param timestampS current timestamp in seconds
+   * @param eventID ID of the event to remove
+   * @return eventError_t 
+   */
+  void removeEvent(uint64_t timestampS, eventUUID eventID);
+
+  /**
+   * @brief updates the given events and rebuilds the trigger times
+   * 
+   * @param timestampS current timestamp in seconds
+   * @param events array of EventDataPackets
+   * @param eventErrors array of eventError_t will get filled by this method
+   * @param number number of events to update
+   * @return eventError_t pass or fail. badEvents will hold the mode-specific errors
+   */
+  void updateEvents(uint64_t timestampS, EventDataPacket *events, eventError_t *eventErrors, nEvents_t number);
+  
+  /**
+   * @brief updates a single event and rebuilds the trigger times
+   * 
+   * @param timestampS current timestamp in seconds
+   * @param event data packet of the event to update
+   * @return eventError_t 
+   */
+  eventError_t updateEvent(uint64_t timestampS, EventDataPacket event);
+  
+  /**
    * @brief rechecks event times given the current timestamp. should be used after hardware changes
    * i.e. configs change, or massive adjustment to local time
    * 
    * @param timestampS 
    */
-  void rebuildTriggerTimes(uint64_t timestampS);
+  void rebuildTriggerTimes(uint64_t timestampS, bool checkMissedActive = true);
 
   /**
    * @brief checks to see if nextEvent should be called, and finds the new nextEvent

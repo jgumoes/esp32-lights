@@ -12,3 +12,16 @@ An esp32 project to create smart lights with different modes. The lights will fu
 ## Interface App Requirments
 
 * the app needs to check if two active (or two background) modes have the same activation times, otherwise the mode switching will be indeterminate
+* needs to have a force-cancel alarms option. updating a triggering alarm will not cancel it.
+
+## Usage
+
+### Events
+
+#### Adding Events
+
+events should be added to EventManager first as it will perform checks. If the event is good, then add it to DataStorageClass.
+
+#### Removing and Updating Events
+
+Events should be removed/updated from EventManager and DataStorageClass independantly. EventManager shouldn't need to access storage for removal and updates
