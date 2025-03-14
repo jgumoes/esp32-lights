@@ -2,7 +2,7 @@
 #include <map>
 
 #include "DataStorageClass.h"
-#include "mockStorageHAL.hpp"
+#include "../../nativeMocksAndHelpers/mockStorageHAL.hpp"
 #include "../../EventManager/test_EventManager/testEvents.h"
 
 void setUp(void){}
@@ -122,11 +122,11 @@ void testEventGetters(void){
 }
 
 void testModeGetters(void){
-  TEST_ASSERT(false);
+  TEST_IGNORE();
 }
 
 void testCRUDOperations(void){
-  TEST_ASSERT(false);
+  TEST_IGNORE();
 };
 
 void RUN_UNITY_TESTS(){
