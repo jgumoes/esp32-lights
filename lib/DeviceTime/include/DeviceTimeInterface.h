@@ -8,79 +8,40 @@
 #include "ConfigManager.h"
 #include "timeHelpers.h"
 
+uint64_t roundMicrosToSeconds(uint64_t time){
+  return (time / 1000000) + (time % 1000000 >= 500000);
+}
+
+uint64_t roundMicrosToMillis(uint64_t time){
+  return (time / 1000) + (time % 1000 >= 500);
+}
+
+/**
+ * @brief interface for DeviceTime. getUTCTimestampMicros() and setUTCTimestamp2000() need to be overriden by concrete implementation, but everything else should be RTC-agnostic
+ * 
+ */
 class DeviceTimeInterface{
+  protected:
+    std::shared_ptr<ConfigManagerClass> _configManager;
+    std::unique_ptr<OnboardTimestamp> _onboardTimestamp = std::make_unique<OnboardTimestamp>();
+
+    bool _timeFault = true;
+
+    uint64_t _timeofLastSync = 0; // UTC time of the last sync with an external source (i.e. network or RTC chip)
+    uint64_t _maxTimeBetweenSyncs;  // in uS TODO: move to configs
+
   public:
-    DeviceTimeInterface(){};
+    DeviceTimeInterface(
+      std::shared_ptr<ConfigManagerClass> configManager,
+      uint64_t maxSecondsBetweenSyncs = 60*60*24
+    ) : _configManager(configManager), _maxTimeBetweenSyncs(maxSecondsBetweenSyncs * 1000000){};
 
     /**
-     * @brief gets the UTC timestamp in seconds
+     * @brief get the UTC timestamp in microseconds
      * 
-     * @return uint64_t UTC timestamp in seconds
+     * @return uint64_t UTC timestamp in microseconds
      */
-    uint64_t virtual getUTCTimestampSeconds() = 0;
-
-    /**
-     * @brief get the local timestamp in seconds
-     * 
-     * @return uint64_t timestamp in seconds
-     */
-    uint64_t virtual getLocalTimestampSeconds() = 0;
-
-    /**
-     * @brief gets the local timestamp in microseconds
-     * 
-     * @return uint64_t timestamp in microseconds
-     */
-    uint64_t virtual getLocalTimestampMicros() = 0;
-
-    /**
-     * @brief gets the local timestamp in milliseconds
-     * 
-     * @return uint64_t timestamp in milliseconds
-     */
-    uint64_t virtual getLocalTimestampMillis() = 0;
-
-    /**
-     * @brief gets the current day of the week from 1-7 where 1 is Monday and 7 is Sunday
-     * 
-     * @return uint8_t day of the week
-     */
-    uint8_t virtual getDay() = 0;
-
-    /**
-     * @brief gets the current month from 1-12
-     * 
-     * @return uint8_t current month
-     */
-    uint8_t virtual getMonth() = 0;
-
-    /**
-     * @brief gets the current years since 2000. i.e. 24 = 2024
-     * 
-     * @return uint8_t current year
-     */
-    uint8_t virtual getYear() = 0;
-
-    /**
-     * @brief gets the current date starting at 1
-     * 
-     * @return uint8_t current date
-     */
-    uint8_t virtual getDate() = 0;
-
-    /**
-     * @brief gets the local timestamp at 00:00 of the same day
-     * 
-     * @return uint64_t local timestamp in microseconds
-     */
-    uint64_t virtual getStartOfDay() = 0;
-
-    /**
-     * @brief get the time since midnight of the same day
-     * 
-     * @return uint64_t day timestamp in uS
-     */
-    uint64_t virtual getTimeInDay() = 0;
+    uint64_t virtual getUTCTimestampMicros() = 0;
 
     /**
      * @brief sets the UTC timestamp from 2000 epoch. Timezone and DST are in seconds
@@ -90,6 +51,78 @@ class DeviceTimeInterface{
      * @param DST in seconds
      */
     void virtual setUTCTimestamp2000(uint64_t newTimesamp, int32_t timezone, uint16_t DST) = 0;
+    
+    // nothing below needs to be overriding
+    
+    /**
+     * @brief gets the local timestamp in microseconds
+     * 
+     * @return uint64_t timestamp in microseconds
+     */
+    uint64_t getLocalTimestampMicros();
+
+    /**
+     * @brief gets the UTC timestamp in seconds
+     * 
+     * @return uint64_t UTC timestamp in seconds
+     */
+    uint64_t getUTCTimestampSeconds();
+
+    /**
+     * @brief get the local timestamp in seconds
+     * 
+     * @return uint64_t timestamp in seconds
+     */
+    uint64_t getLocalTimestampSeconds();
+
+    /**
+     * @brief gets the local timestamp in milliseconds
+     * 
+     * @return uint64_t timestamp in milliseconds
+     */
+    uint64_t getLocalTimestampMillis();
+
+    /**
+     * @brief gets the current day of the week from 1-7 where 1 is Monday and 7 is Sunday
+     * 
+     * @return uint8_t day of the week
+     */
+    uint8_t getDay();
+
+    /**
+     * @brief gets the current month from 1-12
+     * 
+     * @return uint8_t current month
+     */
+    uint8_t getMonth();
+
+    /**
+     * @brief gets the current years since 2000. i.e. 24 = 2024
+     * 
+     * @return uint8_t current year
+     */
+    uint8_t getYear();
+
+    /**
+     * @brief gets the current date starting at 1
+     * 
+     * @return uint8_t current date
+     */
+    uint8_t getDate();
+
+    /**
+     * @brief gets the local timestamp at 00:00 of the same day
+     * 
+     * @return uint64_t local timestamp in microseconds
+     */
+    uint64_t getStartOfDay();
+
+    /**
+     * @brief get the time since midnight of the same day
+     * 
+     * @return uint64_t day timestamp in uS
+     */
+    uint64_t getTimeInDay();
 
     /**
      * @brief sets the UTC timestamp from 1970 epoch.
@@ -98,7 +131,7 @@ class DeviceTimeInterface{
      * @param timezone in seconds
      * @param DST in seconds
      */
-    void virtual setUTCTimestamp1970(uint64_t newTimesamp, int32_t timezone, uint16_t DST) = 0;
+    void setUTCTimestamp1970(uint64_t newTimesamp, int32_t timezone, uint16_t DST);
 
     /**
      * @brief sets the local timestamp from 2000 epoch.
@@ -107,7 +140,7 @@ class DeviceTimeInterface{
      * @param timezone in seconds
      * @param DST in seconds
      */
-    void virtual setLocalTimestamp2000(uint64_t newTimesamp, int32_t timezone, uint16_t DST) = 0;
+    void setLocalTimestamp2000(uint64_t newTimesamp, int32_t timezone, uint16_t DST);
 
     /**
      * @brief sets the UTC timestamp from 1970 epoch.
@@ -116,7 +149,7 @@ class DeviceTimeInterface{
      * @param timezone in seconds
      * @param DST in seconds
      */
-    void virtual setLocalTimestamp1970(uint64_t newTimesamp, int32_t timezone, uint16_t DST) = 0;
+    void setLocalTimestamp1970(uint64_t newTimesamp, int32_t timezone, uint16_t DST);
 
     /**
      * @brief returns true if a time fault is detected and a network update is required
@@ -124,9 +157,143 @@ class DeviceTimeInterface{
      * @return true 
      * @return false 
      */
-    bool virtual hasTimeFault() = 0;
+    bool hasTimeFault();
+
+    /**
+     * @brief converts a UTC timestamp into a local timestamp, using stored configs.
+     * TODO: integrate DST time window
+     * 
+     * @param utcTimestamp_uS utc timestamp in microseconds
+     * @return uint64_t local timestamp in microseconds
+     */
+    uint64_t convertUTCToLocalMicros(uint64_t utcTimestamp_uS);
+
+    /**
+     * @brief converts a local timestamp into a UTC timestamp, using stored configs.
+     * TODO: integrate DST time window
+     * 
+     * @param localTimestamp_uS local timestamp in microseconds
+     * @return uint64_t utc timestamp in microseconds
+     */
+    uint64_t convertLocalToUTCMicros(uint64_t localTimestamp_uS);
 };
 
+uint64_t DeviceTimeInterface::getLocalTimestampSeconds()
+{
+  return roundMicrosToSeconds(getLocalTimestampMicros());
+}
 
+uint64_t DeviceTimeInterface::getUTCTimestampSeconds()
+{
+  return roundMicrosToSeconds(getUTCTimestampMicros());
+}
+
+uint64_t DeviceTimeInterface::getLocalTimestampMillis()
+{
+  return roundMicrosToMillis(getLocalTimestampMicros());
+}
+
+uint64_t DeviceTimeInterface::getLocalTimestampMicros()
+{
+  return convertUTCToLocalMicros(getUTCTimestampMicros());
+}
+
+uint8_t DeviceTimeInterface::getDay()
+{
+  RTCConfigsStruct configs = _configManager->getRTCConfigs();
+  UsefulTimeStruct uts = makeUsefulTimeStruct(getLocalTimestampSeconds(), configs);
+  return uts.dayOfWeek;
+}
+
+inline uint8_t DeviceTimeInterface::getMonth()
+{
+  DateTimeStruct dt;
+  convertFromLocalTimestamp(getLocalTimestampSeconds(), &dt);
+  return dt.month;
+}
+
+inline uint8_t DeviceTimeInterface::getYear()
+{
+  uint64_t time = getLocalTimestampSeconds();
+  return ((4* (time/secondsInDay)) / (4*365.25));
+}
+
+inline uint8_t DeviceTimeInterface::getDate()
+{
+  DateTimeStruct dt;
+  convertFromLocalTimestamp(getLocalTimestampSeconds(), &dt);
+  return dt.date;
+}
+
+inline uint64_t DeviceTimeInterface::getStartOfDay()
+{
+  RTCConfigsStruct configs = _configManager->getRTCConfigs();
+  UsefulTimeStruct uts = makeUsefulTimeStruct(getLocalTimestampSeconds(), configs);
+  return uts.startOfDay * 1000000;
+}
+
+inline uint64_t DeviceTimeInterface::getTimeInDay()
+{
+  RTCConfigsStruct configs = _configManager->getRTCConfigs();
+  uint64_t time_uS = getLocalTimestampMicros();
+  UsefulTimeStruct uts = makeUsefulTimeStruct(round(time_uS/1000000), configs);
+  uint64_t timeInDay = time_uS - (uts.startOfDay * 1000000);
+  return timeInDay;
+}
+
+inline void DeviceTimeInterface::setUTCTimestamp1970(uint64_t newTimesamp, int32_t timezone, uint16_t DST)
+{
+  setUTCTimestamp2000(newTimesamp - SECONDS_BETWEEN_1970_2000, timezone, DST);
+}
+
+inline void DeviceTimeInterface::setLocalTimestamp2000(uint64_t newTimesamp, int32_t timezone, uint16_t DST)
+{
+  uint64_t utc = newTimesamp - timezone - DST;
+  setUTCTimestamp2000(utc, timezone, DST);
+}
+
+inline void DeviceTimeInterface::setLocalTimestamp1970(uint64_t newTimesamp, int32_t timezone, uint16_t DST)
+{
+  uint64_t localTimestamp = newTimesamp - SECONDS_BETWEEN_1970_2000;
+  setLocalTimestamp2000(newTimesamp - SECONDS_BETWEEN_1970_2000, timezone, DST);
+}
+
+inline bool DeviceTimeInterface::hasTimeFault()
+{
+  return _timeFault;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+uint64_t DeviceTimeInterface::convertUTCToLocalMicros(uint64_t utcTimestamp_uS)
+{
+  RTCConfigsStruct configs = _configManager->getRTCConfigs();
+  int64_t offset = configs.DST + configs.timezone;
+  offset = offset * 1000000;
+  if(abs(offset) > utcTimestamp_uS){
+    return 0;
+  }
+  return utcTimestamp_uS + offset;
+}
+
+uint64_t DeviceTimeInterface::convertLocalToUTCMicros(uint64_t localTimestamp_uS)
+{
+  RTCConfigsStruct configs = _configManager->getRTCConfigs();
+  int64_t offset = configs.DST + configs.timezone;
+  offset = offset * 1000000;
+  if(abs(offset) > localTimestamp_uS){
+    return 0;
+  }
+  return localTimestamp_uS - offset;
+}
 
 #endif

@@ -25,3 +25,13 @@ events should be added to EventManager first as it will perform checks. If the e
 #### Removing and Updating Events
 
 Events should be removed/updated from EventManager and DataStorageClass independantly. EventManager shouldn't need to access storage for removal and updates
+
+### DeviceTime
+
+DeviceTime primarily uses an onboard register to manage device time. The register uses UTC time in microseconds since 2000. The 2000 epoch is compatible with the BLE-SIG specified Device Time Service. This project doesn't need a resolution greater the milliseconds, but the esp32 timer peripheral can only do microseconds and the time buffer shouldn't overflow until we're all dead anyway.
+
+The time should default to the BUILD_TIMESTAMP when the program starts. It should also write BUILD_TIMESTAMP to the RTC chip if the RTC time is 0, meaning a fresh upload won't need extra steps to set the time!
+
+#### With RTC
+
+The RTC_interface stores the local timestamp, and should be written to when dst or timezone changes. Yeah this is pretty awkward, but it means the reference time will be locally correct if there's some kind of fault with the configManager (like if configs are written to a bad block or something). This shouldn't effect the usage at all.
