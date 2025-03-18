@@ -31,7 +31,7 @@ class OnboardTimestamp{
    * It measures in microseconds because it uses the 80MHz clock,
    * but won't overflow until 2570.
    * 
-   * @param timeNow the current timestamp in microseconds
+   * @param timeNow the current UTC timestamp in microseconds
    */
   void setTimestamp_uS(uint64_t startTime);
 
@@ -40,15 +40,14 @@ class OnboardTimestamp{
    * It measures in microseconds because it uses the 80MHz clock,
    * but won't overflow until 2570.
    * 
-   * @param timeNow the current timestamp in microseconds
+   * @param timeNow the current UTC timestamp in microseconds
    */
   void setTimestamp_S(uint64_t timeNow);
 
   /**
-   * @brief Get the timestamp. accepts the address of an empty value,
-   * and fills it with the timestamp in microseconds
+   * @brief Get the timestamp
    * 
-   * @param time address of the time value to fill
+   * @return the current UTC timestamp in microseconds
    */
   uint64_t getTimestamp_uS();
 };

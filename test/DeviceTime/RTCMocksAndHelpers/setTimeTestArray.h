@@ -1,3 +1,23 @@
+/*
+javascript helper function to convert time to 2000 epoch:
+
+let convert1970to2000 = (dateObj) => {
+  let timestamp = dateObj.getTime();
+  let epoch = new Date(0);
+  epoch.setYear(2000);
+  epoch.setUTCHours(0);
+  return (timestamp - epoch.getTime())/1000;
+}
+
+javascript function for finding timestamps:
+
+let convert2000To1970 = (timestamp) => {
+  let epoch = new Date(0);
+  epoch.setYear(2000);
+  epoch.setUTCHours(0);
+  return new Date(epoch.getTime() + timestamp * 1000);
+}
+*/
 #pragma once
 
 #include <ArduinoFake.h>
@@ -18,10 +38,14 @@ struct TestParamsStruct
   uint16_t DST = 0;
 };
 
-std::vector<TestParamsStruct> testArray = {
-  {"at_the_beginning_of_time", 0, 0, 0, 0, 6, 1, 1, 0, 0, 0},
+uint64_t buildTimestampS = BUILD_TIMESTAMP/1000000;
+
+TestParamsStruct const buildTimeParams = { "Time Fault", buildTimestampS, 38, 41, 17, 7, 15, 3, 20, 0, 0};
+TestParamsStruct const beginningOfTime = {"at_the_beginning_of_time", 0, 0, 0, 0, 6, 1, 1, 0, -60*60*11, 0};
+
+std::vector<TestParamsStruct> const testArray = {
   {"during_british_winter_time_2023", 729082742, 2, 59, 10, 2, 7, 2, 23, 0, 0},
-  {"during_british_summer_time_2023", 743102001, 21, 13, 17, 3, 19, 7, 23, 0, 60*60},
+  {"during_british_summer_time_2023", 743102001, 21, 13, 18, 3, 19, 7, 23, 0, 60*60},
   {"feb_28_2023", 730925880, 0, 58, 18, 2, 28, 2, 23, 0, 0},
   {"mar_1_2023", 731007913, 13, 45, 17, 3, 1, 3, 23, 0, 0},
   {"feb_28_2024", 762461880, 0, 58, 18, 3, 28, 2, 24, 0, 0},
@@ -33,18 +57,18 @@ std::vector<TestParamsStruct> testArray = {
   {"mar_5_2024", 762975913, 13, 45, 17, 2, 5, 3, 24, 0, 0},
   {"mar_6_2024", 763062313, 13, 45, 17, 3, 6, 3, 24, 0, 0},
   {"mar_7_2024", 763148713, 13, 45, 17, 4, 7, 3, 24, 0, 0},
-  {"april_6_24", 765740713, 13, 45, 17, 6, 6, 4, 24, 0, 60*60},
-  {"may_10_2024", 768678313, 13, 45, 17, 5, 10, 5, 24, 0, 60*60},
-  {"june_10_2024", 771356713, 13, 45, 17, 1, 10, 6, 24, 0, 60*60},
-  {"july_10_2024", 773948713, 13, 45, 17, 3, 10, 7, 24, 0, 60*60},
-  {"aug_10_2024", 776627113, 13, 45, 17, 6, 10, 8, 24, 0, 60*60},
-  {"sep_10_2024", 779305513, 13, 45, 17, 2, 10, 9, 24, 0, 60*60},
+  {"april_6_24", 765740713, 13, 45, 18, 6, 6, 4, 24, 0, 60*60},
+  {"may_10_2024", 768678313, 13, 45, 18, 5, 10, 5, 24, 0, 60*60},
+  {"june_10_2024", 771356713, 13, 45, 18, 1, 10, 6, 24, 0, 60*60},
+  {"july_10_2024", 773948713, 13, 45, 18, 3, 10, 7, 24, 0, 60*60},
+  {"aug_10_2024", 776627113, 13, 45, 18, 6, 10, 8, 24, 0, 60*60},
+  {"sep_10_2024", 779305513, 13, 45, 18, 2, 10, 9, 24, 0, 60*60},
   {"oct_10_2024", 781897513, 13, 45, 17, 4, 10, 10, 24, 0, 0},
   {"nov_10_2024", 784575913, 13, 45, 17, 7, 10, 11, 24, 0, 0},
   {"dec_10_2024", 787167913, 13, 45, 17, 2, 10, 12, 24, 0, 0},
-  {"feb_6_2005", 161049598, 58, 59, 23, 7, 6, 2, 5, 0, 0},
-  {"june_30_2023_1hr_dst", 804600317, 17, 5, 12, 1, 30, 6, 25, 0, 60*60},
-  {"july_31_25_1hr_dst_minus_8hr_timezone", 807244446, 6, 34, 2, 4, 31, 7, 25, -8*60*60, 60*60},
+  // {"feb_6_2005", 161049598, 58, 59, 23, 7, 6, 2, 5, 0, 0},
+  {"june_30_2023_1hr_dst", 804600317, 17, 5, 13, 1, 30, 6, 25, 0, 60*60},
+  {"july_31_25_1hr_dst_minus_8hr_timezone", 807244446, 6, 34, 3, 4, 31, 7, 25, -8*60*60, 60*60},
   {"nov_30_26_plus_3hrs_timezone", 849321246, 6, 34, 2, 1, 30, 11, 26, 3*60*60, 0},
 };
 
