@@ -28,13 +28,10 @@ class DeviceTimeInterface{
     bool _timeFault = true;
 
     uint64_t _timeofLastSync = 0; // UTC time of the last sync with an external source (i.e. network or RTC chip)
-    uint64_t _maxTimeBetweenSyncs;  // in uS TODO: move to configs
+    uint64_t _timeOfNextSync = 0; // UTC time in micros of the next automatic sync
 
   public:
-    DeviceTimeInterface(
-      std::shared_ptr<ConfigManagerClass> configManager,
-      uint64_t maxSecondsBetweenSyncs = 60*60*24
-    ) : _configManager(configManager), _maxTimeBetweenSyncs(maxSecondsBetweenSyncs * 1000000){};
+    DeviceTimeInterface(std::shared_ptr<ConfigManagerClass> configManager) : _configManager(configManager){};
 
     /**
      * @brief get the UTC timestamp in microseconds
@@ -49,10 +46,11 @@ class DeviceTimeInterface{
      * @param newTimesamp in seconds
      * @param timezone in seconds
      * @param DST in seconds
+     * @return if operation was successful
      */
-    void virtual setUTCTimestamp2000(uint64_t newTimesamp, int32_t timezone, uint16_t DST) = 0;
+    bool virtual setUTCTimestamp2000(uint64_t newTimesamp, int32_t timezone, uint16_t DST) = 0;
     
-    // nothing below needs to be overriding
+    // nothing below needs to be overriden
     
     /**
      * @brief gets the local timestamp in microseconds
@@ -130,8 +128,9 @@ class DeviceTimeInterface{
      * @param newTimesamp in seconds
      * @param timezone in seconds
      * @param DST in seconds
+     * @return if operation was successful
      */
-    void setUTCTimestamp1970(uint64_t newTimesamp, int32_t timezone, uint16_t DST);
+    bool setUTCTimestamp1970(uint64_t newTimesamp, int32_t timezone, uint16_t DST);
 
     /**
      * @brief sets the local timestamp from 2000 epoch.
@@ -139,8 +138,9 @@ class DeviceTimeInterface{
      * @param newTimesamp in seconds
      * @param timezone in seconds
      * @param DST in seconds
+     * @return if operation was successful
      */
-    void setLocalTimestamp2000(uint64_t newTimesamp, int32_t timezone, uint16_t DST);
+    bool setLocalTimestamp2000(uint64_t newTimesamp, int32_t timezone, uint16_t DST);
 
     /**
      * @brief sets the UTC timestamp from 1970 epoch.
@@ -148,8 +148,9 @@ class DeviceTimeInterface{
      * @param newTimesamp in seconds
      * @param timezone in seconds
      * @param DST in seconds
+     * @return if operation was successful
      */
-    void setLocalTimestamp1970(uint64_t newTimesamp, int32_t timezone, uint16_t DST);
+    bool setLocalTimestamp1970(uint64_t newTimesamp, int32_t timezone, uint16_t DST);
 
     /**
      * @brief returns true if a time fault is detected and a network update is required
@@ -159,6 +160,28 @@ class DeviceTimeInterface{
      */
     bool hasTimeFault();
 
+// some helper functions that can be used anywhere without fetching a new timestamp
+
+    /**
+     * @brief checks the validity of the timezone, according to BLE-SIG specifications
+     * 
+     * @param timezone offset in seconds
+     * @return true if valid
+     */
+    bool isTimezoneValid(int32_t timezone){
+      return (timezone >= -48*15*60) && (timezone <= 56*15*60) && (timezone % (15*60) == 0);
+    }
+
+    /**
+     * @brief checks the validity of the DST, according to BLE-SIG specifications
+     * 
+     * @param DST offset in seconds
+     * @return true if valid
+     */
+    bool isDSTValid(uint16_t DST){
+      return (DST == 0) || (DST == 60*60) || (DST == 30*60) || (DST == 2*60*60);
+    }
+    
     /**
      * @brief converts a UTC timestamp into a local timestamp, using stored configs.
      * TODO: integrate DST time window
@@ -201,7 +224,7 @@ uint64_t DeviceTimeInterface::getLocalTimestampMicros()
 uint8_t DeviceTimeInterface::getDay()
 {
   RTCConfigsStruct configs = _configManager->getRTCConfigs();
-  UsefulTimeStruct uts = makeUsefulTimeStruct(getLocalTimestampSeconds(), configs);
+  UsefulTimeStruct uts = makeUsefulTimeStruct(getLocalTimestampSeconds());
   return uts.dayOfWeek;
 }
 
@@ -228,7 +251,7 @@ inline uint8_t DeviceTimeInterface::getDate()
 inline uint64_t DeviceTimeInterface::getStartOfDay()
 {
   RTCConfigsStruct configs = _configManager->getRTCConfigs();
-  UsefulTimeStruct uts = makeUsefulTimeStruct(getLocalTimestampSeconds(), configs);
+  UsefulTimeStruct uts = makeUsefulTimeStruct(getLocalTimestampSeconds());
   return uts.startOfDay * 1000000;
 }
 
@@ -236,43 +259,32 @@ inline uint64_t DeviceTimeInterface::getTimeInDay()
 {
   RTCConfigsStruct configs = _configManager->getRTCConfigs();
   uint64_t time_uS = getLocalTimestampMicros();
-  UsefulTimeStruct uts = makeUsefulTimeStruct(round(time_uS/1000000), configs);
+  UsefulTimeStruct uts = makeUsefulTimeStruct(round(time_uS/1000000));
   uint64_t timeInDay = time_uS - (uts.startOfDay * 1000000);
   return timeInDay;
 }
 
-inline void DeviceTimeInterface::setUTCTimestamp1970(uint64_t newTimesamp, int32_t timezone, uint16_t DST)
+inline bool DeviceTimeInterface::setUTCTimestamp1970(uint64_t newTimesamp, int32_t timezone, uint16_t DST)
 {
-  setUTCTimestamp2000(newTimesamp - SECONDS_BETWEEN_1970_2000, timezone, DST);
+  return setUTCTimestamp2000(newTimesamp - SECONDS_BETWEEN_1970_2000, timezone, DST);
 }
 
-inline void DeviceTimeInterface::setLocalTimestamp2000(uint64_t newTimesamp, int32_t timezone, uint16_t DST)
+inline bool DeviceTimeInterface::setLocalTimestamp2000(uint64_t newTimesamp, int32_t timezone, uint16_t DST)
 {
   uint64_t utc = newTimesamp - timezone - DST;
-  setUTCTimestamp2000(utc, timezone, DST);
+  return setUTCTimestamp2000(utc, timezone, DST);
 }
 
-inline void DeviceTimeInterface::setLocalTimestamp1970(uint64_t newTimesamp, int32_t timezone, uint16_t DST)
+inline bool DeviceTimeInterface::setLocalTimestamp1970(uint64_t newTimesamp, int32_t timezone, uint16_t DST)
 {
   uint64_t localTimestamp = newTimesamp - SECONDS_BETWEEN_1970_2000;
-  setLocalTimestamp2000(newTimesamp - SECONDS_BETWEEN_1970_2000, timezone, DST);
+  return setLocalTimestamp2000(newTimesamp - SECONDS_BETWEEN_1970_2000, timezone, DST);
 }
 
 inline bool DeviceTimeInterface::hasTimeFault()
 {
   return _timeFault;
 }
-
-
-
-
-
-
-
-
-
-
-
 
 uint64_t DeviceTimeInterface::convertUTCToLocalMicros(uint64_t utcTimestamp_uS)
 {

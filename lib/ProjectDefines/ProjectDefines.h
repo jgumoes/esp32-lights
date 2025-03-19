@@ -17,6 +17,11 @@
 /* RTC_interface is an external module */
 #include "RTC_interface.h"
 
+/* DeviceTime */
+#ifndef BUILD_TIMESTAMP
+  // UTC timestamp at build time. the timestamp should never fall below this time. currently in milliseconds since 2000, defaults to 15/3/25 2020. TODO: make a build script to insert local timestamp
+  #define BUILD_TIMESTAMP 637609298000000
+#endif
 
 /* EventManager */
 typedef uint8_t eventUUID;

@@ -23,20 +23,28 @@ uint64_t findStartOfDay(TestParamsStruct testParams){
   return timestamp;
 }
 
+std::shared_ptr<ConfigManagerClass> globalConfigs;
+
 DeviceTimeWithRTCClass<MockWire> deviceTimeFactory(TestParamsStruct initTimeParams = testArray.at(0)){
   std::shared_ptr<MockWire> wire = std::make_shared<MockWire>(initTimeParams.seconds, initTimeParams.minutes, initTimeParams.hours, initTimeParams.dayOfWeek, initTimeParams.date, initTimeParams.month, initTimeParams.years);
-  auto configHal = std::make_unique<MockConfigHal>();
+
   auto mockConfigHal = makeConcreteConfigHal<MockConfigHal>();
-  std::shared_ptr<ConfigManagerClass> configs = std::make_shared<ConfigManagerClass>(std::move(mockConfigHal));
+  globalConfigs = std::make_shared<ConfigManagerClass>(std::move(mockConfigHal));
 
   RTCConfigsStruct configsStruct = {initTimeParams.timezone, initTimeParams.DST};
-  configs->setRTCConfigs(configsStruct);
-  DeviceTimeWithRTCClass<MockWire> deviceTime(configs, wire);
+  globalConfigs->setRTCConfigs(configsStruct);
+  DeviceTimeWithRTCClass<MockWire> deviceTime(globalConfigs, wire);
   return deviceTime;
+}
+
+uint64_t utcTimeFromTestParams(TestParamsStruct testParams){
+  int32_t offset = testParams.DST + testParams.timezone;
+  return testParams.localTimestamp - offset;
 }
 
 #define testLocalGetters_helper(testParams, deviceTime){  \
   TEST_ASSERT_EQUAL_MESSAGE(testParams.localTimestamp, deviceTime.getLocalTimestampSeconds(), ("testParams: " + testParams.testName + "; fail: getLocalTimestampSeconds").c_str());\
+  TEST_ASSERT_EQUAL_MESSAGE(utcTimeFromTestParams(testParams), deviceTime.getUTCTimestampSeconds(), ("testParams: " + testParams.testName + "; fail: getUTCTimestampSeconds").c_str());\
   TEST_ASSERT_EQUAL_MESSAGE(testParams.dayOfWeek, deviceTime.getDay(), ("testParams: " + testParams.testName + "; fail: getDay").c_str());\
   TEST_ASSERT_EQUAL_MESSAGE(testParams.month, deviceTime.getMonth(), ("testParams: " + testParams.testName + "; fail: getMonth").c_str());\
   TEST_ASSERT_EQUAL_MESSAGE(testParams.years, deviceTime.getYear(), ("testParams: " + testParams.testName + "; fail: getYear").c_str());\
@@ -97,19 +105,23 @@ void setLocalTimestamp2000(void){
   for(int i = 0; i < testArray.size(); i++)
   {
     TestParamsStruct testParams = testArray.at(i);
-    deviceTime.setLocalTimestamp2000(testParams.localTimestamp, testParams.timezone, testParams.DST);
+    TEST_ASSERT(deviceTime.setLocalTimestamp2000(testParams.localTimestamp, testParams.timezone, testParams.DST));
+
+    // configs were written
+    RTCConfigsStruct rtcConfigs = globalConfigs->getRTCConfigs();
+    TEST_ASSERT_EQUAL(rtcConfigs.DST, testParams.DST);
+    TEST_ASSERT_EQUAL(rtcConfigs.timezone, testParams.timezone);
 
     // local getters
-    uint64_t retLocalTime = deviceTime.getLocalTimestampSeconds();
     testLocalGetters_helper(testParams, deviceTime);
   }
 
   // time can't be set before build time
   {
     TestParamsStruct testParams = testArray.at(1);
-    deviceTime.setLocalTimestamp2000(testParams.localTimestamp, testParams.timezone, testParams.DST);
+    TEST_ASSERT(deviceTime.setLocalTimestamp2000(testParams.localTimestamp, testParams.timezone, testParams.DST));
 
-    deviceTime.setLocalTimestamp2000(beginningOfTime.localTimestamp, beginningOfTime.timezone, beginningOfTime.DST);
+    TEST_ASSERT_FALSE(deviceTime.setLocalTimestamp2000(beginningOfTime.localTimestamp, beginningOfTime.timezone, beginningOfTime.DST));
     testLocalGetters_helper(testParams, deviceTime);
   }
 }
@@ -122,20 +134,25 @@ void setLocalTimestamp1970(void){
   {
     TestParamsStruct testParams = testArray.at(i);
     uint64_t testTimestamp = testParams.localTimestamp + SECONDS_BETWEEN_1970_2000;
-    deviceTime.setLocalTimestamp1970(testTimestamp, testParams.timezone, testParams.DST);
+    TEST_ASSERT(deviceTime.setLocalTimestamp1970(testTimestamp, testParams.timezone, testParams.DST));
 
     // local getters
     testLocalGetters_helper(testParams, deviceTime);
+
+    // configs were written
+    RTCConfigsStruct rtcConfigs = globalConfigs->getRTCConfigs();
+    TEST_ASSERT_EQUAL(rtcConfigs.DST, testParams.DST);
+    TEST_ASSERT_EQUAL(rtcConfigs.timezone, testParams.timezone);
   }
 
   // time can't be set before build time
   {
     TestParamsStruct testParams = testArray.at(1);
     uint64_t goodTimestamp = testParams.localTimestamp + SECONDS_BETWEEN_1970_2000;
-    deviceTime.setLocalTimestamp1970(goodTimestamp, testParams.timezone, testParams.DST);
+    TEST_ASSERT(deviceTime.setLocalTimestamp1970(goodTimestamp, testParams.timezone, testParams.DST));
     TEST_ASSERT_EQUAL(testParams.localTimestamp, deviceTime.getLocalTimestampSeconds());
 
-    deviceTime.setLocalTimestamp1970(beginningOfTime.localTimestamp, beginningOfTime.timezone, beginningOfTime.DST);
+    TEST_ASSERT_FALSE(deviceTime.setLocalTimestamp1970(beginningOfTime.localTimestamp, beginningOfTime.timezone, beginningOfTime.DST));
     testLocalGetters_helper(testParams, deviceTime);
   }
 }
@@ -149,20 +166,25 @@ void setUTCTimestamp2000(void){
   {
     TestParamsStruct testParams = testArray.at(i);
     uint64_t testTimestamp = testParams.localTimestamp - testParams.DST - testParams.timezone;
-    deviceTime.setUTCTimestamp2000(testTimestamp, testParams.timezone, testParams.DST);
+    TEST_ASSERT(deviceTime.setUTCTimestamp2000(testTimestamp, testParams.timezone, testParams.DST));
 
     // local getters
     testLocalGetters_helper(testParams, deviceTime);
     TEST_ASSERT_EQUAL(testTimestamp, deviceTime.getUTCTimestampSeconds());
+
+    // configs were written
+    RTCConfigsStruct rtcConfigs = globalConfigs->getRTCConfigs();
+    TEST_ASSERT_EQUAL(rtcConfigs.DST, testParams.DST);
+    TEST_ASSERT_EQUAL(rtcConfigs.timezone, testParams.timezone);
   }
 
   // time can't be set before build time
   {
     TestParamsStruct testParams = testArray.at(1);
     uint64_t testTimestamp = testParams.localTimestamp - testParams.DST - testParams.timezone;
-    deviceTime.setUTCTimestamp2000(testTimestamp, testParams.timezone, testParams.DST);
+    TEST_ASSERT(deviceTime.setUTCTimestamp2000(testTimestamp, testParams.timezone, testParams.DST));
 
-    deviceTime.setUTCTimestamp2000(beginningOfTime.localTimestamp, beginningOfTime.timezone, beginningOfTime.DST);
+    TEST_ASSERT_FALSE(deviceTime.setUTCTimestamp2000(beginningOfTime.localTimestamp, beginningOfTime.timezone, beginningOfTime.DST));
     testLocalGetters_helper(testParams, deviceTime);
     TEST_ASSERT_EQUAL(testTimestamp, deviceTime.getUTCTimestampSeconds());
   }
@@ -177,21 +199,26 @@ void setUTCTimestamp1970(void){
   {
     TestParamsStruct testParams = testArray.at(i);
     uint64_t testTimestamp = testParams.localTimestamp - testParams.DST - testParams.timezone + SECONDS_BETWEEN_1970_2000;
-    deviceTime.setUTCTimestamp1970(testTimestamp, testParams.timezone, testParams.DST);
+    TEST_ASSERT(deviceTime.setUTCTimestamp1970(testTimestamp, testParams.timezone, testParams.DST));
 
     // local getters
     testLocalGetters_helper(testParams, deviceTime);
     TEST_ASSERT_EQUAL(testTimestamp - SECONDS_BETWEEN_1970_2000, deviceTime.getUTCTimestampSeconds());
+
+    // configs were written
+    RTCConfigsStruct rtcConfigs = globalConfigs->getRTCConfigs();
+    TEST_ASSERT_EQUAL(rtcConfigs.DST, testParams.DST);
+    TEST_ASSERT_EQUAL(rtcConfigs.timezone, testParams.timezone);
   }
 
   // time can't be set before build time
   {
     TestParamsStruct testParams = testArray.at(1);
     uint64_t testTimestamp = testParams.localTimestamp - testParams.DST - testParams.timezone + SECONDS_BETWEEN_1970_2000;
-    deviceTime.setUTCTimestamp1970(testTimestamp, testParams.timezone, testParams.DST);
+    TEST_ASSERT(deviceTime.setUTCTimestamp1970(testTimestamp, testParams.timezone, testParams.DST));
     TEST_ASSERT_EQUAL(testParams.localTimestamp, deviceTime.getLocalTimestampSeconds());
 
-    deviceTime.setUTCTimestamp1970(beginningOfTime.localTimestamp, beginningOfTime.timezone, beginningOfTime.DST);
+    TEST_ASSERT_FALSE(deviceTime.setUTCTimestamp1970(beginningOfTime.localTimestamp, beginningOfTime.timezone, beginningOfTime.DST));
     testLocalGetters_helper(testParams, deviceTime);
     TEST_ASSERT_EQUAL(testParams.localTimestamp, deviceTime.getLocalTimestampSeconds());
     TEST_ASSERT_EQUAL(testTimestamp - SECONDS_BETWEEN_1970_2000, deviceTime.getUTCTimestampSeconds());
@@ -207,8 +234,10 @@ void testTimeBetweenSyncs(void){
   auto mockConfigHal = makeConcreteConfigHal<MockConfigHal>();
   std::shared_ptr<ConfigManagerClass> configs = std::make_shared<ConfigManagerClass>(std::move(mockConfigHal));
 
+  RTCConfigsStruct rtcConfigs{0, 0, secondsInADay};
+  
   std::unique_ptr<OnboardTimestamp> onboardTimestamp = std::make_unique<OnboardTimestamp>();
-  DeviceTimeWithRTCClass<MockWire> deviceTime(configs, wire, secondsInADay);
+  DeviceTimeWithRTCClass<MockWire> deviceTime(configs, wire);
 
   // check test is properly initialise
   TEST_ASSERT_EQUAL(initTimeParams.localTimestamp, deviceTime.getLocalTimestampSeconds());
@@ -248,7 +277,7 @@ void testTimeFault(){
     faultTimeParams.hours = 17;
     faultTimeParams.dayOfWeek = 7;
     faultTimeParams.date = 15;
-    faultTimeParams.month =3;
+    faultTimeParams.month = 3;
     faultTimeParams.years = 20;
     faultTimeParams.timezone = 0;
     faultTimeParams.DST = 0;
@@ -328,6 +357,77 @@ void testTimeFault(){
   }
 }
 
+void testErrorsCatching(void){
+  // test that the timzone and DST according to BLE-SIG's absolute banger of a read, GATT Specification Supplement
+  // bad timestamps and time faults already been tested in the other tests
+  TestParamsStruct goodTime = testArray.at(0);
+  auto testClass = deviceTimeFactory(goodTime);
+  RTCConfigsStruct rtcConfigs = globalConfigs->getRTCConfigs();
+  TEST_ASSERT_EQUAL(0, rtcConfigs.DST);
+  TEST_ASSERT_EQUAL(0, rtcConfigs.timezone);
+
+  // bad timezone
+  {
+    // negative out-of-bounds
+    TestParamsStruct badTimezone1 = testArray.at(6);
+    badTimezone1.testName = "bad timezone 1";
+    badTimezone1.timezone = -49*15*60;
+    TEST_ASSERT_FALSE(testClass.setLocalTimestamp2000(badTimezone1.localTimestamp, badTimezone1.timezone, badTimezone1.DST));
+    TEST_ASSERT_NOT_EQUAL(badTimezone1.localTimestamp, testClass.getLocalTimestampSeconds());
+    TEST_ASSERT_NOT_EQUAL(badTimezone1.timezone, globalConfigs->getRTCConfigs().timezone);
+
+    // positive out-of-bounds
+    TestParamsStruct badTimezone2 = testArray.at(6);
+    badTimezone2.testName = "bad timezone 2";
+    badTimezone2.timezone = 57*15*60;
+    TEST_ASSERT_FALSE(testClass.setLocalTimestamp2000(badTimezone2.localTimestamp, badTimezone2.timezone, badTimezone2.DST));
+    TEST_ASSERT_NOT_EQUAL(badTimezone2.localTimestamp, testClass.getLocalTimestampSeconds());
+    TEST_ASSERT_NOT_EQUAL(badTimezone2.timezone, globalConfigs->getRTCConfigs().timezone);
+
+    // not a multiple of 15 minutes
+    TestParamsStruct badTimezone3 = testArray.at(6);
+    badTimezone3.testName = "bad timezone 3";
+    badTimezone3.timezone = 10*15*60 + 7;
+    TEST_ASSERT_FALSE(testClass.setLocalTimestamp2000(badTimezone3.localTimestamp, badTimezone3.timezone, badTimezone3.DST));
+    TEST_ASSERT_NOT_EQUAL(badTimezone3.localTimestamp, testClass.getLocalTimestampSeconds());
+    TEST_ASSERT_NOT_EQUAL(badTimezone3.timezone, globalConfigs->getRTCConfigs().timezone);
+  }
+
+  // bad DST
+  {
+    TestParamsStruct badDST1 = testArray.at(6);
+    badDST1.testName = "bad DST 1";
+    badDST1.DST = 1;
+    TEST_ASSERT_FALSE(testClass.setLocalTimestamp2000(badDST1.localTimestamp, badDST1.timezone, badDST1.DST));
+    TEST_ASSERT_NOT_EQUAL(badDST1.localTimestamp, testClass.getLocalTimestampSeconds());
+    TEST_ASSERT_NOT_EQUAL(badDST1.DST, globalConfigs->getRTCConfigs().DST);
+
+    TestParamsStruct badDST2 = testArray.at(6);
+    badDST2.testName = "bad DST 2";
+    badDST2.DST = 59;
+    TEST_ASSERT_FALSE(testClass.setLocalTimestamp2000(badDST2.localTimestamp, badDST2.timezone, badDST2.DST));
+    TEST_ASSERT_NOT_EQUAL(badDST2.localTimestamp, testClass.getLocalTimestampSeconds());
+    TEST_ASSERT_NOT_EQUAL(badDST2.DST, globalConfigs->getRTCConfigs().DST);
+
+    TestParamsStruct badDST3 = testArray.at(6);
+    badDST3.testName = "bad DST 3";
+    badDST3.DST = 122;
+    TEST_ASSERT_FALSE(testClass.setLocalTimestamp2000(badDST3.localTimestamp, badDST3.timezone, badDST3.DST));
+    TEST_ASSERT_NOT_EQUAL(badDST3.localTimestamp, testClass.getLocalTimestampSeconds());
+    TEST_ASSERT_NOT_EQUAL(badDST3.DST, globalConfigs->getRTCConfigs().DST);
+  }
+
+  // bad time
+  {
+    TestParamsStruct badTime1 = badTime;
+    TEST_ASSERT(badTime1.localTimestamp * 1000000 < BUILD_TIMESTAMP);
+    TEST_ASSERT_FALSE(testClass.setLocalTimestamp2000(badTime1.localTimestamp, badTime1.timezone, badTime1.DST));
+    RTCConfigsStruct testConfigs = globalConfigs->getRTCConfigs();
+    TEST_ASSERT_NOT_EQUAL(testConfigs.DST, badTime1.DST);
+    TEST_ASSERT_NOT_EQUAL(testConfigs.timezone, badTime1.timezone);
+  }
+}
+
 // void noStrayPrintDebugs(void){
 //   // arduino fake imports iostream, so this test will always fail on desktop
 // #ifdef _GLIBCXX_IOSTREAM
@@ -346,6 +446,7 @@ void RUN_UNITY_TESTS(){
   RUN_TEST(setUTCTimestamp2000);
   RUN_TEST(setUTCTimestamp1970);
   RUN_TEST(testTimeFault);
+  RUN_TEST(testErrorsCatching);
   UNITY_END();
 };
 

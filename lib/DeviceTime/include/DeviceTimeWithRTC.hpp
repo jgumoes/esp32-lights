@@ -21,9 +21,8 @@ class DeviceTimeWithRTCClass : public DeviceTimeInterface{
   public:
     DeviceTimeWithRTCClass(
       std::shared_ptr<ConfigManagerClass> configManager,
-      std::shared_ptr<WireClassDependancy> wireClass,
-      uint64_t maxSecondsBetweenSyncs = 60*60*24
-      ) : DeviceTimeInterface(configManager, maxSecondsBetweenSyncs),
+      std::shared_ptr<WireClassDependancy> wireClass
+      ) : DeviceTimeInterface(configManager),
           _rtcChip(RTCInterfaceClass<WireClassDependancy, ConfigManagerClass>(wireClass, configManager))
     {
       _rtcChip.begin();
@@ -48,24 +47,29 @@ class DeviceTimeWithRTCClass : public DeviceTimeInterface{
      * @param newTimesamp in seconds
      * @param timezone in seconds
      * @param DST in seconds
+     * @return if operation was successful
      */
-    void setUTCTimestamp2000(uint64_t newTimesamp, int32_t timezone, uint16_t DST) override;
+    bool setUTCTimestamp2000(uint64_t newTimesamp, int32_t timezone, uint16_t DST) override;
 
 };
 
 template <typename WireClassDependancy>
 uint64_t DeviceTimeWithRTCClass<WireClassDependancy>::getUTCTimestampMicros()
 {
-  RTCConfigsStruct configs = _configManager->getRTCConfigs();
   uint64_t utcTime_uS = _onboardTimestamp->getTimestamp_uS();
-
-  if(utcTime_uS > _timeofLastSync + _maxTimeBetweenSyncs || utcTime_uS <= BUILD_TIMESTAMP){
+  
+  if(
+    utcTime_uS >= _timeOfNextSync
+    || utcTime_uS <= BUILD_TIMESTAMP
+  ){
     // if onboard timestamp needs a sync or has a fault
+    RTCConfigsStruct configs = _configManager->getRTCConfigs();
     uint64_t newUTCTime = _rtcChip.getUTCTimestamp() * 1000000;
     if(newUTCTime > BUILD_TIMESTAMP){
       // if the RTC timestamp seems legit
       _onboardTimestamp->setTimestamp_uS(newUTCTime);
       _timeofLastSync = newUTCTime;
+      _timeOfNextSync = newUTCTime  + configs.maxSecondsBetweenSyncs*1000000;
       return newUTCTime;
     }
 
@@ -86,15 +90,24 @@ uint64_t DeviceTimeWithRTCClass<WireClassDependancy>::getUTCTimestampMicros()
 }
 
 template<typename WireClassDependancy>
-void DeviceTimeWithRTCClass<WireClassDependancy>::setUTCTimestamp2000(uint64_t newTimesamp, int32_t timezone, uint16_t DST){
+bool DeviceTimeWithRTCClass<WireClassDependancy>::setUTCTimestamp2000(uint64_t newTimesamp, int32_t timezone, uint16_t DST){
   uint64_t timeOverflow = pow(2, 54) - 1;
-  if(newTimesamp * 1000000 > BUILD_TIMESTAMP && newTimesamp < timeOverflow){
-    _timeFault = false;
-    _rtcChip.setUTCTimestamp(newTimesamp, timezone, DST);
-    _onboardTimestamp->setTimestamp_S(_rtcChip.getUTCTimestamp());
-    uint64_t rtcTimestamp = _rtcChip.getUTCTimestamp();
-    _onboardTimestamp->setTimestamp_S(rtcTimestamp);
+  if(
+    newTimesamp * 1000000 < BUILD_TIMESTAMP
+    || newTimesamp >= timeOverflow
+    || !isTimezoneValid(timezone)
+    || !isDSTValid(DST)
+  ){
+    return false;
   }
+  _timeFault = false;
+  // new configs are currently set by _rtcChip. I know, I don't like it either
+  _rtcChip.setUTCTimestamp(newTimesamp, timezone, DST);
+  uint64_t rtcTimestamp = _rtcChip.getUTCTimestamp();
+  _onboardTimestamp->setTimestamp_S(rtcTimestamp);
+  _timeofLastSync = rtcTimestamp*1000000;
+  _timeOfNextSync = _timeofLastSync + _configManager->getRTCConfigs().maxSecondsBetweenSyncs*1000000;
+  return true;
 }
 
 #endif
