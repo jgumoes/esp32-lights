@@ -20,9 +20,15 @@ uint64_t inline findPreviousTriggerTime(EventMappingStruct event, UsefulTimeStru
   return 0;
 };
 
-EventManager::EventManager(std::shared_ptr<ModalLightsInterface> modalLights, std::shared_ptr<ConfigManagerClass> configs, EventStorageIterator events, uint64_t timestampS) : _modalLights(modalLights), _configs(configs)
+EventManager::EventManager(
+  std::shared_ptr<ModalLightsInterface> modalLights,
+  std::shared_ptr<ConfigManagerClass> configs,
+  std::shared_ptr<DeviceTimeInterface> deviceTime,
+  EventStorageIterator events
+) : _modalLights(modalLights), _configs(configs), _deviceTime(deviceTime)
 {
   uint32_t defaultEventWindow = _configs->getEventManagerConfigs().defaultEventWindow;
+  uint64_t timestampS = _deviceTime->getLocalTimestampSeconds();
   // for(EventDataPacket event : eventStructs){
   while(events.hasMore()){
     // timestampS - eventWindow in case there was an alarm that should have triggered just before reboot
@@ -32,7 +38,7 @@ EventManager::EventManager(std::shared_ptr<ModalLightsInterface> modalLights, st
   };
   eventUUID activeEvent = _findInitialTriggers(timestampS);
   _findNextEvent();
-  check(timestampS);
+  check();
 };
 
 eventError_t EventManager::_addEvent(uint64_t timestampS, EventDataPacket newEvent, bool updating)
@@ -144,45 +150,50 @@ void EventManager::_findNextEvent()
   }
 }
 
-eventError_t EventManager::addEvent(uint64_t timestampS, EventDataPacket newEvent)
+eventError_t EventManager::addEvent(EventDataPacket newEvent)
 {
+  uint64_t timestampS = _deviceTime->getLocalTimestampSeconds();
   eventUUID newEventID = newEvent.eventID;
   eventError_t error = _addEvent(timestampS, newEvent);
   if(error != EventManagerErrors::success){
     return error;
   }
   _findNextEvent();
-  check(timestampS);
+  check();
   return error;
 }
 
-void EventManager::removeEvents(uint64_t timestampS, eventUUID *eventIDs, nEvents_t number)
+void EventManager::removeEvents(eventUUID *eventIDs, nEvents_t number)
 {
+  uint64_t timestampS = _deviceTime->getLocalTimestampSeconds();
   for(int i = 0; i < number; i++){
     _modalLights->cancelMode(_events[eventIDs[i]].modeID);
     _events.erase(eventIDs[i]);
   }
-  rebuildTriggerTimes(timestampS, false);
+  rebuildTriggerTimes(false);
 }
 
-void EventManager::removeEvent(uint64_t timestampS, eventUUID eventID)
+void EventManager::removeEvent(eventUUID eventID)
 {
+  uint64_t timestampS = _deviceTime->getLocalTimestampSeconds();
   _modalLights->cancelMode(_events[eventID].modeID);
   _events.erase(eventID);
-  rebuildTriggerTimes(timestampS, false);
+  rebuildTriggerTimes(false);
 }
 
-void EventManager::updateEvents(uint64_t timestampS, EventDataPacket *events, eventError_t *eventErrors, nEvents_t number)
+void EventManager::updateEvents(EventDataPacket *events, eventError_t *eventErrors, nEvents_t number)
 {
+  uint64_t timestampS = _deviceTime->getLocalTimestampSeconds();
   for(int i = 0; i < number; i++){
     eventErrors[i] = _addEvent(timestampS, events[i], true);
   }
   _findInitialTriggers(timestampS);
-  check(timestampS);
+  check();
 }
 
-eventError_t EventManager::updateEvent(uint64_t timestampS, EventDataPacket event)
+eventError_t EventManager::updateEvent(EventDataPacket event)
 {
+  uint64_t timestampS = _deviceTime->getLocalTimestampSeconds();
   eventError_t error = _addEvent(timestampS, event, true);
   if(
     error != EventManagerErrors::success
@@ -191,25 +202,24 @@ eventError_t EventManager::updateEvent(uint64_t timestampS, EventDataPacket even
     return error;
   }
   _findInitialTriggers(timestampS);
-  check(timestampS);
+  check();
   return error;
 }
 
-void EventManager::check(uint64_t timestampS)
+void EventManager::check()
 {
-  {
-    while(timestampS >= _nextEventTime){
-      if(_events[_nextEventID].isActive == false
-        || (_events[_nextEventID].isActive
-          && timestampS <= (_nextEventTime + _checkEventWindow(_events[_nextEventID].eventWindow)))
-      ){
-        _callEvent(timestampS, _nextEventID);
-      }
-      else {
-        _events[_nextEventID].nextTriggerTime = _findNextTriggerTime(timestampS, _nextEventID);
-      }
-      _findNextEvent();
+  uint64_t timestampS = _deviceTime->getLocalTimestampSeconds();
+  while(timestampS >= _nextEventTime){
+    if(_events[_nextEventID].isActive == false
+      || (_events[_nextEventID].isActive
+        && timestampS <= (_nextEventTime + _checkEventWindow(_events[_nextEventID].eventWindow)))
+    ){
+      _callEvent(timestampS, _nextEventID);
     }
+    else {
+      _events[_nextEventID].nextTriggerTime = _findNextTriggerTime(timestampS, _nextEventID);
+    }
+    _findNextEvent();
   }
 }
 
@@ -278,9 +288,10 @@ eventUUID EventManager::_findInitialTriggers(uint64_t timestampS)
   return 0;
 };
 
-void EventManager::rebuildTriggerTimes(uint64_t timestampS, bool checkMissedActive)
+void EventManager::rebuildTriggerTimes(bool checkMissedActive)
 {
   // reset all trigger times
+  uint64_t timestampS = _deviceTime->getLocalTimestampSeconds();
   for(auto [eventID, event] : _events){
     _events[eventID].nextTriggerTime = _findNextTriggerTime(timestampS - (_checkEventWindow(event.eventWindow) * event.isActive * checkMissedActive), eventID);
   }
@@ -289,5 +300,5 @@ void EventManager::rebuildTriggerTimes(uint64_t timestampS, bool checkMissedActi
     _callEvent(timestampS, activeEvent);
   }
   _findNextEvent();
-  check(timestampS);
+  check();
 }

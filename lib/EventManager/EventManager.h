@@ -35,6 +35,7 @@ class EventManager
 private:
   std::shared_ptr<ModalLightsInterface> _modalLights;
   std::shared_ptr<ConfigManagerClass> _configs;
+  std::shared_ptr<DeviceTimeInterface> _deviceTime;
 
   std::map<eventUUID, EventMappingStruct> _events; // map of stored EventObjects. keys are UUIDs
   uint64_t _nextEventID = 0; // UUID of the next event to trigger
@@ -106,8 +107,9 @@ public:
   EventManager(
     std::shared_ptr<ModalLightsInterface> modalLights,
     std::shared_ptr<ConfigManagerClass> configs,
-    EventStorageIterator events,
-    uint64_t timestampS);
+    std::shared_ptr<DeviceTimeInterface> deviceTime,
+    EventStorageIterator events
+);
   ~EventManager(){};
 
   /**
@@ -127,7 +129,7 @@ public:
    * @param newEvent 
    * @return eventError_t 
    */
-  eventError_t addEvent(uint64_t timestampS, EventDataPacket newEvent);
+  eventError_t addEvent(EventDataPacket newEvent);
 
   /**
    * @brief removes the given events and rebuilds the trigger times
@@ -137,7 +139,7 @@ public:
    * @param number number of events to remove
    * @return eventError_t 
    */
-  void removeEvents(uint64_t timestampS, eventUUID *eventIDs, nEvents_t number);
+  void removeEvents(eventUUID *eventIDs, nEvents_t number);
 
   /**
    * @brief removes a single given event and rebuilds the trigger times
@@ -146,7 +148,7 @@ public:
    * @param eventID ID of the event to remove
    * @return eventError_t 
    */
-  void removeEvent(uint64_t timestampS, eventUUID eventID);
+  void removeEvent(eventUUID eventID);
 
   /**
    * @brief updates the given events and rebuilds the trigger times
@@ -157,7 +159,7 @@ public:
    * @param number number of events to update
    * @return eventError_t pass or fail. badEvents will hold the mode-specific errors
    */
-  void updateEvents(uint64_t timestampS, EventDataPacket *events, eventError_t *eventErrors, nEvents_t number);
+  void updateEvents(EventDataPacket *events, eventError_t *eventErrors, nEvents_t number);
   
   /**
    * @brief updates a single event and rebuilds the trigger times
@@ -166,7 +168,7 @@ public:
    * @param event data packet of the event to update
    * @return eventError_t 
    */
-  eventError_t updateEvent(uint64_t timestampS, EventDataPacket event);
+  eventError_t updateEvent(EventDataPacket event);
   
   /**
    * @brief rechecks event times given the current timestamp. should be used after hardware changes
@@ -174,14 +176,14 @@ public:
    * 
    * @param timestampS 
    */
-  void rebuildTriggerTimes(uint64_t timestampS, bool checkMissedActive = true);
+  void rebuildTriggerTimes(bool checkMissedActive = true);
 
   /**
    * @brief checks to see if nextEvent should be called, and finds the new nextEvent
    * 
    * @param timestampS current local time in seconds
    */
-  void check(uint64_t timestampS);
+  void check();
 };
 
 #endif
