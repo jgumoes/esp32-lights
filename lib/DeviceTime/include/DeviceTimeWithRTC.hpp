@@ -27,10 +27,10 @@ class DeviceTimeWithRTCClass : public DeviceTimeInterface{
     {
       _rtcChip.begin();
       RTCConfigsStruct configs = _configManager->getRTCConfigs();
-      uint64_t initialTime = _rtcChip.getUTCTimestamp() * 1000000;
+      uint64_t initialTime = _rtcChip.getUTCTimestamp() * secondsToMicros;
       if(initialTime < BUILD_TIMESTAMP){
         _timeFault = true;
-        _rtcChip.setUTCTimestamp(BUILD_TIMESTAMP / 1000000, configs.timezone, configs.DST);
+        _rtcChip.setUTCTimestamp(BUILD_TIMESTAMP / secondsToMicros, configs.timezone, configs.DST);
         _onboardTimestamp->setTimestamp_uS(BUILD_TIMESTAMP);
       }
       else{
@@ -57,20 +57,21 @@ template <typename WireClassDependancy>
 uint64_t DeviceTimeWithRTCClass<WireClassDependancy>::getUTCTimestampMicros()
 {
   uint64_t utcTime_uS = _onboardTimestamp->getTimestamp_uS();
-  
+  // TODO: see if RTC has detected a time fault
   if(
     utcTime_uS >= _timeOfNextSync
     || utcTime_uS <= BUILD_TIMESTAMP
   ){
     // if onboard timestamp needs a sync or has a fault
     RTCConfigsStruct configs = _configManager->getRTCConfigs();
-    uint64_t newUTCTime = _rtcChip.getUTCTimestamp() * 1000000;
-    if(newUTCTime > BUILD_TIMESTAMP){
+    uint64_t newUTCTime_uS = _rtcChip.getUTCTimestamp() * secondsToMicros;
+    if(newUTCTime_uS > BUILD_TIMESTAMP){
       // if the RTC timestamp seems legit
-      _onboardTimestamp->setTimestamp_uS(newUTCTime);
-      _timeofLastSync = newUTCTime;
-      _timeOfNextSync = newUTCTime  + configs.maxSecondsBetweenSyncs*1000000;
-      return newUTCTime;
+      _onboardTimestamp->setTimestamp_uS(newUTCTime_uS);
+      _timeofLastSync = newUTCTime_uS;
+      _timeOfNextSync = newUTCTime_uS  + (configs.maxSecondsBetweenSyncs*secondsToMicros);
+      // TODO: modalLights callback of time adjustment
+      return newUTCTime_uS;
     }
 
     // if the RTC timestamp also has a fault
@@ -81,7 +82,7 @@ uint64_t DeviceTimeWithRTCClass<WireClassDependancy>::getUTCTimestampMicros()
       _onboardTimestamp->setTimestamp_uS(BUILD_TIMESTAMP);
     }
     utcTime_uS = _onboardTimestamp->getTimestamp_uS();
-    uint64_t time_S = (utcTime_uS / 1000000) + (utcTime_uS % 1000000 >= 500000);
+    uint64_t time_S = (utcTime_uS / secondsToMicros) + (utcTime_uS % secondsToMicros >= (secondsToMicros/2));
     _rtcChip.setUTCTimestamp(time_S, configs.timezone, configs.DST);
 
     return utcTime_uS;
@@ -91,10 +92,10 @@ uint64_t DeviceTimeWithRTCClass<WireClassDependancy>::getUTCTimestampMicros()
 
 template<typename WireClassDependancy>
 bool DeviceTimeWithRTCClass<WireClassDependancy>::setUTCTimestamp2000(uint64_t newTimesamp, int32_t timezone, uint16_t DST){
-  uint64_t timeOverflow = pow(2, 54) - 1;
+  // const uint64_t timeOverflow = (~(uint64_t)0) >> (64-54);
   if(
-    newTimesamp * 1000000 < BUILD_TIMESTAMP
-    || newTimesamp >= timeOverflow
+    newTimesamp * secondsToMicros < BUILD_TIMESTAMP
+    || newTimesamp >= ONBOARD_TIMESTAMP_OVERFLOW
     || !isTimezoneValid(timezone)
     || !isDSTValid(DST)
   ){
@@ -102,11 +103,11 @@ bool DeviceTimeWithRTCClass<WireClassDependancy>::setUTCTimestamp2000(uint64_t n
   }
   _timeFault = false;
   // new configs are currently set by _rtcChip. I know, I don't like it either
+  _onboardTimestamp->setTimestamp_S(newTimesamp);
   _rtcChip.setUTCTimestamp(newTimesamp, timezone, DST);
-  uint64_t rtcTimestamp = _rtcChip.getUTCTimestamp();
-  _onboardTimestamp->setTimestamp_S(rtcTimestamp);
-  _timeofLastSync = rtcTimestamp*1000000;
-  _timeOfNextSync = _timeofLastSync + _configManager->getRTCConfigs().maxSecondsBetweenSyncs*1000000;
+  // uint64_t rtcTimestamp = _rtcChip.getUTCTimestamp();
+  _timeofLastSync = newTimesamp*secondsToMicros;
+  _timeOfNextSync = (newTimesamp + _configManager->getRTCConfigs().maxSecondsBetweenSyncs)*secondsToMicros;
   return true;
 }
 

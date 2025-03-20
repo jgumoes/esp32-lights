@@ -2,7 +2,6 @@
 #define __TIME_HELPERS__
 
 #include <Arduino.h>
-#include <cmath>
 
 const uint32_t secondsInDay = 60*60*24;
 

@@ -8,8 +8,10 @@
 #include "ConfigManager.h"
 #include "timeHelpers.h"
 
+#define secondsToMicros (uint64_t)1000000
+
 uint64_t roundMicrosToSeconds(uint64_t time){
-  return (time / 1000000) + (time % 1000000 >= 500000);
+  return (time / secondsToMicros) + (time % secondsToMicros >= (secondsToMicros/2));
 }
 
 uint64_t roundMicrosToMillis(uint64_t time){
@@ -160,6 +162,20 @@ class DeviceTimeInterface{
      */
     bool hasTimeFault();
 
+    /**
+     * @brief Get the UTC time of last sync in microseconds
+     * 
+     * @return uint64_t UTC timestamp in microseconds
+     */
+    uint64_t getTimeOfLastSync(){return _timeofLastSync;}
+
+    /**
+     * @brief Get the utc time of the next sync in microseconds
+     * 
+     * @return uint64_t UTC timestamp in microseconds
+     */
+    uint64_t getTimeOfNextSync(){return _timeOfNextSync;}
+
 // some helper functions that can be used anywhere without fetching a new timestamp
 
     /**
@@ -252,15 +268,15 @@ inline uint64_t DeviceTimeInterface::getStartOfDay()
 {
   RTCConfigsStruct configs = _configManager->getRTCConfigs();
   UsefulTimeStruct uts = makeUsefulTimeStruct(getLocalTimestampSeconds());
-  return uts.startOfDay * 1000000;
+  return uts.startOfDay * secondsToMicros;
 }
 
 inline uint64_t DeviceTimeInterface::getTimeInDay()
 {
   RTCConfigsStruct configs = _configManager->getRTCConfigs();
   uint64_t time_uS = getLocalTimestampMicros();
-  UsefulTimeStruct uts = makeUsefulTimeStruct(round(time_uS/1000000));
-  uint64_t timeInDay = time_uS - (uts.startOfDay * 1000000);
+  UsefulTimeStruct uts = makeUsefulTimeStruct(round(time_uS/secondsToMicros));
+  uint64_t timeInDay = time_uS - (uts.startOfDay * secondsToMicros);
   return timeInDay;
 }
 
@@ -288,9 +304,9 @@ inline bool DeviceTimeInterface::hasTimeFault()
 
 uint64_t DeviceTimeInterface::convertUTCToLocalMicros(uint64_t utcTimestamp_uS)
 {
+  // TODO: check DST start and end bounds
   RTCConfigsStruct configs = _configManager->getRTCConfigs();
-  int64_t offset = configs.DST + configs.timezone;
-  offset = offset * 1000000;
+  int64_t offset = (configs.DST + configs.timezone) * secondsToMicros;
   if(abs(offset) > utcTimestamp_uS){
     return 0;
   }
@@ -299,9 +315,10 @@ uint64_t DeviceTimeInterface::convertUTCToLocalMicros(uint64_t utcTimestamp_uS)
 
 uint64_t DeviceTimeInterface::convertLocalToUTCMicros(uint64_t localTimestamp_uS)
 {
+  // TODO: check DST start and end bounds
   RTCConfigsStruct configs = _configManager->getRTCConfigs();
   int64_t offset = configs.DST + configs.timezone;
-  offset = offset * 1000000;
+  offset = offset * secondsToMicros;
   if(abs(offset) > localTimestamp_uS){
     return 0;
   }

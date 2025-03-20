@@ -8,6 +8,9 @@
 #define __DEVICETIME_H__
 
 #include "DeviceTimeWithRTC.hpp"
-// #include "DeviceTimeNoRTC.hpp"
+#include "DeviceTimeNoRTC.hpp"
+
+// default DeviceTimeClass does not integrate an RTC
+typedef DeviceTimeNoRTCClass DeviceTimeClass;
 
 #endif
