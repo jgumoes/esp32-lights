@@ -58,7 +58,7 @@ eventError_t EventManager::_addEvent(uint64_t timestampS, EventDataPacket newEve
   _events[newEventID].nextTriggerTime = _findNextTriggerTime(timestampS - window, newEventID);
 
   if(_events[newEventID].isActive == false){
-    uint64_t previousTriggerTime = findPreviousTriggerTime(_events[newEventID], getUsefulTimeStruct(timestampS));
+    uint64_t previousTriggerTime = findPreviousTriggerTime(_events[newEventID], makeUsefulTimeStruct(timestampS));
     if(previousTriggerTime > _previousBackgroundEventTime){
       _events[newEventID].nextTriggerTime = previousTriggerTime;
     }
@@ -222,7 +222,8 @@ eventUUID EventManager::_findInitialTriggers(uint64_t timestampS)
   uint64_t currentActiveEventTime = 0;
   std::vector<eventUUID> skippedEvents = {};
 
-  UsefulTimeStruct timeStruct = getUsefulTimeStruct(timestampS);
+  RTCConfigsStruct rtcConfigs = _configs->getRTCConfigs();
+  UsefulTimeStruct timeStruct = makeUsefulTimeStruct(timestampS);
 
   for(auto [eventID, event] : _events){
     if(event.isActive == true){

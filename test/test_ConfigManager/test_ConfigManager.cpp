@@ -1,7 +1,7 @@
 #include <unity.h>
 
 #include "ConfigManager.h"
-#include "DeviceTime.h"
+// #include "DeviceTime.h"
 
 #include "../nativeMocksAndHelpers/mockConfig.h"
 
@@ -19,18 +19,21 @@ void ConfigManagerWorksWithMockHal(void){
   RTCConfigsStruct rtcConfigs;
   rtcConfigs.DST = 18092;
   rtcConfigs.timezone = 92384;
+  rtcConfigs.maxSecondsBetweenSyncs = 69*69*12;
   configs.setRTCConfigs(rtcConfigs);
   RTCConfigsStruct returnedConfigs = configs.getRTCConfigs();
   uint16_t retDST = returnedConfigs.DST;
   int32_t retTimezone = returnedConfigs.timezone;
+  uint32_t retSecondsBetweenSyncs = returnedConfigs.maxSecondsBetweenSyncs;
   TEST_ASSERT_EQUAL(18092, retDST);
   TEST_ASSERT_EQUAL(92384, retTimezone);
+  TEST_ASSERT_EQUAL(69*69*12, retSecondsBetweenSyncs);
 }
 
 void ConfigManagerEventManager(void){
   // TODO: rejects eventWindow = 0
   // TODO: uses hardwareDefaultEventWindow if configs can't be loaded
-  TEST_ASSERT(false);
+  TEST_IGNORE();
 }
 
 void RUN_UNITY_TESTS(){

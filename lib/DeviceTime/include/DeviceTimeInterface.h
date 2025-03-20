@@ -10,16 +10,16 @@
 
 #define secondsToMicros (uint64_t)1000000
 
-uint64_t roundMicrosToSeconds(uint64_t time){
+uint64_t static roundMicrosToSeconds(uint64_t time){
   return (time / secondsToMicros) + (time % secondsToMicros >= (secondsToMicros/2));
 }
 
-uint64_t roundMicrosToMillis(uint64_t time){
+uint64_t static roundMicrosToMillis(uint64_t time){
   return (time / 1000) + (time % 1000 >= 500);
 }
 
 /**
- * @brief interface for DeviceTime. getUTCTimestampMicros() and setUTCTimestamp2000() need to be overriden by concrete implementation, but everything else should be RTC-agnostic
+ * @brief interface for DeviceTime. getUTCTimestampMicros() and setUTCTimestamp2000() need to be overriden by concrete implementation, but everything else should be RTC-agnostic so is non-virtual
  * 
  */
 class DeviceTimeInterface{
@@ -217,27 +217,27 @@ class DeviceTimeInterface{
     uint64_t convertLocalToUTCMicros(uint64_t localTimestamp_uS);
 };
 
-uint64_t DeviceTimeInterface::getLocalTimestampSeconds()
+inline uint64_t DeviceTimeInterface::getLocalTimestampSeconds()
 {
   return roundMicrosToSeconds(getLocalTimestampMicros());
 }
 
-uint64_t DeviceTimeInterface::getUTCTimestampSeconds()
+inline uint64_t DeviceTimeInterface::getUTCTimestampSeconds()
 {
   return roundMicrosToSeconds(getUTCTimestampMicros());
 }
 
-uint64_t DeviceTimeInterface::getLocalTimestampMillis()
+inline uint64_t DeviceTimeInterface::getLocalTimestampMillis()
 {
   return roundMicrosToMillis(getLocalTimestampMicros());
 }
 
-uint64_t DeviceTimeInterface::getLocalTimestampMicros()
+inline uint64_t DeviceTimeInterface::getLocalTimestampMicros()
 {
   return convertUTCToLocalMicros(getUTCTimestampMicros());
 }
 
-uint8_t DeviceTimeInterface::getDay()
+inline uint8_t DeviceTimeInterface::getDay()
 {
   RTCConfigsStruct configs = _configManager->getRTCConfigs();
   UsefulTimeStruct uts = makeUsefulTimeStruct(getLocalTimestampSeconds());
@@ -302,7 +302,7 @@ inline bool DeviceTimeInterface::hasTimeFault()
   return _timeFault;
 }
 
-uint64_t DeviceTimeInterface::convertUTCToLocalMicros(uint64_t utcTimestamp_uS)
+inline uint64_t DeviceTimeInterface::convertUTCToLocalMicros(uint64_t utcTimestamp_uS)
 {
   // TODO: check DST start and end bounds
   RTCConfigsStruct configs = _configManager->getRTCConfigs();
@@ -313,7 +313,7 @@ uint64_t DeviceTimeInterface::convertUTCToLocalMicros(uint64_t utcTimestamp_uS)
   return utcTimestamp_uS + offset;
 }
 
-uint64_t DeviceTimeInterface::convertLocalToUTCMicros(uint64_t localTimestamp_uS)
+inline uint64_t DeviceTimeInterface::convertLocalToUTCMicros(uint64_t localTimestamp_uS)
 {
   // TODO: check DST start and end bounds
   RTCConfigsStruct configs = _configManager->getRTCConfigs();

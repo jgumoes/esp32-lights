@@ -20,6 +20,7 @@ struct ConfigsStruct
   // RTC_interface
   int32_t timezone = 0;  // timezone offset in seconds
   uint16_t DST = 0;      // daylight savings offset in seconds
+  uint32_t maxSecondsBetweenSyncs = 0;  // max seconds until an RTC or network sync is required
 
   // EventManager
   uint32_t defaultEventWindow = hardwareDefaultEventWindow;
