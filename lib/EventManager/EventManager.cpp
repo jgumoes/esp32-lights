@@ -167,7 +167,6 @@ void EventManager::removeEvents(eventUUID *eventIDs, nEvents_t number)
 {
   uint64_t timestampS = _deviceTime->getLocalTimestampSeconds();
   for(int i = 0; i < number; i++){
-    _modalLights->cancelMode(_events[eventIDs[i]].modeID);
     _events.erase(eventIDs[i]);
   }
   rebuildTriggerTimes(false);
@@ -176,7 +175,6 @@ void EventManager::removeEvents(eventUUID *eventIDs, nEvents_t number)
 void EventManager::removeEvent(eventUUID eventID)
 {
   uint64_t timestampS = _deviceTime->getLocalTimestampSeconds();
-  _modalLights->cancelMode(_events[eventID].modeID);
   _events.erase(eventID);
   rebuildTriggerTimes(false);
 }
