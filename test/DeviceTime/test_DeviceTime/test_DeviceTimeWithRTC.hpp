@@ -5,7 +5,7 @@
 DeviceTimeWithRTCClass<MockWire> deviceTimeWireFactory(TestParamsStruct initTimeParams = testArray.at(0)){
   std::shared_ptr<MockWire> wire = std::make_shared<MockWire>(initTimeParams.seconds, initTimeParams.minutes, initTimeParams.hours, initTimeParams.dayOfWeek, initTimeParams.date, initTimeParams.month, initTimeParams.years);
 
-  RTCConfigsStruct configsStruct = {initTimeParams.timezone, initTimeParams.DST};
+  RTCConfigsStruct configsStruct = {initTimeParams.timezone, initTimeParams.DST, secondsInDay};
   globalConfigs->setRTCConfigs(configsStruct);
   DeviceTimeWithRTCClass<MockWire> deviceTime(globalConfigs, wire);
   return deviceTime;

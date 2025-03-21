@@ -19,6 +19,8 @@ let convert2000To1970 = (timestamp) => {
 #include "testEvents.h"
 #include "../../nativeMocksAndHelpers/mockConfig.h"
 #include "../../nativeMocksAndHelpers/mockStorageHAL.hpp"
+#include "../../DeviceTime/RTCMocksAndHelpers/setTimeTestArray.h"
+#include "../../DeviceTime/RTCMocksAndHelpers/RTCMockWire.h"
 // #include <iostream>
 
 void setUp(void) {
@@ -29,22 +31,12 @@ void tearDown(void) {
     // clean stuff up here
 }
 
-// std::shared_ptr<DataStorageClass> DataStorageFactory(
-//   std::vector<EventDataPacket> eventDataPackets
-// ){
-//   std::vector<ModeDataPacket> modeDataPackets = {};
-// auto mockStorageHAL = std::make_shared<MockStorageHAL>(modeDataPackets, eventDataPackets);
-// auto mockDataClass = std::make_shared<DataStorageClass>(std::move(mockStorageHAL));
-// return mockDataClass;
-// }
-
 auto EventManagerFactory(
   std::shared_ptr<MockModalLights> modalLights,
   std::shared_ptr<ConfigManagerClass> configs,
   std::shared_ptr<DeviceTimeInterface> deviceTime,
   std::vector<EventDataPacket> testEvents
 ){
-  // auto dataStorage = DataStorageFactory(testEvents);
   std::vector<ModeDataPacket> modeDataPackets = {};
   auto mockStorageHAL = std::make_shared<MockStorageHAL>(modeDataPackets, testEvents);
   auto dataStorage = std::make_shared<DataStorageClass>(std::move(mockStorageHAL));
@@ -71,12 +63,14 @@ void EventDataPacketShouldInitialiseEmpty(void){
   TEST_ASSERT_EQUAL(0, emptyEvent.isActive);
 }
 
-void InitialisingWithNoEvents(void){
+void InitialisingWithNoEvents_helper(
+  std::shared_ptr<DeviceTimeInterface> deviceTime,
+  std::shared_ptr<ConfigManagerClass> configs
+){
   std::vector<EventDataPacket> emptyEvents = {};
   // initialising with no events shouldn't cause an issue
   std::shared_ptr<MockModalLights> modalLights = std::make_shared<MockModalLights>();
-  auto configs = makeTestConfigManager();
-  auto deviceTime = std::make_shared<DeviceTimeNoRTCClass>(configs);
+  
   deviceTime->setLocalTimestamp2000(mondayAtMidnight, 0, 0);
   EventManager testClass = EventManagerFactory(modalLights, configs, deviceTime, emptyEvents);
   TEST_ASSERT_EQUAL(0, testClass.getNextEventID());
@@ -96,18 +90,30 @@ void InitialisingWithNoEvents(void){
   TEST_ASSERT_EQUAL(1, modalLights->getSetModeCount());
 }
 
-void EventManagerFindsNextEventOnConstruction(void){
+void InitialisingWithNoEvents(void){
+  std::shared_ptr<ConfigManagerClass> configs = makeTestConfigManager();
+  std::shared_ptr<DeviceTimeNoRTCClass> deviceTime = std::make_shared<DeviceTimeNoRTCClass>(configs);
+  InitialisingWithNoEvents_helper(deviceTime, configs);
+
+  TestParamsStruct testParams = testArray.at(0);
+  std::shared_ptr<MockWire> wire = std::make_shared<MockWire>(testParams.seconds, testParams.minutes, testParams.hours, testParams.dayOfWeek, testParams.date, testParams.month, testParams.years);
+  auto deviceTimeRTC = std::make_shared<DeviceTimeWithRTCClass<MockWire>>(configs, wire);
+  InitialisingWithNoEvents_helper(deviceTimeRTC, configs);
+}
+
+void EventManagerFindsNextEventOnConstruction_helper(
+  std::shared_ptr<DeviceTimeInterface> deviceTime,
+  std::shared_ptr<ConfigManagerClass> configs
+){
   uint64_t morningTimestamp = 794281114; // Monday 1:38:34 3/3/25 epoch=2000
   uint64_t eveningTimestamp = 794252745; // Sunday 17:45:45 2/3/25
   std::shared_ptr<MockModalLights> modalLights = std::make_shared<MockModalLights>();
-  auto configs = makeTestConfigManager();
   // testEvent1, morning
   {
     uint64_t expectedTimestamp = 794299500; // Monday 6:45
     std::vector<EventDataPacket> testEvents = {testEvent1};
     for(int i = 0; i < 5; i++){
       modalLights->resetInstance();
-      auto deviceTime = std::make_shared<DeviceTimeNoRTCClass>(configs);
       deviceTime->setLocalTimestamp2000(morningTimestamp + secondsInDay*i, 0, 0);
       EventManager testClass1 = EventManagerFactory(modalLights, configs, deviceTime, testEvents);
       TEST_ASSERT_EQUAL(expectedTimestamp + secondsInDay*i, testClass1.getNextEventTime());
@@ -115,16 +121,15 @@ void EventManagerFindsNextEventOnConstruction(void){
     }
     uint64_t secondExpectedTimestamp = expectedTimestamp + 7 * secondsInDay;
     modalLights->resetInstance();
-    auto deviceTime2 = std::make_shared<DeviceTimeNoRTCClass>(configs);
-    deviceTime2->setLocalTimestamp2000(morningTimestamp + secondsInDay*5, 0, 0);
-    EventManager testClass2 = EventManagerFactory(modalLights, configs, deviceTime2, testEvents);
+    deviceTime->setLocalTimestamp2000(morningTimestamp + secondsInDay*5, 0, 0);
+    EventManager testClass2 = EventManagerFactory(modalLights, configs, deviceTime, testEvents);
     TEST_ASSERT_EQUAL(secondExpectedTimestamp, testClass2.getNextEventTime());
     TEST_ASSERT_EQUAL(0, modalLights->getModeCallCount(testEvent1.modeID));
 
     modalLights->resetInstance();
-    auto deviceTime3 = std::make_shared<DeviceTimeNoRTCClass>(configs);
-    deviceTime3->setLocalTimestamp2000(morningTimestamp + secondsInDay*6, 0, 0);
-    EventManager testClass3 = EventManagerFactory(modalLights, configs, deviceTime3, testEvents);
+    
+    deviceTime->setLocalTimestamp2000(morningTimestamp + secondsInDay*6, 0, 0);
+    EventManager testClass3 = EventManagerFactory(modalLights, configs, deviceTime, testEvents);
     TEST_ASSERT_EQUAL(secondExpectedTimestamp, testClass3.getNextEventTime());
     TEST_ASSERT_EQUAL(0, modalLights->getModeCallCount(testEvent1.modeID));
   }
@@ -134,7 +139,7 @@ void EventManagerFindsNextEventOnConstruction(void){
     std::vector<EventDataPacket> testEvents = {testEvent1};
     for(int i = 0; i < 5; i++){
       modalLights->resetInstance();
-      auto deviceTime = std::make_shared<DeviceTimeNoRTCClass>(configs);
+      
       deviceTime->setLocalTimestamp2000(eveningTimestamp + secondsInDay*i, 0, 0);
       EventManager testClass1 = EventManagerFactory(modalLights, configs, deviceTime, testEvents);
       TEST_ASSERT_EQUAL(expectedTimestamp + secondsInDay*i, testClass1.getNextEventTime());
@@ -142,16 +147,16 @@ void EventManagerFindsNextEventOnConstruction(void){
     uint64_t secondExpectedTimestamp = expectedTimestamp + 7 * secondsInDay;
     modalLights->resetInstance();
 
-    auto deviceTime2 = std::make_shared<DeviceTimeNoRTCClass>(configs);
-    deviceTime2->setLocalTimestamp2000(eveningTimestamp + secondsInDay*5, 0, 0);
-    EventManager testClass2 = EventManagerFactory(modalLights, configs, deviceTime2, testEvents);
+    
+    deviceTime->setLocalTimestamp2000(eveningTimestamp + secondsInDay*5, 0, 0);
+    EventManager testClass2 = EventManagerFactory(modalLights, configs, deviceTime, testEvents);
     TEST_ASSERT_EQUAL(secondExpectedTimestamp, testClass2.getNextEventTime());
     TEST_ASSERT_EQUAL(0, modalLights->getModeCallCount(testEvent1.modeID));
 
     modalLights->resetInstance();
-    auto deviceTime3 = std::make_shared<DeviceTimeNoRTCClass>(configs);
-    deviceTime3->setLocalTimestamp2000(eveningTimestamp + secondsInDay*6, 0, 0);
-    EventManager testClass3 = EventManagerFactory(modalLights, configs, deviceTime3, testEvents);
+    
+    deviceTime->setLocalTimestamp2000(eveningTimestamp + secondsInDay*6, 0, 0);
+    EventManager testClass3 = EventManagerFactory(modalLights, configs, deviceTime, testEvents);
     TEST_ASSERT_EQUAL(secondExpectedTimestamp, testClass3.getNextEventTime());
     TEST_ASSERT_EQUAL(0, modalLights->getModeCallCount(testEvent1.modeID));
   }
@@ -163,45 +168,58 @@ void EventManagerFindsNextEventOnConstruction(void){
     for(int i = 0; i < 4; i++){
       // mon-thu
       modalLights->resetInstance();
-      auto deviceTime1 = std::make_shared<DeviceTimeNoRTCClass>(configs);
-      deviceTime1->setLocalTimestamp2000(justAfterAlarm + secondsInDay*i, 0, 0);
-      EventManager testClass1 = EventManagerFactory(modalLights, configs, deviceTime1, testEvents);
+      
+      deviceTime->setLocalTimestamp2000(justAfterAlarm + secondsInDay*i, 0, 0);
+      EventManager testClass1 = EventManagerFactory(modalLights, configs, deviceTime, testEvents);
       TEST_ASSERT_EQUAL(expectedTimestamp + secondsInDay*(i+1), testClass1.getNextEventTime());
       TEST_ASSERT_EQUAL(1, modalLights->getModeCallCount(testEvent1.modeID));
     }
     // friday
     modalLights->resetInstance();
     uint64_t secondExpectedTimestamp = expectedTimestamp + 7 * secondsInDay;
-    auto deviceTime2 = std::make_shared<DeviceTimeNoRTCClass>(configs);
-    deviceTime2->setLocalTimestamp2000(justAfterAlarm + secondsInDay*4, 0, 0);
-    EventManager testClass2 = EventManagerFactory(modalLights, configs, deviceTime2, testEvents);
+    
+    deviceTime->setLocalTimestamp2000(justAfterAlarm + secondsInDay*4, 0, 0);
+    EventManager testClass2 = EventManagerFactory(modalLights, configs, deviceTime, testEvents);
     TEST_ASSERT_EQUAL(secondExpectedTimestamp, testClass2.getNextEventTime());
     TEST_ASSERT_EQUAL(1, modalLights->getModeCallCount(testEvent1.modeID));
 
     // saturday
     modalLights->resetInstance();
     // uint64_t secondExpectedTimestamp = expectedTimestamp + 7 * secondsInDay;
-    auto deviceTime3 = std::make_shared<DeviceTimeNoRTCClass>(configs);
-    deviceTime3->setLocalTimestamp2000(justAfterAlarm + secondsInDay*5, 0, 0);
-    EventManager testClass3 = EventManagerFactory(modalLights, configs, deviceTime3, testEvents);
+    
+    deviceTime->setLocalTimestamp2000(justAfterAlarm + secondsInDay*5, 0, 0);
+    EventManager testClass3 = EventManagerFactory(modalLights, configs, deviceTime, testEvents);
     TEST_ASSERT_EQUAL(secondExpectedTimestamp, testClass2.getNextEventTime());
     TEST_ASSERT_EQUAL(0, modalLights->getModeCallCount(testEvent1.modeID));
 
     //sunday
     modalLights->resetInstance();
-    auto deviceTime4 = std::make_shared<DeviceTimeNoRTCClass>(configs);
-    deviceTime4->setLocalTimestamp2000(justAfterAlarm + secondsInDay*6, 0, 0);
-    EventManager testClass4 = EventManagerFactory(modalLights, configs, deviceTime4, testEvents);
+    
+    deviceTime->setLocalTimestamp2000(justAfterAlarm + secondsInDay*6, 0, 0);
+    EventManager testClass4 = EventManagerFactory(modalLights, configs, deviceTime, testEvents);
     TEST_ASSERT_EQUAL(secondExpectedTimestamp, testClass3.getNextEventTime());
     TEST_ASSERT_EQUAL(0, modalLights->getModeCallCount(testEvent1.modeID));
   }
 }
 
-void EventManagerSelectsCorrectBackgroundMode(void){
+void EventManagerFindsNextEventOnConstruction(void){
+  std::shared_ptr<ConfigManagerClass> configs = makeTestConfigManager();
+  std::shared_ptr<DeviceTimeNoRTCClass> deviceTime = std::make_shared<DeviceTimeNoRTCClass>(configs);
+  EventManagerFindsNextEventOnConstruction_helper(deviceTime, configs);
+
+  TestParamsStruct testParams = testArray.at(0);
+  std::shared_ptr<MockWire> wire = std::make_shared<MockWire>(testParams.seconds, testParams.minutes, testParams.hours, testParams.dayOfWeek, testParams.date, testParams.month, testParams.years);
+  auto deviceTimeRTC = std::make_shared<DeviceTimeWithRTCClass<MockWire>>(configs, wire);
+  EventManagerFindsNextEventOnConstruction_helper(deviceTimeRTC, configs);
+}
+
+void EventManagerSelectsCorrectBackgroundMode_helper(
+  std::shared_ptr<DeviceTimeInterface> deviceTime,
+  std::shared_ptr<ConfigManagerClass> configs
+){
   // shove in some background modes only, test accross different times of day on different days
   std::vector<EventDataPacket> testEvents = {testEvent3, testEvent4, testEvent5};
   std::shared_ptr<MockModalLights> modalLights = std::make_shared<MockModalLights>();
-  auto configs = makeTestConfigManager();
 
   std::map<uint32_t, modeUUID> testTimesAndExpectedModes = {
     {timeToSeconds(0, 0, 0), 3},
@@ -220,7 +238,7 @@ void EventManagerSelectsCorrectBackgroundMode(void){
       for(const auto& [time, expectedMode] : testTimesAndExpectedModes){
         modalLights->resetInstance();
         uint64_t testTimestamp = mondayAtMidnight + time + i*secondsInDay;
-        auto deviceTime = std::make_shared<DeviceTimeNoRTCClass>(configs);
+        
         deviceTime->setLocalTimestamp2000(testTimestamp, 0, 0);
         EventManager testClass = EventManagerFactory(modalLights, configs, deviceTime, testEvents);
         TEST_ASSERT_EQUAL(expectedMode, modalLights->getMostRecentMode());
@@ -235,7 +253,7 @@ void EventManagerSelectsCorrectBackgroundMode(void){
     uint8_t expectedSetCount = 0;
     modeUUID previousMode = 0;
     modalLights->resetInstance();
-    auto deviceTime = std::make_shared<DeviceTimeNoRTCClass>(configs);
+    
     deviceTime->setLocalTimestamp2000(mondayAtMidnight, 0, 0);
     EventManager testClass = EventManagerFactory(modalLights, configs, deviceTime, testEvents);
     for(int i = 0; i < 7; i++){
@@ -256,7 +274,7 @@ void EventManagerSelectsCorrectBackgroundMode(void){
   // handles forward time-skips well i.e. adjustment after onboard clock looses time
   {
     modalLights->resetInstance();
-    auto deviceTime = std::make_shared<DeviceTimeNoRTCClass>(configs);
+    
     deviceTime->setLocalTimestamp2000(mondayAtMidnight, 0, 0);
     EventManager testClass = EventManagerFactory(modalLights, configs, deviceTime, testEvents);
     deviceTime->setLocalTimestamp2000(mondayAtMidnight + timeToSeconds(8, 59, 0), 0, 0);
@@ -277,7 +295,7 @@ void EventManagerSelectsCorrectBackgroundMode(void){
   // handles reverse time-skips well i.e. adjustment after onboard clock gains time
   {
     modalLights->resetInstance();
-    auto deviceTime = std::make_shared<DeviceTimeNoRTCClass>(configs);
+    
     deviceTime->setLocalTimestamp2000(mondayAtMidnight + timeToSeconds(9, 0, 0), 0, 0);
     EventManager testClass = EventManagerFactory(modalLights, configs, deviceTime, testEvents);
     TEST_ASSERT_EQUAL(testEvent5.modeID, modalLights->getMostRecentMode());
@@ -293,7 +311,7 @@ void EventManagerSelectsCorrectBackgroundMode(void){
   // eventWindow is ignored for background modes
   {
     modalLights->resetInstance();
-    auto deviceTime = std::make_shared<DeviceTimeNoRTCClass>(configs);
+    
     deviceTime->setLocalTimestamp2000(mondayAtMidnight + timeToSeconds(8, 59, 0), 0, 0);
     EventManager testClass = EventManagerFactory(modalLights, configs, deviceTime, testEvents);
     TEST_ASSERT_EQUAL(testEvent4.modeID, modalLights->getMostRecentMode());
@@ -306,16 +324,30 @@ void EventManagerSelectsCorrectBackgroundMode(void){
   }
 }
 
-void onlyMostRecentActiveModeIsTriggered(void){
+void EventManagerSelectsCorrectBackgroundMode(void){
+  std::shared_ptr<ConfigManagerClass> configs = makeTestConfigManager();
+  std::shared_ptr<DeviceTimeNoRTCClass> deviceTime = std::make_shared<DeviceTimeNoRTCClass>(configs);
+  EventManagerSelectsCorrectBackgroundMode_helper(deviceTime, configs);
+
+  TestParamsStruct testParams = testArray.at(0);
+  std::shared_ptr<MockWire> wire = std::make_shared<MockWire>(testParams.seconds, testParams.minutes, testParams.hours, testParams.dayOfWeek, testParams.date, testParams.month, testParams.years);
+  auto deviceTimeRTC = std::make_shared<DeviceTimeWithRTCClass<MockWire>>(configs, wire);
+  EventManagerSelectsCorrectBackgroundMode_helper(deviceTimeRTC, configs);
+}
+
+void onlyMostRecentActiveModeIsTriggered_helper(
+  std::shared_ptr<DeviceTimeInterface> deviceTime,
+  std::shared_ptr<ConfigManagerClass> configs
+){
   std::shared_ptr<MockModalLights> modalLights = std::make_shared<MockModalLights>();
-  auto configs = makeTestConfigManager();
+  
 
   // on construction
   {
     modalLights->resetInstance();
     std::vector<EventDataPacket> testEvents = {testEvent1, testEvent3, testEvent4, testEvent5, testEvent6};
     uint64_t testTimestamp = mondayAtMidnight + timeToSeconds(7, 0, 0);
-    auto deviceTime = std::make_shared<DeviceTimeNoRTCClass>(configs);
+    
     deviceTime->setLocalTimestamp2000(testTimestamp, 0, 0);
     EventManager testClass = EventManagerFactory(modalLights, configs, deviceTime, testEvents);
     // TEST_ASSERT_EQUAL(5, modalLights->getMostRecentMode());
@@ -331,7 +363,7 @@ void onlyMostRecentActiveModeIsTriggered(void){
     std::vector<EventDataPacket> testEvents = {testEvent1, testEvent3, testEvent4, testEvent5, testEvent6, testEvent10};
     modalLights->resetInstance();
     uint64_t testTimestamp = mondayAtMidnight;
-    auto deviceTime = std::make_shared<DeviceTimeNoRTCClass>(configs);
+    
     deviceTime->setLocalTimestamp2000(testTimestamp, 0, 0);
     EventManager testClass = EventManagerFactory(modalLights, configs, deviceTime, testEvents);
     TEST_ASSERT_EQUAL(0, modalLights->getActiveMode());
@@ -351,17 +383,31 @@ void onlyMostRecentActiveModeIsTriggered(void){
   }
 }
 
-void activeAndBackgroundModesAreBothTriggered(void){
+void onlyMostRecentActiveModeIsTriggered(void){
+  std::shared_ptr<ConfigManagerClass> configs = makeTestConfigManager();
+  std::shared_ptr<DeviceTimeNoRTCClass> deviceTime = std::make_shared<DeviceTimeNoRTCClass>(configs);
+  onlyMostRecentActiveModeIsTriggered_helper(deviceTime, configs);
+
+  TestParamsStruct testParams = testArray.at(0);
+  std::shared_ptr<MockWire> wire = std::make_shared<MockWire>(testParams.seconds, testParams.minutes, testParams.hours, testParams.dayOfWeek, testParams.date, testParams.month, testParams.years);
+  auto deviceTimeRTC = std::make_shared<DeviceTimeWithRTCClass<MockWire>>(configs, wire);
+  onlyMostRecentActiveModeIsTriggered_helper(deviceTimeRTC, configs);
+}
+
+void activeAndBackgroundModesAreBothTriggered_helper(
+  std::shared_ptr<DeviceTimeInterface> deviceTime,
+  std::shared_ptr<ConfigManagerClass> configs
+){
   // the active mode should be called first, then the background mode
   std::vector<EventDataPacket> testEvents = {testEvent1, testEvent3, testEvent4, testEvent5, testEvent6, testEvent7};
   std::shared_ptr<MockModalLights> modalLights = std::make_shared<MockModalLights>();
-  auto configs = makeTestConfigManager();
+  
 
   uint64_t testTimestamp = mondayAtMidnight + timeToSeconds(7, 0, 0);
   // on construction
   {
     modalLights->resetInstance();
-    auto deviceTime = std::make_shared<DeviceTimeNoRTCClass>(configs);
+    
     deviceTime->setLocalTimestamp2000(testTimestamp, 0, 0);
     EventManager testClass = EventManagerFactory(modalLights, configs, deviceTime, testEvents);
     TEST_ASSERT_EQUAL(0, modalLights->getModeCallCount(2));
@@ -372,7 +418,7 @@ void activeAndBackgroundModesAreBothTriggered(void){
 
   // on time change
   {
-    auto deviceTime = std::make_shared<DeviceTimeNoRTCClass>(configs);
+    
     deviceTime->setLocalTimestamp2000(mondayAtMidnight + timeToSeconds(6, 45, 0), 0, 0);
     EventManager testClass = EventManagerFactory(modalLights, configs, deviceTime, testEvents);
     modalLights->resetInstance();
@@ -389,7 +435,7 @@ void activeAndBackgroundModesAreBothTriggered(void){
     // on construction
     std::vector<EventDataPacket> testEvents2 = {testEvent1, testEvent3, testEvent4, testEvent5, testEvent10};
     modalLights->resetInstance();
-    auto deviceTime = std::make_shared<DeviceTimeNoRTCClass>(configs);
+    
     deviceTime->setLocalTimestamp2000(testTimestamp, 0, 0);
     EventManager testClass = EventManagerFactory(modalLights, configs, deviceTime, testEvents2);
     TEST_ASSERT_EQUAL(testEvent1.modeID, modalLights->getActiveMode());
@@ -402,13 +448,27 @@ void activeAndBackgroundModesAreBothTriggered(void){
   }
 }
 
-void missedActiveEventsAreSkippedAfterTimeWindowClosses(void){
+void activeAndBackgroundModesAreBothTriggered(void){
+  std::shared_ptr<ConfigManagerClass> configs = makeTestConfigManager();
+  std::shared_ptr<DeviceTimeNoRTCClass> deviceTime = std::make_shared<DeviceTimeNoRTCClass>(configs);
+  activeAndBackgroundModesAreBothTriggered_helper(deviceTime, configs);
+
+  TestParamsStruct testParams = testArray.at(0);
+  std::shared_ptr<MockWire> wire = std::make_shared<MockWire>(testParams.seconds, testParams.minutes, testParams.hours, testParams.dayOfWeek, testParams.date, testParams.month, testParams.years);
+  auto deviceTimeRTC = std::make_shared<DeviceTimeWithRTCClass<MockWire>>(configs, wire);
+  activeAndBackgroundModesAreBothTriggered_helper(deviceTimeRTC, configs);
+}
+
+void missedActiveEventsAreSkippedAfterTimeWindowClosses_helper(
+  std::shared_ptr<DeviceTimeInterface> deviceTime,
+  std::shared_ptr<ConfigManagerClass> configs
+){
   std::vector<EventDataPacket> testEvents = {testEvent1, testEvent7};
   std::shared_ptr<MockModalLights> modalLights = std::make_shared<MockModalLights>();
-  auto configs = makeTestConfigManager();
+  
 
   uint64_t testTimestamp = mondayAtMidnight + timeToSeconds(6, 0, 0);
-  auto deviceTime = std::make_shared<DeviceTimeNoRTCClass>(configs);
+  
   deviceTime->setLocalTimestamp2000(testTimestamp, 0, 0);
   EventManager testClass = EventManagerFactory(modalLights, configs, deviceTime, testEvents);
   modalLights->resetInstance();
@@ -423,13 +483,27 @@ void missedActiveEventsAreSkippedAfterTimeWindowClosses(void){
   TEST_ASSERT_EQUAL(0, modalLights->getModeCallCount(2));
 }
 
-void addEventChecksTheNewEvent(void){
+void missedActiveEventsAreSkippedAfterTimeWindowClosses(void){
+  std::shared_ptr<ConfigManagerClass> configs = makeTestConfigManager();
+  std::shared_ptr<DeviceTimeNoRTCClass> deviceTime = std::make_shared<DeviceTimeNoRTCClass>(configs);
+  missedActiveEventsAreSkippedAfterTimeWindowClosses_helper(deviceTime, configs);
+
+  TestParamsStruct testParams = testArray.at(0);
+  std::shared_ptr<MockWire> wire = std::make_shared<MockWire>(testParams.seconds, testParams.minutes, testParams.hours, testParams.dayOfWeek, testParams.date, testParams.month, testParams.years);
+  auto deviceTimeRTC = std::make_shared<DeviceTimeWithRTCClass<MockWire>>(configs, wire);
+  missedActiveEventsAreSkippedAfterTimeWindowClosses_helper(deviceTimeRTC, configs);
+}
+
+void addEventChecksTheNewEvent_helper(
+  std::shared_ptr<DeviceTimeInterface> deviceTime,
+  std::shared_ptr<ConfigManagerClass> configs
+){
   std::vector<EventDataPacket> testEvents = {testEvent7};
   std::shared_ptr<MockModalLights> modalLights = std::make_shared<MockModalLights>();
-  auto configs = makeTestConfigManager();
+  
 
   uint64_t testTimestamp = mondayAtMidnight + timeToSeconds(6, 46, 0);
-  auto deviceTime = std::make_shared<DeviceTimeNoRTCClass>(configs);
+  
   deviceTime->setLocalTimestamp2000(testTimestamp, 0, 0);
   EventManager testClass = EventManagerFactory(modalLights, configs, deviceTime, testEvents);
 
@@ -483,9 +557,23 @@ void addEventChecksTheNewEvent(void){
   TEST_ASSERT_EQUAL(EventManagerErrors::bad_time, testClass.addEvent(badEventWindow));
 }
 
-void eventWindow0ShouldUseSystemDefault(void){
+void addEventChecksTheNewEvent(void){
+  std::shared_ptr<ConfigManagerClass> configs = makeTestConfigManager();
+  std::shared_ptr<DeviceTimeNoRTCClass> deviceTime = std::make_shared<DeviceTimeNoRTCClass>(configs);
+  addEventChecksTheNewEvent_helper(deviceTime, configs);
+
+  TestParamsStruct testParams = testArray.at(0);
+  std::shared_ptr<MockWire> wire = std::make_shared<MockWire>(testParams.seconds, testParams.minutes, testParams.hours, testParams.dayOfWeek, testParams.date, testParams.month, testParams.years);
+  auto deviceTimeRTC = std::make_shared<DeviceTimeWithRTCClass<MockWire>>(configs, wire);
+  addEventChecksTheNewEvent_helper(deviceTimeRTC, configs);
+}
+
+void eventWindow0ShouldUseSystemDefault_helper(
+  std::shared_ptr<DeviceTimeInterface> deviceTime,
+  std::shared_ptr<ConfigManagerClass> configs
+){
   // start configs with eventWindow = 1 hour
-  auto configs = makeTestConfigManager();
+  
   EventManagerConfigsStruct configStruct;
   configStruct.defaultEventWindow = 60*60;
   configs->setEventManagerConfigs(configStruct);
@@ -500,7 +588,7 @@ void eventWindow0ShouldUseSystemDefault(void){
   {
     // construct with time = triggerTime + eventWindow/2
     modalLights->resetInstance();
-    auto deviceTime = std::make_shared<DeviceTimeNoRTCClass>(configs);
+    
     deviceTime->setLocalTimestamp2000(testTimestamp + (configStruct.defaultEventWindow/2), 0, 0);
     EventManager eventManager = EventManagerFactory(modalLights, configs, deviceTime, testEvents);
     TEST_ASSERT_EQUAL(testDefaultActiveEvent.modeID, modalLights->getMostRecentMode());
@@ -509,7 +597,7 @@ void eventWindow0ShouldUseSystemDefault(void){
     // construct with eventWindow = 0 and time = triggerTime - 1 second
     // skip forward 1 minute
     modalLights->resetInstance();
-    // auto deviceTime = std::make_shared<DeviceTimeNoRTCClass>(configs);
+    // 
     deviceTime->setLocalTimestamp2000(testTimestamp, 0, 0);
     EventManager eventManager2 = EventManagerFactory(modalLights, configs, deviceTime, testEvents);
     TEST_ASSERT_EQUAL(0, modalLights->getModeCallCount(testDefaultActiveEvent.modeID));
@@ -529,7 +617,7 @@ void eventWindow0ShouldUseSystemDefault(void){
     
     // should trigger during eventWindow
     modalLights->resetInstance();
-    auto deviceTime = std::make_shared<DeviceTimeNoRTCClass>(configs);
+    
     deviceTime->setLocalTimestamp2000(testTimestamp, 0, 0);
     EventManager eventManager = EventManagerFactory(modalLights, configs, deviceTime, testEvents2);
     // add the event before it's trigger window
@@ -545,13 +633,13 @@ void eventWindow0ShouldUseSystemDefault(void){
 
     // shouldn't trigger after the window
     modalLights->resetInstance();
-    auto deviceTime2 = std::make_shared<DeviceTimeNoRTCClass>(configs);
-    deviceTime2->setLocalTimestamp2000(testTimestamp, 0, 0);
-    EventManager eventManager2 = EventManagerFactory(modalLights, configs, deviceTime2, testEvents2);
+    
+    deviceTime->setLocalTimestamp2000(testTimestamp, 0, 0);
+    EventManager eventManager2 = EventManagerFactory(modalLights, configs, deviceTime, testEvents2);
     // time of alarm + defaultEventWindow (30 mins) - 10 seconds
     const uint64_t checkingTimestamp = mondayAtMidnight + testDefaultActiveEvent.timeOfDay + configStruct.defaultEventWindow + 10;
     // add the event after it's trigger window
-    deviceTime2->setLocalTimestamp2000(checkingTimestamp, 0, 0);
+    deviceTime->setLocalTimestamp2000(checkingTimestamp, 0, 0);
     eventManager2.addEvent(testDefaultActiveEvent);
     TEST_ASSERT_EQUAL(0, modalLights->getModeCallCount(testDefaultActiveEvent.modeID));
 
@@ -569,17 +657,30 @@ void eventWindow0ShouldUseSystemDefault(void){
   }
 }
 
+void eventWindow0ShouldUseSystemDefault(void){
+  std::shared_ptr<ConfigManagerClass> configs = makeTestConfigManager();
+  std::shared_ptr<DeviceTimeNoRTCClass> deviceTime = std::make_shared<DeviceTimeNoRTCClass>(configs);
+  eventWindow0ShouldUseSystemDefault_helper(deviceTime, configs);
 
-void testRemoveEvent(void){
+  TestParamsStruct testParams = testArray.at(0);
+  std::shared_ptr<MockWire> wire = std::make_shared<MockWire>(testParams.seconds, testParams.minutes, testParams.hours, testParams.dayOfWeek, testParams.date, testParams.month, testParams.years);
+  auto deviceTimeRTC = std::make_shared<DeviceTimeWithRTCClass<MockWire>>(configs, wire);
+  eventWindow0ShouldUseSystemDefault_helper(deviceTimeRTC, configs);
+}
+
+void testRemoveEvent_helper(
+  std::shared_ptr<DeviceTimeInterface> deviceTime,
+  std::shared_ptr<ConfigManagerClass> configs
+){
   std::vector<EventDataPacket> testEvents = {testEvent1, testEvent2, testEvent3, testEvent4, testEvent5};
   std::shared_ptr<MockModalLights> modalLights = std::make_shared<MockModalLights>();
-  auto configs = makeTestConfigManager();
+  
 
   // remove a single background event
   {
     modalLights->resetInstance();
     uint64_t testTimestamp = mondayAtMidnight + timeToSeconds(22, 0, 0);
-    auto deviceTime = std::make_shared<DeviceTimeNoRTCClass>(configs);
+    
     deviceTime->setLocalTimestamp2000(testTimestamp, 0, 0);
     EventManager testClass = EventManagerFactory(modalLights, configs, deviceTime, testEvents);
     TEST_ASSERT_EQUAL(testEvent3.modeID, modalLights->getMostRecentMode());
@@ -592,7 +693,7 @@ void testRemoveEvent(void){
   {
     modalLights->resetInstance();
     uint64_t testTimestamp = mondayAtMidnight + timeToSeconds(6, 44, 0);
-    auto deviceTime = std::make_shared<DeviceTimeNoRTCClass>(configs);
+    
     deviceTime->setLocalTimestamp2000(testTimestamp, 0, 0);
     EventManager testClass = EventManagerFactory(modalLights, configs, deviceTime, testEvents);
 
@@ -606,7 +707,7 @@ void testRemoveEvent(void){
   {
     modalLights->resetInstance();
     uint64_t testTimestamp = mondayAtMidnight + timeToSeconds(6, 50, 0);
-    auto deviceTime = std::make_shared<DeviceTimeNoRTCClass>(configs);
+    
     deviceTime->setLocalTimestamp2000(testTimestamp, 0, 0);
     EventManager testClass = EventManagerFactory(modalLights, configs, deviceTime, testEvents);
     TEST_ASSERT_EQUAL(testEvent1.modeID, modalLights->getActiveMode());
@@ -623,7 +724,7 @@ void testRemoveEvent(void){
   {
     modalLights->resetInstance();
     uint64_t testTimestamp = mondayAtMidnight + timeToSeconds(22, 0, 0);
-    auto deviceTime = std::make_shared<DeviceTimeNoRTCClass>(configs);
+    
     deviceTime->setLocalTimestamp2000(testTimestamp, 0, 0);
     EventManager testClass = EventManagerFactory(modalLights, configs, deviceTime, testEvents);
     TEST_ASSERT_EQUAL(testEvent3.modeID, modalLights->getMostRecentMode());
@@ -637,7 +738,7 @@ void testRemoveEvent(void){
   {
     modalLights->resetInstance();
     uint64_t testTimestamp = mondayAtMidnight + timeToSeconds(6, 44, 0);
-    auto deviceTime = std::make_shared<DeviceTimeNoRTCClass>(configs);
+    
     deviceTime->setLocalTimestamp2000(testTimestamp, 0, 0);
     EventManager testClass = EventManagerFactory(modalLights, configs, deviceTime, testEvents);
 
@@ -655,7 +756,7 @@ void testRemoveEvent(void){
   {
     modalLights->resetInstance();
     uint64_t testTimestamp = mondayAtMidnight + timeToSeconds(6, 50, 0);
-    auto deviceTime = std::make_shared<DeviceTimeNoRTCClass>(configs);
+    
     deviceTime->setLocalTimestamp2000(testTimestamp, 0, 0);
     EventManager testClass = EventManagerFactory(modalLights, configs, deviceTime, testEvents);
 
@@ -675,7 +776,7 @@ void testRemoveEvent(void){
     // construct @7am with testEvent9 and testEvent1, cancel testEvent9 and check testEvent1 doesn't trigger
     std::vector<EventDataPacket> testEvents2 = {testEvent1, testEvent2, testEvent3, testEvent4, testEvent5, testEvent9};
     uint64_t testTimeestamp = mondayAtMidnight + timeToSeconds(7, 0, 0);
-    auto deviceTime = std::make_shared<DeviceTimeNoRTCClass>(configs);
+    
     deviceTime->setLocalTimestamp2000(testTimeestamp, 0, 0);
     EventManager testClass = EventManagerFactory(modalLights, configs, deviceTime, testEvents2);
     TEST_ASSERT_EQUAL(testEvent9.modeID, modalLights->getActiveMode());
@@ -685,16 +786,30 @@ void testRemoveEvent(void){
   }
 }
 
-void testUpdateEvent(void){
+void testRemoveEvent(void){
+  std::shared_ptr<ConfigManagerClass> configs = makeTestConfigManager();
+  std::shared_ptr<DeviceTimeNoRTCClass> deviceTime = std::make_shared<DeviceTimeNoRTCClass>(configs);
+  testRemoveEvent_helper(deviceTime, configs);
+
+  TestParamsStruct testParams = testArray.at(0);
+  std::shared_ptr<MockWire> wire = std::make_shared<MockWire>(testParams.seconds, testParams.minutes, testParams.hours, testParams.dayOfWeek, testParams.date, testParams.month, testParams.years);
+  auto deviceTimeRTC = std::make_shared<DeviceTimeWithRTCClass<MockWire>>(configs, wire);
+  testRemoveEvent_helper(deviceTimeRTC, configs);
+}
+
+void testUpdateEvent_helper(
+  std::shared_ptr<DeviceTimeInterface> deviceTime,
+  std::shared_ptr<ConfigManagerClass> configs
+){
   std::vector<EventDataPacket> testEvents = {testEvent1, testEvent2, testEvent3, testEvent4, testEvent5};
   std::shared_ptr<MockModalLights> modalLights = std::make_shared<MockModalLights>();
-  auto configs = makeTestConfigManager();
+  
 
   // change active event to trigger at current time
   {
     modalLights->resetInstance();
     uint64_t testTimestamp = mondayAtMidnight + timeToSeconds(6, 35, 0);
-    auto deviceTime = std::make_shared<DeviceTimeNoRTCClass>(configs);
+    
     deviceTime->setLocalTimestamp2000(testTimestamp, 0, 0);
     EventManager testClass = EventManagerFactory(modalLights, configs, deviceTime, testEvents);
     TEST_ASSERT_EQUAL(0, modalLights->getActiveMode());
@@ -710,7 +825,7 @@ void testUpdateEvent(void){
     // change active event to trigger at current time
     modalLights->resetInstance();
     uint64_t testTimestamp = mondayAtMidnight + timeToSeconds(6, 50, 0);
-    auto deviceTime = std::make_shared<DeviceTimeNoRTCClass>(configs);
+    
     deviceTime->setLocalTimestamp2000(testTimestamp, 0, 0);
     EventManager testClass = EventManagerFactory(modalLights, configs, deviceTime, testEvents);
     TEST_ASSERT_EQUAL(testEvent1.modeID, modalLights->getActiveMode());
@@ -745,7 +860,7 @@ void testUpdateEvent(void){
   {
     modalLights->resetInstance();
     uint64_t testTimestamp = mondayAtMidnight + timeToSeconds(20, 32, 0);
-    auto deviceTime = std::make_shared<DeviceTimeNoRTCClass>(configs);
+    
     deviceTime->setLocalTimestamp2000(testTimestamp, 0, 0);
     EventManager testClass = EventManagerFactory(modalLights, configs, deviceTime, testEvents);
     TEST_ASSERT_EQUAL(testEvent5.modeID, modalLights->getBackgroundMode());
@@ -761,7 +876,7 @@ void testUpdateEvent(void){
     modalLights->resetInstance();
     std::vector<EventDataPacket> testEvents2 = {testEvent1, testEvent2, testEvent3, testEvent4, testEvent5, testEvent9};
     uint64_t testTimestamp1 = mondayAtMidnight + timeToSeconds(6, 35, 0);
-    auto deviceTime = std::make_shared<DeviceTimeNoRTCClass>(configs);
+    
     deviceTime->setLocalTimestamp2000(testTimestamp1, 0, 0);
     EventManager testClass = EventManagerFactory(modalLights, configs, deviceTime, testEvents2);
     TEST_ASSERT_EQUAL(0, modalLights->getActiveMode());
@@ -824,11 +939,18 @@ void testUpdateEvent(void){
   }
 }
 
-void eventSkipping(void){
-  TEST_IGNORE();
+void testUpdateEvent(void){
+  std::shared_ptr<ConfigManagerClass> configs = makeTestConfigManager();
+  std::shared_ptr<DeviceTimeNoRTCClass> deviceTime = std::make_shared<DeviceTimeNoRTCClass>(configs);
+  testUpdateEvent_helper(deviceTime, configs);
+
+  TestParamsStruct testParams = testArray.at(0);
+  std::shared_ptr<MockWire> wire = std::make_shared<MockWire>(testParams.seconds, testParams.minutes, testParams.hours, testParams.dayOfWeek, testParams.date, testParams.month, testParams.years);
+  auto deviceTimeRTC = std::make_shared<DeviceTimeWithRTCClass<MockWire>>(configs, wire);
+  testUpdateEvent_helper(deviceTimeRTC, configs);
 }
 
-void integrateDeviceTime(void){
+void eventSkipping(void){
   TEST_IGNORE();
 }
 
@@ -850,7 +972,6 @@ void RUN_UNITY_TESTS(){
   RUN_TEST(testRemoveEvent);
   RUN_TEST(testUpdateEvent);
   RUN_TEST(eventSkipping);
-  RUN_TEST(integrateDeviceTime);
   RUN_TEST(somethingSomethingDST);
   UNITY_END();
 }
