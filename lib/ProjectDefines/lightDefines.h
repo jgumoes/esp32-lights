@@ -14,48 +14,14 @@
 
 #include <stdint.h>
 
-#ifndef NUMBER_OF_LIGHTS_CHANNELS
-  // TODO: this should be defined in the lights HAL
-  #define NUMBER_OF_LIGHTS_CHANNELS 1
-#endif
 typedef uint8_t duty_t;   // 255 is absolutely fine. lightsHal can interpolate up if needed
-#define LED_LIGHTS_MAX_DUTY 255
-// TODO: delete below once lights interface is implemented
-// #ifndef LED_LIGHTS_DUTY_BITs
-//   #define LED_LIGHTS_DUTY_BITs 12
-// #endif
+const duty_t LED_LIGHTS_MAX_DUTY= ~((duty_t)0);
 
-// #if LED_LIGHTS_DUTY_BITs <= 8
-//   #define LED_LIGHTS_MAX_DUTY 255
-//   #define duty_t uint8_t
-// #elif LED_LIGHTS_DUTY_BITs <= 10
-//   #define LED_LIGHTS_MAX_DUTY 1023
-//   typedef uint16_t duty_t;
-// #else
-//   #define LED_LIGHTS_MAX_DUTY 255
-//   typedef uint8_t duty_t;
-// #endif
+const uint8_t nChannels = 1;  // TODO: delete me and replace with templates
 
 struct LightStateStruct {
-  duty_t dutyLevel = 0;   // the duty cycle of the lights. can have a value even when off
+  duty_t values[nChannels+1] = {};   // [0] is duty cycle, the rest is colour ratios in same order as Channels enum
   bool state = 0;         // i.e. on or off
-
-  /**
-   * @brief returns the brightness of the lights
-  */
-  duty_t getBrightness(){
-    return dutyLevel * state;
-  };
-
-  /**
-   * @brief Sets the dutyLevel and state. doesn't check limits
-   * 
-   * @param brightness 
-   */
-  void setBrightness(duty_t brightness){
-    dutyLevel = brightness;
-    state = brightness > 0;
-  }
 };
 
 #endif

@@ -8,11 +8,15 @@
 void setUp(void){}
 void tearDown(void){}
 
+TestChannels channel = TestChannels::white;  // TODO: delete me
+
 std::shared_ptr<DataStorageClass> DataStorageFactory(
-    std::vector<ModeDataPacket> modeDataPackets,
+    std::vector<ModeDataStruct> testModes,
     std::vector<EventDataPacket> eventDataPackets
-  ){
-  auto mockStorageHAL = std::make_shared<MockStorageHAL>(modeDataPackets, eventDataPackets);
+){
+  // auto mockStorageHAL = std::make_shared<MockStorageHAL>(modeDataPackets, eventDataPackets);
+  // auto testModes = makeModeDataStructArray(testModeDataStructs, channel);
+  auto mockStorageHAL = std::make_shared<MockStorageHAL>(testModes, eventDataPackets);
   auto mockDataClass = std::make_shared<DataStorageClass>(std::move(mockStorageHAL));
   return mockDataClass;
 }
@@ -34,7 +38,7 @@ void testIterableEventCollection(void){
   // using 5 means 1 full chunk and 1 partial chunk
   TEST_ASSERT_EQUAL(5, DataPreloadChunkSize);
   
-  std::vector<ModeDataPacket> storedModes = {};
+  std::vector<ModeDataStruct> storedModes = {};
   std::vector<EventDataPacket> storedEvents = {testEvent1, testEvent2, testEvent3, testEvent4, testEvent5, testEvent6, testEvent7, testEvent8};
   auto mockStorageHAL = std::make_shared<MockStorageHAL>(storedModes, storedEvents);
 
@@ -76,11 +80,12 @@ void testIterableEventCollection(void){
 }
 
 void testIterableModeCollection(void){
+  // TODO: i don't think i even want this functionality
   TEST_ASSERT(false);
 }
 
 void testEventGetters(void){
-  std::vector<ModeDataPacket> storedModes = {};
+  std::vector<ModeDataStruct> storedModes = {};
   std::vector<EventDataPacket> storedEvents = {testEvent1, testEvent2, testEvent3, testEvent4, testEvent5, testEvent6, testEvent7, testEvent8};
 
   std::shared_ptr<DataStorageClass> testClass = DataStorageFactory(storedModes, storedEvents);
@@ -122,12 +127,112 @@ void testEventGetters(void){
 }
 
 void testModeGetters(void){
-  TEST_IGNORE();
+  // TODO: test that ID=1 always returns default constant brightness, even when no data is given
+  {
+    std::vector<ModeDataStruct> storedModes = {};
+    std::vector<EventDataPacket> storedEvents = {testEvent1, testEvent2, testEvent3, testEvent4, testEvent5, testEvent6, testEvent7, testEvent8};
+
+    std::shared_ptr<DataStorageClass> testClass = DataStorageFactory(storedModes, storedEvents);
+    uint8_t buffer[modePacketSize];
+    TEST_ASSERT_TRUE(testClass->getMode(1, buffer));
+    TEST_ASSERT_EQUAL(1, buffer[0]);
+    TEST_ASSERT_EQUAL(ModeTypes::constantBrightness, buffer[1]);
+    for(uint8_t i = 2; i < getModeDataSize(ModeTypes::constantBrightness); i++){
+      TEST_ASSERT_EQUAL(255, buffer[i]);
+    }
+    
+    TEST_ASSERT_FALSE(testClass->getMode(2, buffer));
+  }
+
+  std::vector<TestModeDataStruct> testModeStructs = {warmConstBrightness, purpleConstBrightness};
+  auto testModes = makeModeDataStructArray(testModeStructs, channel);
+  std::vector<EventDataPacket> storedEvents = {testEvent1, testEvent2, testEvent3, testEvent4, testEvent5, testEvent6, testEvent7, testEvent8};
+  auto testClass = DataStorageFactory(testModes, storedEvents);
+  
+  // test getting arbitrary modes
+  {
+    uint8_t expectedBuffer[modePacketSize];
+    uint8_t testBuffer[modePacketSize];
+
+    // test default constant brightness first
+    memcpy(expectedBuffer, defaultConstBrightnessBuffer, modePacketSize);
+    TEST_ASSERT_TRUE(testClass->getMode(1, testBuffer));
+    TEST_ASSERT_EQUAL_UINT8_ARRAY(
+      expectedBuffer, testBuffer, getModeDataSize(ModeTypes::constantBrightness)
+    );
+
+    // test all the other modes
+    for(auto& mode : testModes){
+      serializeModeDataStruct(mode, expectedBuffer);
+
+      TEST_ASSERT_TRUE(testClass->getMode(mode.ID, testBuffer));
+      TEST_ASSERT_EQUAL_UINT8_ARRAY(expectedBuffer, testBuffer, getModeDataSize(mode.type));
+    }
+  }
+
+  // test the mutating the returned data doesn't mutate the actual data
+  // i.e. buffer should be copied into, not have its reference changed
+  {
+    // test default constant brightness first
+    {
+      uint8_t expectedBuffer[modePacketSize];
+      memcpy(expectedBuffer, defaultConstBrightnessBuffer, modePacketSize);
+      
+      uint8_t changedBuffer[modePacketSize];
+      TEST_ASSERT_TRUE(testClass->getMode(1, changedBuffer));
+      for(uint8_t i = 2; i < modePacketSize; i++){changedBuffer[i] = i;}
+      
+      uint8_t testBuffer2[modePacketSize];
+      TEST_ASSERT_TRUE(testClass->getMode(1, testBuffer2));
+      TEST_ASSERT_EQUAL_UINT8_ARRAY(
+        expectedBuffer, testBuffer2, getModeDataSize(ModeTypes::constantBrightness)
+      );
+    }
+
+    // test all the other modes
+    for(auto& mode : testModes){
+      uint8_t expectedBuffer[modePacketSize];
+      serializeModeDataStruct(mode, expectedBuffer);
+      
+      uint8_t changedBuffer[modePacketSize];
+      TEST_ASSERT_TRUE(testClass->getMode(1, changedBuffer));
+      for(uint8_t i = 2; i < modePacketSize; i++){changedBuffer[i] = i;}
+      
+      uint8_t testBuffer2[modePacketSize];
+      TEST_ASSERT_TRUE(testClass->getMode(mode.ID, testBuffer2));
+      TEST_ASSERT_EQUAL_UINT8_ARRAY(expectedBuffer, testBuffer2, getModeDataSize(mode.type));
+    }
+  }
 }
 
 void testCRUDOperations(void){
-  TEST_IGNORE();
+  // TODO: create and update operations should immediately read from storage and verify CRC (this should detect corruptions)
+
+  // TODO: update operations should be inplace, unless there's a bad section
+  // note: is there a way to identify and keep track of corruptions?
+
+  // TODO: delete operations should also zero data
+
+  // TODO: create operations should start looking for space from the end of the stored values, but loop around if end-of-storage is reached
+
+  // TODO: if space can't be found, create operations should report back to server (also when an update hits corruptions and can't find space)
+  // note: the server and app should know if there is space available, and not make requests that would overflow storage
+  // i.e. lack of space should only occur due to fragmentation or corrupt bytes
+  TEST_IGNORE_MESSAGE("not yet implemented (post MVP)");
 };
+
+void testStorageValidation(void){
+  // test the CRC checks for the storage
+
+  // TODO: test the CRC for individual packets
+
+  // TODO: test behaviour for CRC errors (i.e. packets don't match stored CRC)
+  // should make a network request that deletes packet from storage
+
+  // TODO: test the overall check
+  // either another CRC that doesn't care about order performed on valid mode ids or CRCs, or a list of valid mode ids and a list of invalid mode ids
+  TEST_IGNORE_MESSAGE("not yet implemented (post MVP)");
+}
 
 void RUN_UNITY_TESTS(){
   UNITY_BEGIN();
@@ -135,6 +240,7 @@ void RUN_UNITY_TESTS(){
   RUN_TEST(testEventGetters);
   RUN_TEST(testModeGetters);
   RUN_TEST(testCRUDOperations);
+  RUN_TEST(testStorageValidation);
   UNITY_END();
 }
 

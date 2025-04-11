@@ -10,15 +10,15 @@
 
 typedef DataStorageIterator<nEvents_t, EventDataPacket> EventStorageIterator;
 
-typedef DataStorageIterator<nModes_t, ModeDataPacket> ModeStorageIterator;
+// typedef DataStorageIterator<nModes_t, ModeDataPacket> ModeStorageIterator;
 
 class DataStorageClass
 {
 private:
   std::shared_ptr<StorageHALInterface> _storage;
 
-  std::map<modeUUID, nModes_t> _storedModeIDs;
-  std::map<eventUUID, nEvents_t> _storedEventIDs;
+  std::map<eventUUID, nEvents_t> _storedEventIDs;         // TODO: ID should map to an address in FRAM/EEPROM
+  std::map<modeUUID, nModes_t> _storedModeIDs = {{1, 0}}; // default constant brightness should always be in progmem
 
 public:
   DataStorageClass(std::shared_ptr<StorageHALInterface> storage) : _storage(std::move(storage)){
@@ -28,10 +28,10 @@ public:
   
   /**
    * @brief returns an iterator to get all of the stored modes
-   * 
+   * TODO: will this ever get used
    * @return ModeStorageIterator 
    */
-  ModeStorageIterator getAllModes();
+  // ModeStorageIterator getAllModes();
 
   /**
    * @brief returns an iterator to get all of the stored events
@@ -40,7 +40,7 @@ public:
    */
   EventStorageIterator getAllEvents();
 
-  struct ModeDataPacket getMode(modeUUID modeID);
+  bool getMode(modeUUID modeID, uint8_t dataPacket[modePacketSize]);
 
   struct EventDataPacket getEvent(eventUUID eventID);
 };

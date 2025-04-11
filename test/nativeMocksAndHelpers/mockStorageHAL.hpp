@@ -3,44 +3,57 @@
 
 #include "ProjectDefines.h"
 #include "DataStorageClass.h"
+#include "../ModalLights/test_ModalLights/testModes.h"
 
 class MockStorageHAL : public StorageHALInterface{
   private:
-    std::vector<ModeDataPacket> _storedModes;
+    std::vector<ModeDataStruct> _storedModes;
     std::vector<EventDataPacket> _storedEvents;
 
   public:
-    ModeDataPacket modeBuffer[DataPreloadChunkSize];
-    nModes_t modeChunkNumber;
-    uint8_t fillModeChunkCallCount = 0;
     EventDataPacket eventBuffer[DataPreloadChunkSize];
     nEvents_t eventChunkNumber;
     uint8_t fillEventChunkCallCount = 0;
-    
-    MockStorageHAL(std::vector<ModeDataPacket> modeDataPackets,
-      std::vector<EventDataPacket> eventDataPackets)
-      : _storedModes(modeDataPackets), _storedEvents(eventDataPackets){
-        ModeDataPacket emptyMode;
-        EventDataPacket emptyEvent;
-        for(int i = 0; i<DataPreloadChunkSize; i++){
-          modeBuffer[i] = emptyMode;
-          eventBuffer[i] = emptyEvent;
-        }
+        
+    MockStorageHAL(
+      std::vector<ModeDataStruct> modeDataPackets,
+      std::vector<EventDataPacket> eventDataPackets
+    ) : _storedModes(modeDataPackets), _storedEvents(eventDataPackets){
+      // ModeDataPacket emptyMode;
+      EventDataPacket emptyEvent;
+      for(int i = 0; i<DataPreloadChunkSize; i++){
+        // modeBuffer[i] = emptyMode;
+        eventBuffer[i] = emptyEvent;
       }
+    }
 
+    /**
+     * @brief fill the storedIDs map with the ID and index of the modes in the list
+     * 
+     * @param storedIDs 
+     */
     void getModeIDs(std::map<modeUUID, nModes_t>& storedIDs){
-      for(int i = 0; i < _storedModes.size(); i++){
-        storedIDs[_storedModes.at(i).modeID] = i;
+      storedIDs.clear();
+      for(uint8_t i = 0; i < _storedModes.size(); i++){
+        storedIDs[_storedModes.at(i).ID] = i;
       }
     };
+
     void getEventIDs(std::map<eventUUID, nEvents_t>& storedIDs){
-      for(int i = 0; i < _storedEvents.size(); i++){
+      storedIDs.clear();
+      storedIDs[1] = 0;
+      for(uint8_t i = 0; i < _storedEvents.size(); i++){
         storedIDs[_storedEvents.at(i).eventID] = i;
       }
     };
 
-    ModeDataPacket getModeAt(nModes_t position){
-      return _storedModes.at(position);
+    bool getModeAt(nModes_t position, uint8_t buffer[modePacketSize]){
+      if(position >= _storedModes.size() || position < 0){
+        return false;
+      }
+      // memcpy(buffer, _storedModes.at(position), modePacketSize);
+      serializeModeDataStruct(_storedModes.at(position), buffer);
+      return true;
     }
 
     nModes_t getNumberOfStoredModes(){return _storedModes.size();}
@@ -68,23 +81,23 @@ class MockStorageHAL : public StorageHALInterface{
       return number;
     }
 
-    nModes_t fillChunk(ModeDataPacket (&buffer)[DataPreloadChunkSize], nModes_t modeNumber){
-      fillModeChunkCallCount++;
-      modeChunkNumber = modeNumber / DataPreloadChunkSize;
-      nModes_t number;
-      for(int i = 0; i < DataPreloadChunkSize; i++){
-        if(i + modeNumber >= _storedModes.size()){
-          ModeDataPacket emptyMode;
-          modeBuffer[i] = emptyMode;
-        }
-        else{
-          modeBuffer[i] = _storedModes.at(i + modeNumber);
-          buffer[i] = _storedModes.at(i + modeNumber);
-          number++;
-        }
-      }
-      return number;
-    };
+    // nModes_t fillChunk(ModeDataPacket (&buffer)[DataPreloadChunkSize], nModes_t modeNumber){
+    //   fillModeChunkCallCount++;
+    //   modeChunkNumber = modeNumber / DataPreloadChunkSize;
+    //   nModes_t number;
+    //   for(int i = 0; i < DataPreloadChunkSize; i++){
+    //     if(i + modeNumber >= _storedModes.size()){
+    //       ModeDataPacket emptyMode;
+    //       modeBuffer[i] = emptyMode;
+    //     }
+    //     else{
+    //       modeBuffer[i] = _storedModes.at(i + modeNumber);
+    //       buffer[i] = _storedModes.at(i + modeNumber);
+    //       number++;
+    //     }
+    //   }
+    //   return number;
+    // };
 };
 
 #endif

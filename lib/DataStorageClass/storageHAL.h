@@ -9,23 +9,28 @@ class StorageHALInterface{
     modeUUID _numberOfStoredModes;
     eventUUID _numberOfStoredEvents;
 
-    std::map<modeUUID, nModes_t> _storedModeIDs;
-    std::map<eventUUID, nEvents_t> _storedEventIDs;
-
   public:
     StorageHALInterface(){};
     
+    // TODO: id maps could be stored to increase boot speed
     virtual void getModeIDs(std::map<modeUUID, nModes_t>& storedIDs) = 0;
     virtual void getEventIDs(std::map<eventUUID, nEvents_t>& storedIDs) = 0;
     
     /**
-     * @brief gets modes by order of storage.
-     * it can pre-load the next few modes to save calls on the I2C/SPI bus
+     * @brief gets mode by storage location
+     * TODO: change position to address in storage
      * 
      * @param position the position of a mode in storage.
-     * @return ModeDataPacket
+     * @param buffer the buffer to fill
+     * @return true if operation was successful
      */
-    virtual ModeDataPacket getModeAt(nModes_t position) = 0;
+    virtual bool getModeAt(nModes_t position, uint8_t buffer[modePacketSize]) = 0;
+
+    /**
+     * @brief Get the Number Of Modes in storage. this doesn't include default constant brightness, so remember to +1
+     * 
+     * @return nModes_t 
+     */
     virtual nModes_t getNumberOfStoredModes() = 0;
 
     /**
@@ -52,7 +57,17 @@ class StorageHALInterface{
      * @param modeNumber the mode number to start with
      * @return nModes_t the number of elements in the buffer
      */
-    virtual nModes_t fillChunk(ModeDataPacket (&buffer)[DataPreloadChunkSize], nModes_t modeNumber) = 0;
+    // virtual nModes_t fillChunk(ModeDataPacket (&buffer)[DataPreloadChunkSize], nModes_t modeNumber) = 0;
+
+
+    /* add, update, and read methods need to update the UUID maps*/
+    // virtual bool addMode(data, std::map<modeUUID, nModes_t>& storedIDs) = 0;
+    // virtual bool updateMode(data, std::map<modeUUID, nModes_t>& storedIDs) = 0;
+    // virtual bool deleteMode(data, std::map<modeUUID, nModes_t>& storedIDs) = 0;
+
+    // virtual bool addEvent(data, std::map<eventUUID, nEvents_t>& storedIDs) = 0;
+    // virtual bool updateEvent(data, std::map<eventUUID, nEvents_t>& storedIDs) = 0;
+    // virtual bool deleteEvent(data, std::map<eventUUID, nEvents_t>& storedIDs) = 0;
 };
 
 #endif

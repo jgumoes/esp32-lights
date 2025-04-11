@@ -23,6 +23,9 @@
   #define BUILD_TIMESTAMP 637609298000000
 #endif
 
+// divides top by bottom, rounding up if necessary
+#define roundingDivide(top, bottom) ((top) + (bottom>>1) + (bottom & 1))/bottom
+
 /* EventManager */
 typedef uint8_t eventUUID;
 // hardware default event window = 1 hour
@@ -40,7 +43,7 @@ struct EventDataPacket {
   modeUUID modeID = 0;
   uint32_t timeOfDay = 0;
   uint8_t daysOfWeek = 0; // lsb = Monday, msb-1 = Sunday, msb is reserved, i.e. 0b01100000 = saturday and sunday
-  uint32_t eventWindow = 0; // TODO: delete me! how long after the time should the event trigger? should equal "timeout" in the Mode Data Struct
+  uint32_t eventWindow = 0; // how long (in seconds) after the time should the event trigger? should equal
   bool isActive = 0;
 };
 
