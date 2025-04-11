@@ -24,6 +24,11 @@ struct ConfigsStruct
 
   // EventManager
   uint32_t defaultEventWindow = hardwareDefaultEventWindow;
+
+  // Modal Lights
+  duty_t minOnBrightness = 13;  // about 5%
+  uint8_t changeoverWindow = 10;  // 10 seconds to change from one mode to the next. max value = 15
+  uint8_t softChangeWindow = 1;   // 1 second change for sudden brightness changes. max value = 15
 };
 
 
@@ -59,6 +64,7 @@ std::unique_ptr<ConfigAbstractHAL> makeConcreteConfigHal(){
 // should store the config structs locally for quick reference. setters should set the local config, then commit to storage. checking that configs are stored correctly is the responsibility of the concrete HAL
 /**
  * @brief Accesses class for the stored configs. The configHAL dependancy must be injected through the concrete factory because C++ can't just be normal. i.e. to create a new instance: ConfigManagerClass configs(makeConcreteConfigHal<ConcreteConfigHal>())
+ * TODO: config struct should store the config structs, not values. getters should return a pointer to the struct, and setters should be replaced with one method that commits configs to memory
  * 
  */
 class ConfigManagerClass {
@@ -81,7 +87,15 @@ class ConfigManagerClass {
 
     // EventManager configs
     EventManagerConfigsStruct getEventManagerConfigs();
+
+    // rejects if defaultEventWindow = 0
     bool setEventManagerConfigs(EventManagerConfigsStruct eventConfigs);
+
+    // ModalLightsConfigs
+    ModalConfigsStruct getModalConfigs();
+
+    // rejects if minOnBrightness = 0, or if windows are larger than a nibble
+    bool setModalConfigs(ModalConfigsStruct modalConfigs);
 };
 
 #endif
