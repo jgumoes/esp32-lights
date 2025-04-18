@@ -1,54 +1,65 @@
 #include "ConfigManager.h"
 
 RTCConfigsStruct ConfigManagerClass::getRTCConfigs(){
-  RTCConfigsStruct rtcConfigs;
-  rtcConfigs.DST = _configs.DST;
-  rtcConfigs.timezone = _configs.timezone;
-  rtcConfigs.maxSecondsBetweenSyncs = _configs.maxSecondsBetweenSyncs;
-  return rtcConfigs;
+  // RTCConfigsStruct rtcConfigs;
+  // rtcConfigs.DST = _configs.DST;
+  // rtcConfigs.timezone = _configs.timezone;
+  // rtcConfigs.maxSecondsBetweenSyncs = _configs.maxSecondsBetweenSyncs;
+  return _configs.rtcConfigs;
 };
 
 bool ConfigManagerClass::setRTCConfigs(RTCConfigsStruct rtcConfigs){
-  _configs.DST = rtcConfigs.DST;
-  _configs.timezone = rtcConfigs.timezone;
-  _configs.maxSecondsBetweenSyncs = rtcConfigs.maxSecondsBetweenSyncs;
+  // _configs.DST = rtcConfigs.DST;
+  // _configs.timezone = rtcConfigs.timezone;
+  // _configs.maxSecondsBetweenSyncs = rtcConfigs.maxSecondsBetweenSyncs;
+  // TODO: lower limit for maxSecondsBetweenSyncs (maybe change to hours between syncs?)
+  _configs.rtcConfigs = rtcConfigs;
   return _configHAL->setConfigs(_configs);
 }
 
 EventManagerConfigsStruct ConfigManagerClass::getEventManagerConfigs()
 {
-  EventManagerConfigsStruct eventConfigs;
-  eventConfigs.defaultEventWindow = _configs.defaultEventWindow;
-  return eventConfigs;
+  // EventManagerConfigsStruct eventConfigs;
+  // eventConfigs.defaultEventWindow = _configs.defaultEventWindow;
+  return _configs.eventConfigs;
 }
 
 bool ConfigManagerClass::setEventManagerConfigs(EventManagerConfigsStruct eventConfigs)
 {
   if(eventConfigs.defaultEventWindow == 0){return false;}
-  _configs.defaultEventWindow = eventConfigs.defaultEventWindow;
+  // _configs.defaultEventWindow = eventConfigs.defaultEventWindow;
+  _configs.eventConfigs = eventConfigs;
   return _configHAL->setConfigs(_configs);
 }
 
 ModalConfigsStruct ConfigManagerClass::getModalConfigs()
 {
-  ModalConfigsStruct modalConfigs;
-  modalConfigs.changeoverWindow = _configs.changeoverWindow;
-  modalConfigs.minOnBrightness = _configs.minOnBrightness == 0 ? 1 : _configs.minOnBrightness;
-  modalConfigs.softChangeWindow = _configs.softChangeWindow;
-  return modalConfigs;
+  // ModalConfigsStruct modalConfigs;
+  // modalConfigs.changeoverWindow = _configs.changeoverWindow;
+  // modalConfigs.defaultOnBrightness = _configs.defaultOnBrightness == 0 ? 1 : _configs.defaultOnBrightness;
+  // modalConfigs.softChangeWindow = _configs.softChangeWindow;
+
+  if(_configs.modalConfigs.defaultOnBrightness == 0){_configs.modalConfigs.defaultOnBrightness = 1;}
+  if(_configs.modalConfigs.minOnBrightness == 0){_configs.modalConfigs.minOnBrightness = 1;}
+  if(_configs.modalConfigs.minOnBrightness > _configs.modalConfigs.defaultOnBrightness){_configs.modalConfigs.defaultOnBrightness = _configs.modalConfigs.minOnBrightness;}
+  
+  return _configs.modalConfigs;
 }
 
-// rejects if minOnBrightness == 0, or if the windows are larger than a nibble
+// rejects if defaultOnBrightness == 0, or if the windows are larger than a nibble
 bool ConfigManagerClass::setModalConfigs(ModalConfigsStruct modalConfigs)
 {
   if(
-    modalConfigs.minOnBrightness == 0
+    modalConfigs.defaultOnBrightness == 0
+    || modalConfigs.minOnBrightness == 0
     || modalConfigs.changeoverWindow >= (1 << 4)
     || modalConfigs.softChangeWindow >= (1 << 4)
+    || modalConfigs.minOnBrightness > modalConfigs.defaultOnBrightness
   )
   {return false;}
-  _configs.changeoverWindow = modalConfigs.changeoverWindow;
-  _configs.minOnBrightness = modalConfigs.minOnBrightness;
-  _configs.softChangeWindow = modalConfigs.softChangeWindow;
+  // _configs.changeoverWindow = modalConfigs.changeoverWindow;
+  // _configs.defaultOnBrightness = modalConfigs.defaultOnBrightness;
+  // _configs.softChangeWindow = modalConfigs.softChangeWindow;
+  _configs.modalConfigs = modalConfigs;
   return _configHAL->setConfigs(_configs);
 }

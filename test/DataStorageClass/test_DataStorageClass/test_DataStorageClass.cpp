@@ -144,7 +144,8 @@ void testModeGetters(void){
     TEST_ASSERT_FALSE(testClass->getMode(2, buffer));
   }
 
-  std::vector<TestModeDataStruct> testModeStructs = {warmConstBrightness, purpleConstBrightness};
+  // std::vector<TestModeDataStruct> testModeStructs = {warmConstBrightness, purpleConstBrightness};
+  std::vector<TestModeDataStruct> testModeStructs = getAllTestingModes();
   auto testModes = makeModeDataStructArray(testModeStructs, channel);
   std::vector<EventDataPacket> storedEvents = {testEvent1, testEvent2, testEvent3, testEvent4, testEvent5, testEvent6, testEvent7, testEvent8};
   auto testClass = DataStorageFactory(testModes, storedEvents);

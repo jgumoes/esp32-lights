@@ -15,20 +15,32 @@
  * 
  */
 
+// struct ConfigsStruct
+// {
+//   // RTC_interface
+//   int32_t timezone = 0;  // timezone offset in seconds
+//   uint16_t DST = 0;      // daylight savings offset in seconds
+//   uint32_t maxSecondsBetweenSyncs = 0;  // max seconds until an RTC or network sync is required
+
+//   // EventManager
+//   uint32_t defaultEventWindow = hardwareDefaultEventWindow;
+
+//   // Modal Lights
+//   duty_t defaultOnBrightness = 13;  // about 5%
+//   uint8_t changeoverWindow = 10;  // 10 seconds to change from one mode to the next. max value = 15
+//   uint8_t softChangeWindow = 1;   // 1 second change for sudden brightness changes. max value = 15
+// };
+
 struct ConfigsStruct
 {
   // RTC_interface
-  int32_t timezone = 0;  // timezone offset in seconds
-  uint16_t DST = 0;      // daylight savings offset in seconds
-  uint32_t maxSecondsBetweenSyncs = 0;  // max seconds until an RTC or network sync is required
+  RTCConfigsStruct rtcConfigs;
 
   // EventManager
-  uint32_t defaultEventWindow = hardwareDefaultEventWindow;
+  EventManagerConfigsStruct eventConfigs;
 
   // Modal Lights
-  duty_t minOnBrightness = 13;  // about 5%
-  uint8_t changeoverWindow = 10;  // 10 seconds to change from one mode to the next. max value = 15
-  uint8_t softChangeWindow = 1;   // 1 second change for sudden brightness changes. max value = 15
+  ModalConfigsStruct modalConfigs;
 };
 
 
@@ -94,7 +106,7 @@ class ConfigManagerClass {
     // ModalLightsConfigs
     ModalConfigsStruct getModalConfigs();
 
-    // rejects if minOnBrightness = 0, or if windows are larger than a nibble
+    // rejects if defaultOnBrightness or minOnBrightness = 0, or if windows are larger than a nibble
     bool setModalConfigs(ModalConfigsStruct modalConfigs);
 };
 

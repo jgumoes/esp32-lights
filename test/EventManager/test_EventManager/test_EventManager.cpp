@@ -45,7 +45,7 @@ auto EventManagerFactory(
 
 auto makeTestConfigManager(){
   ConfigsStruct configs;
-  configs.defaultEventWindow = 60*60;
+  configs.eventConfigs.defaultEventWindow = 60*60;
   auto mockConfigHal = std::make_unique<MockConfigHal>();
   mockConfigHal->setConfigs(configs);
   std::shared_ptr<ConfigManagerClass> configsManager = std::make_shared<ConfigManagerClass>(std::move(mockConfigHal));

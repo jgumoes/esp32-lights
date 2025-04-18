@@ -77,40 +77,46 @@ void ModalConfigs(void){
     const ConfigsStruct defaultConfigs;
     
     ModalConfigsStruct returnedConfigs = configs->getModalConfigs();
-    TEST_ASSERT_EQUAL(defaultConfigs.changeoverWindow, returnedConfigs.changeoverWindow);
-    TEST_ASSERT_EQUAL(defaultConfigs.minOnBrightness, returnedConfigs.minOnBrightness);
-    TEST_ASSERT_EQUAL(defaultConfigs.softChangeWindow, returnedConfigs.softChangeWindow);
+    TEST_ASSERT_EQUAL(defaultConfigs.modalConfigs.changeoverWindow, returnedConfigs.changeoverWindow);
+    TEST_ASSERT_EQUAL(defaultConfigs.modalConfigs.defaultOnBrightness, returnedConfigs.defaultOnBrightness);
+    TEST_ASSERT_EQUAL(defaultConfigs.modalConfigs.minOnBrightness, returnedConfigs.minOnBrightness);
+    TEST_ASSERT_EQUAL(defaultConfigs.modalConfigs.softChangeWindow, returnedConfigs.softChangeWindow);
   }
 
   // change values
   {
     const ModalConfigsStruct testConfigs1{
-      .minOnBrightness = 10,
+      .defaultOnBrightness = 10,
+      .minOnBrightness = 9,
       .changeoverWindow = 5,
       .softChangeWindow = 3,
     };
     TEST_ASSERT_TRUE(configs->setModalConfigs(testConfigs1));
     ModalConfigsStruct returnedConfigs1 = configs->getModalConfigs();
     TEST_ASSERT_EQUAL(testConfigs1.changeoverWindow, returnedConfigs1.changeoverWindow);
+    TEST_ASSERT_EQUAL(testConfigs1.defaultOnBrightness, returnedConfigs1.defaultOnBrightness);
     TEST_ASSERT_EQUAL(testConfigs1.minOnBrightness, returnedConfigs1.minOnBrightness);
     TEST_ASSERT_EQUAL(testConfigs1.softChangeWindow, returnedConfigs1.softChangeWindow);
 
 
     const ModalConfigsStruct testConfigs2{
-      .minOnBrightness = 100,
+      .defaultOnBrightness = 100,
+      .minOnBrightness = 20,
       .changeoverWindow = 10,
       .softChangeWindow = 0,
     };
     TEST_ASSERT_TRUE(configs->setModalConfigs(testConfigs2));
     ModalConfigsStruct returnedConfigs2 = configs->getModalConfigs();
     TEST_ASSERT_EQUAL(testConfigs2.changeoverWindow, returnedConfigs2.changeoverWindow);
+    TEST_ASSERT_EQUAL(testConfigs2.defaultOnBrightness, returnedConfigs2.defaultOnBrightness);
     TEST_ASSERT_EQUAL(testConfigs2.minOnBrightness, returnedConfigs2.minOnBrightness);
     TEST_ASSERT_EQUAL(testConfigs2.softChangeWindow, returnedConfigs2.softChangeWindow);
   }
 
-  // should reject minOnBrightness = 0, and window > 15 seconds
+  // should reject defaultOnBrightness and minOnBrightness = 0, and window > 15 seconds
   {
     const ModalConfigsStruct goodConfigs{
+      .defaultOnBrightness = 1,
       .minOnBrightness = 1,
       .changeoverWindow = 15,
       .softChangeWindow = 15,
@@ -118,9 +124,24 @@ void ModalConfigs(void){
     TEST_ASSERT_TRUE(configs->setModalConfigs(goodConfigs));
 
     {
+      ModalConfigsStruct badDefaultBrightness = configs->getModalConfigs();
+      badDefaultBrightness.defaultOnBrightness = 0;
+      TEST_ASSERT_FALSE(configs->setModalConfigs(badDefaultBrightness));
+      TEST_ASSERT_EQUAL(goodConfigs.defaultOnBrightness, configs->getModalConfigs().defaultOnBrightness);
+    }
+    // minOnBrightness can't be above defaultOnBrightness
+    {
       ModalConfigsStruct badBrightness = configs->getModalConfigs();
-      badBrightness.minOnBrightness = 0;
+      badBrightness.minOnBrightness = 10;
+      badBrightness.defaultOnBrightness = 5;
       TEST_ASSERT_FALSE(configs->setModalConfigs(badBrightness));
+      TEST_ASSERT_EQUAL(goodConfigs.minOnBrightness, configs->getModalConfigs().minOnBrightness);
+      TEST_ASSERT_EQUAL(goodConfigs.defaultOnBrightness, configs->getModalConfigs().defaultOnBrightness);
+    }
+    {
+      ModalConfigsStruct badOnBrightness = configs->getModalConfigs();
+      badOnBrightness.minOnBrightness = 0;
+      TEST_ASSERT_FALSE(configs->setModalConfigs(badOnBrightness));
       TEST_ASSERT_EQUAL(goodConfigs.minOnBrightness, configs->getModalConfigs().minOnBrightness);
     }
     {
