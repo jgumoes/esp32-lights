@@ -15,7 +15,6 @@ struct CurrentModeStruct {
 struct ModalConfigsStruct {
   duty_t defaultOnBrightness = 13;  // about 5%
   duty_t minOnBrightness = 1;       // the absolute minimum brightness when state == on
-  uint8_t changeoverWindow = 10;  // 10 seconds to change from one mode to the next
   uint8_t softChangeWindow = 1;   // 1 second change for sudden brightness changes
 };
 

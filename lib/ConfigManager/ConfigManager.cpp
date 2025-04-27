@@ -52,7 +52,6 @@ bool ConfigManagerClass::setModalConfigs(ModalConfigsStruct modalConfigs)
   if(
     modalConfigs.defaultOnBrightness == 0
     || modalConfigs.minOnBrightness == 0
-    || modalConfigs.changeoverWindow >= (1 << 4)
     || modalConfigs.softChangeWindow >= (1 << 4)
     || modalConfigs.minOnBrightness > modalConfigs.defaultOnBrightness
   )
