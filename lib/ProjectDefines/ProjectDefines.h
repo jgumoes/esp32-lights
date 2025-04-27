@@ -23,9 +23,6 @@
   #define BUILD_TIMESTAMP 637609298000000
 #endif
 
-// divides top by bottom, rounding up if necessary
-#define roundingDivide(top, bottom) ((top) + (bottom>>1) + (bottom & 1))/bottom
-
 /* EventManager */
 typedef uint8_t eventUUID;
 // hardware default event window = 1 hour

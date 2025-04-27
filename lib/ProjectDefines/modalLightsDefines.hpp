@@ -5,9 +5,16 @@
 
 #include "lightDefines.h"
 
+typedef uint8_t modeUUID;
+
+struct CurrentModeStruct {
+  modeUUID activeMode;
+  modeUUID backgroundMode;
+};
+
 struct ModalConfigsStruct {
   duty_t defaultOnBrightness = 13;  // about 5%
-  duty_t minOnBrightness = 1;       // the minimum brightness when state == on
+  duty_t minOnBrightness = 1;       // the absolute minimum brightness when state == on
   uint8_t changeoverWindow = 10;  // 10 seconds to change from one mode to the next
   uint8_t softChangeWindow = 1;   // 1 second change for sudden brightness changes
 };
@@ -32,8 +39,6 @@ enum class Channels : channelID {
   blue = 1 << 4,
   uv = 1 << 5
 };
-
-typedef uint8_t modeUUID;
 
 /**
  * @brief Get the number of bytes of data for a given mode, including ID and type. if no mode is given, it uses the largest mode which should also be the size of the mode buffer

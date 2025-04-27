@@ -54,7 +54,12 @@
     "iomanip": "cpp",
     "sstream": "cpp",
     "set": "cpp",
-    "test_datastorageclass": "cpp"
+    "test_datastorageclass": "cpp",
+    "charconv": "cpp",
+    "list": "cpp",
+    "format": "cpp",
+    "span": "cpp",
+    "variant": "cpp"
   },
   "cmake.configureOnOpen": false,
 }

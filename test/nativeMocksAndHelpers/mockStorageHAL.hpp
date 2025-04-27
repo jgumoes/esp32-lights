@@ -16,10 +16,17 @@ class MockStorageHAL : public StorageHALInterface{
     uint8_t fillEventChunkCallCount = 0;
         
     MockStorageHAL(
-      std::vector<ModeDataStruct> modeDataPackets,
-      std::vector<EventDataPacket> eventDataPackets
-    ) : _storedModes(modeDataPackets), _storedEvents(eventDataPackets){
+      const std::vector<ModeDataStruct> modeDataPackets,
+      const std::vector<EventDataPacket> eventDataPackets
+    // ) : _storedModes(modeDataPackets), _storedEvents(eventDataPackets){
+    ){
       // ModeDataPacket emptyMode;
+      for(auto mode : modeDataPackets){
+        _storedModes.push_back(mode);
+      }
+      for(auto event : eventDataPackets){
+        _storedEvents.push_back(event);
+      }
       EventDataPacket emptyEvent;
       for(int i = 0; i<DataPreloadChunkSize; i++){
         // modeBuffer[i] = emptyMode;

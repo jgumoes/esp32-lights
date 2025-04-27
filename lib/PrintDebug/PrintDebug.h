@@ -24,7 +24,7 @@ static unsigned int _printDebugLevel = 0;
 
 #define PrintDebug_endFunction _printDebugLevel = _printDebugLevel > 0 ? _printDebugLevel - 1 : 0; _PrintDebug_whitespace; std::cout << "}" << std::endl
 
-#define PrintDebug_message(message) _PrintDebug_whitespace; std::cout << "- " << message
+#define PrintDebug_message(message) _PrintDebug_whitespace; std::cout << "- " << message << std::endl
 
 // byte integers should be cast to larger ints to avoid conversion to char
 #define PrintDebug_variable(name, value) _PrintDebug_whitespace; std::cout << "- " << name << " = " << (value) << std::endl;
@@ -36,5 +36,7 @@ static unsigned int _printDebugLevel = 0;
 #define PrintDebug_UINT8_array(name, array, size) _PrintDebug_whitespace; std::cout << "- " << name << ":" << std::endl; for(unsigned int i = 0; i < size; i++){_PrintDebug_whitespace; std::cout << "-- " << i << ":\t\t" << static_cast<unsigned int>(array[i]) << std::endl;}
 
 #define PrintDebug_INT8_array(name, array, size) _PrintDebug_whitespace; std::cout << "- " << name << ":" << std::endl; for(unsigned int i = 0; i < size; i++){_PrintDebug_whitespace; std::cout << "-- " << i << ":\t\t" << static_cast<int>(array[i]) << std::endl;}
+
+#define PrintDebug_reset _printDebugLevel = 0; std::cout<<"########################### print debug reset ###########################" << std::endl
 
 #endif
