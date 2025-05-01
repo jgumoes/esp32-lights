@@ -35,7 +35,7 @@ class EventManager
 private:
   std::shared_ptr<ModalLightsInterface> _modalLights;
   std::shared_ptr<ConfigManagerClass> _configs;
-  std::shared_ptr<DeviceTimeInterface> _deviceTime;
+  std::shared_ptr<DeviceTimeClass> _deviceTime;
 
   std::map<eventUUID, EventMappingStruct> _events; // map of stored EventObjects. keys are UUIDs
   uint64_t _nextEventID = 0; // UUID of the next event to trigger
@@ -107,7 +107,7 @@ public:
   EventManager(
     std::shared_ptr<ModalLightsInterface> modalLights,
     std::shared_ptr<ConfigManagerClass> configs,
-    std::shared_ptr<DeviceTimeInterface> deviceTime,
+    std::shared_ptr<DeviceTimeClass> deviceTime,
     EventStorageIterator events
 );
   ~EventManager(){};

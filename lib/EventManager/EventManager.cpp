@@ -23,7 +23,7 @@ uint64_t inline findPreviousTriggerTime(EventMappingStruct event, UsefulTimeStru
 EventManager::EventManager(
   std::shared_ptr<ModalLightsInterface> modalLights,
   std::shared_ptr<ConfigManagerClass> configs,
-  std::shared_ptr<DeviceTimeInterface> deviceTime,
+  std::shared_ptr<DeviceTimeClass> deviceTime,
   EventStorageIterator events
 ) : _modalLights(modalLights), _configs(configs), _deviceTime(deviceTime)
 {

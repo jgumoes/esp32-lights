@@ -99,7 +99,7 @@ private:
   std::unique_ptr<ModalStrategyInterface> _mode;
 
   std::unique_ptr<VirtualLightsClass> _lights;
-  std::shared_ptr<DeviceTimeInterface> _deviceTime;
+  std::shared_ptr<DeviceTimeClass> _deviceTime;
   std::shared_ptr<DataStorageClass> _dataStorage;
   std::shared_ptr<ConfigManagerClass> _configs;
   std::shared_ptr<InterpolationClass> _interpClass = std::make_shared<InterpolationClass>();
@@ -230,7 +230,7 @@ public:
    */
   ModalLightsController(
     std::unique_ptr<VirtualLightsClass>&& lightsClass,
-    std::shared_ptr<DeviceTimeInterface> deviceTime,
+    std::shared_ptr<DeviceTimeClass> deviceTime,
     std::shared_ptr<DataStorageClass> dataStorage,
     std::shared_ptr<ConfigManagerClass> configs
   ) : _lights(std::move(lightsClass)), _deviceTime(deviceTime), _dataStorage(dataStorage), _configs(configs) {

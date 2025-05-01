@@ -34,7 +34,7 @@ void tearDown(void) {
 auto EventManagerFactory(
   std::shared_ptr<MockModalLights> modalLights,
   std::shared_ptr<ConfigManagerClass> configs,
-  std::shared_ptr<DeviceTimeInterface> deviceTime,
+  std::shared_ptr<DeviceTimeClass> deviceTime,
   std::vector<EventDataPacket> testEvents
 ){
   std::vector<ModeDataStruct> modeDataPackets = {};
@@ -64,10 +64,10 @@ void EventDataPacketShouldInitialiseEmpty(void){
   TEST_ASSERT_EQUAL(0, emptyEvent.isActive);
 }
 
-void InitialisingWithNoEvents_helper(
-  std::shared_ptr<DeviceTimeInterface> deviceTime,
-  std::shared_ptr<ConfigManagerClass> configs
-){
+void InitialisingWithNoEvents(void){
+  std::shared_ptr<ConfigManagerClass> configs = makeTestConfigManager();
+  std::shared_ptr<DeviceTimeClass> deviceTime = std::make_shared<DeviceTimeClass>(configs);
+
   std::vector<EventDataPacket> emptyEvents = {};
   // initialising with no events shouldn't cause an issue
   std::shared_ptr<MockModalLights> modalLights = std::make_shared<MockModalLights>();
@@ -91,21 +91,10 @@ void InitialisingWithNoEvents_helper(
   TEST_ASSERT_EQUAL(1, modalLights->getSetModeCount());
 }
 
-void InitialisingWithNoEvents(void){
+void EventManagerFindsNextEventOnConstruction(void){
   std::shared_ptr<ConfigManagerClass> configs = makeTestConfigManager();
-  std::shared_ptr<DeviceTimeNoRTCClass> deviceTime = std::make_shared<DeviceTimeNoRTCClass>(configs);
-  InitialisingWithNoEvents_helper(deviceTime, configs);
+  std::shared_ptr<DeviceTimeClass> deviceTime = std::make_shared<DeviceTimeClass>(configs);
 
-  TestParamsStruct testParams = testArray.at(0);
-  std::shared_ptr<MockWire> wire = std::make_shared<MockWire>(testParams.seconds, testParams.minutes, testParams.hours, testParams.dayOfWeek, testParams.date, testParams.month, testParams.years);
-  auto deviceTimeRTC = std::make_shared<DeviceTimeWithRTCClass<MockWire>>(configs, wire);
-  InitialisingWithNoEvents_helper(deviceTimeRTC, configs);
-}
-
-void EventManagerFindsNextEventOnConstruction_helper(
-  std::shared_ptr<DeviceTimeInterface> deviceTime,
-  std::shared_ptr<ConfigManagerClass> configs
-){
   uint64_t morningTimestamp = 794281114; // Monday 1:38:34 3/3/25 epoch=2000
   uint64_t eveningTimestamp = 794252745; // Sunday 17:45:45 2/3/25
   std::shared_ptr<MockModalLights> modalLights = std::make_shared<MockModalLights>();
@@ -203,21 +192,10 @@ void EventManagerFindsNextEventOnConstruction_helper(
   }
 }
 
-void EventManagerFindsNextEventOnConstruction(void){
+void EventManagerSelectsCorrectBackgroundMode(void){
   std::shared_ptr<ConfigManagerClass> configs = makeTestConfigManager();
-  std::shared_ptr<DeviceTimeNoRTCClass> deviceTime = std::make_shared<DeviceTimeNoRTCClass>(configs);
-  EventManagerFindsNextEventOnConstruction_helper(deviceTime, configs);
+  std::shared_ptr<DeviceTimeClass> deviceTime = std::make_shared<DeviceTimeClass>(configs);
 
-  TestParamsStruct testParams = testArray.at(0);
-  std::shared_ptr<MockWire> wire = std::make_shared<MockWire>(testParams.seconds, testParams.minutes, testParams.hours, testParams.dayOfWeek, testParams.date, testParams.month, testParams.years);
-  auto deviceTimeRTC = std::make_shared<DeviceTimeWithRTCClass<MockWire>>(configs, wire);
-  EventManagerFindsNextEventOnConstruction_helper(deviceTimeRTC, configs);
-}
-
-void EventManagerSelectsCorrectBackgroundMode_helper(
-  std::shared_ptr<DeviceTimeInterface> deviceTime,
-  std::shared_ptr<ConfigManagerClass> configs
-){
   // shove in some background modes only, test accross different times of day on different days
   std::vector<EventDataPacket> testEvents = {testEvent3, testEvent4, testEvent5};
   std::shared_ptr<MockModalLights> modalLights = std::make_shared<MockModalLights>();
@@ -325,21 +303,10 @@ void EventManagerSelectsCorrectBackgroundMode_helper(
   }
 }
 
-void EventManagerSelectsCorrectBackgroundMode(void){
+void onlyMostRecentActiveModeIsTriggered(void){
   std::shared_ptr<ConfigManagerClass> configs = makeTestConfigManager();
-  std::shared_ptr<DeviceTimeNoRTCClass> deviceTime = std::make_shared<DeviceTimeNoRTCClass>(configs);
-  EventManagerSelectsCorrectBackgroundMode_helper(deviceTime, configs);
+  std::shared_ptr<DeviceTimeClass> deviceTime = std::make_shared<DeviceTimeClass>(configs);
 
-  TestParamsStruct testParams = testArray.at(0);
-  std::shared_ptr<MockWire> wire = std::make_shared<MockWire>(testParams.seconds, testParams.minutes, testParams.hours, testParams.dayOfWeek, testParams.date, testParams.month, testParams.years);
-  auto deviceTimeRTC = std::make_shared<DeviceTimeWithRTCClass<MockWire>>(configs, wire);
-  EventManagerSelectsCorrectBackgroundMode_helper(deviceTimeRTC, configs);
-}
-
-void onlyMostRecentActiveModeIsTriggered_helper(
-  std::shared_ptr<DeviceTimeInterface> deviceTime,
-  std::shared_ptr<ConfigManagerClass> configs
-){
   std::shared_ptr<MockModalLights> modalLights = std::make_shared<MockModalLights>();
   
 
@@ -384,21 +351,9 @@ void onlyMostRecentActiveModeIsTriggered_helper(
   }
 }
 
-void onlyMostRecentActiveModeIsTriggered(void){
+void activeAndBackgroundModesAreBothTriggered(void){
   std::shared_ptr<ConfigManagerClass> configs = makeTestConfigManager();
-  std::shared_ptr<DeviceTimeNoRTCClass> deviceTime = std::make_shared<DeviceTimeNoRTCClass>(configs);
-  onlyMostRecentActiveModeIsTriggered_helper(deviceTime, configs);
-
-  TestParamsStruct testParams = testArray.at(0);
-  std::shared_ptr<MockWire> wire = std::make_shared<MockWire>(testParams.seconds, testParams.minutes, testParams.hours, testParams.dayOfWeek, testParams.date, testParams.month, testParams.years);
-  auto deviceTimeRTC = std::make_shared<DeviceTimeWithRTCClass<MockWire>>(configs, wire);
-  onlyMostRecentActiveModeIsTriggered_helper(deviceTimeRTC, configs);
-}
-
-void activeAndBackgroundModesAreBothTriggered_helper(
-  std::shared_ptr<DeviceTimeInterface> deviceTime,
-  std::shared_ptr<ConfigManagerClass> configs
-){
+  std::shared_ptr<DeviceTimeClass> deviceTime = std::make_shared<DeviceTimeClass>(configs);
   // the active mode should be called first, then the background mode
   std::vector<EventDataPacket> testEvents = {testEvent1, testEvent3, testEvent4, testEvent5, testEvent6, testEvent7};
   std::shared_ptr<MockModalLights> modalLights = std::make_shared<MockModalLights>();
@@ -449,21 +404,10 @@ void activeAndBackgroundModesAreBothTriggered_helper(
   }
 }
 
-void activeAndBackgroundModesAreBothTriggered(void){
+void missedActiveEventsAreSkippedAfterTimeWindowClosses(void){
   std::shared_ptr<ConfigManagerClass> configs = makeTestConfigManager();
-  std::shared_ptr<DeviceTimeNoRTCClass> deviceTime = std::make_shared<DeviceTimeNoRTCClass>(configs);
-  activeAndBackgroundModesAreBothTriggered_helper(deviceTime, configs);
+  std::shared_ptr<DeviceTimeClass> deviceTime = std::make_shared<DeviceTimeClass>(configs);
 
-  TestParamsStruct testParams = testArray.at(0);
-  std::shared_ptr<MockWire> wire = std::make_shared<MockWire>(testParams.seconds, testParams.minutes, testParams.hours, testParams.dayOfWeek, testParams.date, testParams.month, testParams.years);
-  auto deviceTimeRTC = std::make_shared<DeviceTimeWithRTCClass<MockWire>>(configs, wire);
-  activeAndBackgroundModesAreBothTriggered_helper(deviceTimeRTC, configs);
-}
-
-void missedActiveEventsAreSkippedAfterTimeWindowClosses_helper(
-  std::shared_ptr<DeviceTimeInterface> deviceTime,
-  std::shared_ptr<ConfigManagerClass> configs
-){
   std::vector<EventDataPacket> testEvents = {testEvent1, testEvent7};
   std::shared_ptr<MockModalLights> modalLights = std::make_shared<MockModalLights>();
   
@@ -484,21 +428,10 @@ void missedActiveEventsAreSkippedAfterTimeWindowClosses_helper(
   TEST_ASSERT_EQUAL(0, modalLights->getModeCallCount(2));
 }
 
-void missedActiveEventsAreSkippedAfterTimeWindowClosses(void){
+void addEventChecksTheNewEvent(void){
   std::shared_ptr<ConfigManagerClass> configs = makeTestConfigManager();
-  std::shared_ptr<DeviceTimeNoRTCClass> deviceTime = std::make_shared<DeviceTimeNoRTCClass>(configs);
-  missedActiveEventsAreSkippedAfterTimeWindowClosses_helper(deviceTime, configs);
+  std::shared_ptr<DeviceTimeClass> deviceTime = std::make_shared<DeviceTimeClass>(configs);
 
-  TestParamsStruct testParams = testArray.at(0);
-  std::shared_ptr<MockWire> wire = std::make_shared<MockWire>(testParams.seconds, testParams.minutes, testParams.hours, testParams.dayOfWeek, testParams.date, testParams.month, testParams.years);
-  auto deviceTimeRTC = std::make_shared<DeviceTimeWithRTCClass<MockWire>>(configs, wire);
-  missedActiveEventsAreSkippedAfterTimeWindowClosses_helper(deviceTimeRTC, configs);
-}
-
-void addEventChecksTheNewEvent_helper(
-  std::shared_ptr<DeviceTimeInterface> deviceTime,
-  std::shared_ptr<ConfigManagerClass> configs
-){
   std::vector<EventDataPacket> testEvents = {testEvent7};
   std::shared_ptr<MockModalLights> modalLights = std::make_shared<MockModalLights>();
   
@@ -558,21 +491,10 @@ void addEventChecksTheNewEvent_helper(
   TEST_ASSERT_EQUAL(EventManagerErrors::bad_time, testClass.addEvent(badEventWindow));
 }
 
-void addEventChecksTheNewEvent(void){
+void eventWindow0ShouldUseSystemDefault(void){
   std::shared_ptr<ConfigManagerClass> configs = makeTestConfigManager();
-  std::shared_ptr<DeviceTimeNoRTCClass> deviceTime = std::make_shared<DeviceTimeNoRTCClass>(configs);
-  addEventChecksTheNewEvent_helper(deviceTime, configs);
+  std::shared_ptr<DeviceTimeClass> deviceTime = std::make_shared<DeviceTimeClass>(configs);
 
-  TestParamsStruct testParams = testArray.at(0);
-  std::shared_ptr<MockWire> wire = std::make_shared<MockWire>(testParams.seconds, testParams.minutes, testParams.hours, testParams.dayOfWeek, testParams.date, testParams.month, testParams.years);
-  auto deviceTimeRTC = std::make_shared<DeviceTimeWithRTCClass<MockWire>>(configs, wire);
-  addEventChecksTheNewEvent_helper(deviceTimeRTC, configs);
-}
-
-void eventWindow0ShouldUseSystemDefault_helper(
-  std::shared_ptr<DeviceTimeInterface> deviceTime,
-  std::shared_ptr<ConfigManagerClass> configs
-){
   // start configs with eventWindow = 1 hour
   
   EventManagerConfigsStruct configStruct;
@@ -658,21 +580,10 @@ void eventWindow0ShouldUseSystemDefault_helper(
   }
 }
 
-void eventWindow0ShouldUseSystemDefault(void){
+void testRemoveEvent(void){
   std::shared_ptr<ConfigManagerClass> configs = makeTestConfigManager();
-  std::shared_ptr<DeviceTimeNoRTCClass> deviceTime = std::make_shared<DeviceTimeNoRTCClass>(configs);
-  eventWindow0ShouldUseSystemDefault_helper(deviceTime, configs);
+  std::shared_ptr<DeviceTimeClass> deviceTime = std::make_shared<DeviceTimeClass>(configs);
 
-  TestParamsStruct testParams = testArray.at(0);
-  std::shared_ptr<MockWire> wire = std::make_shared<MockWire>(testParams.seconds, testParams.minutes, testParams.hours, testParams.dayOfWeek, testParams.date, testParams.month, testParams.years);
-  auto deviceTimeRTC = std::make_shared<DeviceTimeWithRTCClass<MockWire>>(configs, wire);
-  eventWindow0ShouldUseSystemDefault_helper(deviceTimeRTC, configs);
-}
-
-void testRemoveEvent_helper(
-  std::shared_ptr<DeviceTimeInterface> deviceTime,
-  std::shared_ptr<ConfigManagerClass> configs
-){
   std::vector<EventDataPacket> testEvents = {testEvent1, testEvent2, testEvent3, testEvent4, testEvent5};
   std::shared_ptr<MockModalLights> modalLights = std::make_shared<MockModalLights>();
   
@@ -787,21 +698,9 @@ void testRemoveEvent_helper(
   }
 }
 
-void testRemoveEvent(void){
+void testUpdateEvent(void){
   std::shared_ptr<ConfigManagerClass> configs = makeTestConfigManager();
-  std::shared_ptr<DeviceTimeNoRTCClass> deviceTime = std::make_shared<DeviceTimeNoRTCClass>(configs);
-  testRemoveEvent_helper(deviceTime, configs);
-
-  TestParamsStruct testParams = testArray.at(0);
-  std::shared_ptr<MockWire> wire = std::make_shared<MockWire>(testParams.seconds, testParams.minutes, testParams.hours, testParams.dayOfWeek, testParams.date, testParams.month, testParams.years);
-  auto deviceTimeRTC = std::make_shared<DeviceTimeWithRTCClass<MockWire>>(configs, wire);
-  testRemoveEvent_helper(deviceTimeRTC, configs);
-}
-
-void testUpdateEvent_helper(
-  std::shared_ptr<DeviceTimeInterface> deviceTime,
-  std::shared_ptr<ConfigManagerClass> configs
-){
+  std::shared_ptr<DeviceTimeClass> deviceTime = std::make_shared<DeviceTimeClass>(configs);
   std::vector<EventDataPacket> testEvents = {testEvent1, testEvent2, testEvent3, testEvent4, testEvent5};
   std::shared_ptr<MockModalLights> modalLights = std::make_shared<MockModalLights>();
   
@@ -844,7 +743,7 @@ void testUpdateEvent_helper(
   {
     modalLights->resetInstance();
     uint64_t  testTimestamp = mondayAtMidnight + timeToSeconds(21, 0, 10);
-    std::shared_ptr<DeviceTimeInterface> deviceTime = std::make_shared<DeviceTimeNoRTCClass>(configs);
+    std::shared_ptr<DeviceTimeClass> deviceTime = std::make_shared<DeviceTimeClass>(configs);
     deviceTime->setLocalTimestamp2000(testTimestamp, 0, 0);
     EventManager testClass = EventManagerFactory(modalLights, configs, deviceTime, testEvents);
     TEST_ASSERT_EQUAL(testEvent3.modeID, modalLights->getBackgroundMode());
@@ -938,17 +837,6 @@ void testUpdateEvent_helper(
     testClass.check();
     TEST_ASSERT_EQUAL(newEvent3.modeID, modalLights->getBackgroundMode());
   }
-}
-
-void testUpdateEvent(void){
-  std::shared_ptr<ConfigManagerClass> configs = makeTestConfigManager();
-  std::shared_ptr<DeviceTimeNoRTCClass> deviceTime = std::make_shared<DeviceTimeNoRTCClass>(configs);
-  testUpdateEvent_helper(deviceTime, configs);
-
-  TestParamsStruct testParams = testArray.at(0);
-  std::shared_ptr<MockWire> wire = std::make_shared<MockWire>(testParams.seconds, testParams.minutes, testParams.hours, testParams.dayOfWeek, testParams.date, testParams.month, testParams.years);
-  auto deviceTimeRTC = std::make_shared<DeviceTimeWithRTCClass<MockWire>>(configs, wire);
-  testUpdateEvent_helper(deviceTimeRTC, configs);
 }
 
 void eventSkipping(void){
