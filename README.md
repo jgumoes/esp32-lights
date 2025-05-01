@@ -10,15 +10,17 @@ If the mode is background, pressing the off button will toggle the state of the 
 
 The modes are intended to be reusable, so that the same modes with the same behaviours can be called at different times of the day. They are also intended to be unique system-wide, so that multiple devices with different LED colours can call the same events with the same modes. This should (hopefully) help the interface UX, for example multiple devices can share an alarm that can be edited once for all of the devices, and the same modes can be called by different events at different times of day with the exact same behaviour. If your weekday alarm is for 6:45am, you don't want to have to change the same alarm on every single device every time there's a bank holiday!
 
+The mode data seperates overall brightness from relative colour brightnesses. Setting the colours individually would make overall brightness an N-dimensional problem, and seperating them reduces it down to ~1D (i.e. just a brightness level knob). When setting the colours, at least one of the channels must be the max brightness of 255. There will still be a change in brightness during interpolation, as RGB[255, 255, 255] is obviously going to be brighter than RGB[255, 0, 0] and interpolating between them will see a change in power output (a non-linear change if overall brightness also changes). ModalLightsController will not normalise the colours to a constant power output because *I* don't want to limit brightness to 1/3 of the hardware maximum, but if *you* want to, the lights HAL class will be the place to do it.
+
 ### 1 Constant Brightness
 
 Brightness does not change with time. Just a normal, dimmable light.
 
 **Active Behaviour:**
-Just forces itself on. Pressing the off button instead cancels the mode and loads the background mode.
+Just forces itself on. Pressing the off button instead cancels the mode and loads the background mode. Brightness can't be set below the hardware minimum. The minimumActive brightness will be added to the hardwareMinimum.
 
 **Background Behaviour:**
-N/A
+If a minimum brightness is given but the mode is triggered as background, the minimum brightness is ignored.
 
 ### 2 Sunrise Mode
 

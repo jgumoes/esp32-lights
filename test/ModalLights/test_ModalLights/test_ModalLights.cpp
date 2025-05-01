@@ -46,6 +46,7 @@ void validateModePacketTest(){
 
 void testModeSwitching(){
   // when an active and background mode are set at the same time, when update is called the active mode is loaded first
+  // TODO: loading a background mode then cancelling the active without calling update should switch to the pending background mode
   TEST_IGNORE_MESSAGE("TODO");
 }
 

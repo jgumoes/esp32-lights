@@ -63,17 +63,24 @@ class ModalLightsInterface{
     // ##### non-virtual methods #####
 
     /**
-     * @brief Get the current brightness level of the lights. not affected by state.
+     * @brief Get the current brightness setting (aka target brightness) of the lights. not affected by state.
      * 
      * @return duty_t 
      */
-    duty_t getBrightnessLevel(){
-      return _lightVals.values[0];
-    };
+    virtual duty_t getSetBrightness() = 0;
 
     bool getState(){
       return _lightVals.state;
     }
+
+    /**
+     * @brief Get the current actual brightness level, including state. i.e. _lightVals.values[0] * _lightVals.state
+     * 
+     * @return duty_t 
+     */
+    duty_t getBrightnessLevel(){
+      return _lightVals.values[0] * _lightVals.state;
+    };
 
     void toggleState(){
       setState(!_lightVals.state);
@@ -89,13 +96,13 @@ class ModalLightsController : public ModalLightsInterface
 {
 private:
   /* data */
-  // std::unique_ptr<ModalStrategyInterface> _mode = std::make_unique<ConstantBrightnessMode>(0);
   std::unique_ptr<ModalStrategyInterface> _mode;
 
   std::unique_ptr<VirtualLightsClass> _lights;
   std::shared_ptr<DeviceTimeInterface> _deviceTime;
   std::shared_ptr<DataStorageClass> _dataStorage;
   std::shared_ptr<ConfigManagerClass> _configs;
+  std::shared_ptr<InterpolationClass> _interpClass = std::make_shared<InterpolationClass>();
 
   modeUUID _activeMode = 0;
   modeUUID _backgroundMode = 0;
@@ -151,7 +158,7 @@ private:
           currentTimeUTC_uS,
           *triggerTimeUTC_uS,
           dataPacket,
-          previousValues,
+          _interpClass,
           _lightVals,
           isActive,
           _configs
@@ -242,11 +249,12 @@ public:
       _nextBackgroundTriggerTimeUTC_uS,
       _nextBackgroundTriggerTimeUTC_uS,
       dataPacket,
-      previousValues,
+      _interpClass,
       _lightVals,
       false,
       _configs
     );
+    _backgroundMode = 1;
     // TODO: register adjustment callback with deviceTime
   }
 
@@ -291,9 +299,7 @@ public:
   duty_t setBrightnessLevel(duty_t brightness) override {
     _mode->setBrightness(_deviceTime->getUTCTimestampMicros(), _lightVals, brightness, true);
     _lights->setChannelValues(_lightVals.getLightValues());
-    // return _lightVals.values[0];
-    volatile duty_t returnBrightness = _mode->getTargetBrightness();
-    return returnBrightness;
+    return getSetBrightness();
   };
   
   bool setState(bool newState) override {
@@ -320,7 +326,6 @@ public:
     const duty_t minB = _configs->getModalConfigs().minOnBrightness;
     duty_t newBrightness;
     if(increasing){
-      // duty_t oldBrightness = _lightVals.state ? _lightVals.values[0] : minB - 1; // start at 0 if lights are off and adjustment is increasing
       duty_t oldBrightness = (_lightVals.state && (_lightVals.values[0] >= minB))
                               ? _lightVals.values[0]
                               : minB - 1; // if lights are below minB, start at minB-1. adjust up by 1 will equal 1
@@ -337,8 +342,20 @@ public:
     // TODO: can the if statements be cleaned up by moving some logic into updateLights()?
     _mode->setBrightness(_deviceTime->getUTCTimestampMicros(), _lightVals, newBrightness, false);
     _lights->setChannelValues(_lightVals.getLightValues());
-    return _lightVals.values[0];
+    return getBrightnessLevel();
   }
+
+  /**
+   * @brief Get the current brightness setting of the lights. not affected by state.
+   * 
+   * @return duty_t 
+   */
+  duty_t getSetBrightness() override {
+    duty_t minB = _configs->getModalConfigs().minOnBrightness;
+    duty_t currentB = _mode->getTargetBrightness();
+    duty_t setB = currentB >= minB ? currentB : 0;
+    return setB;
+  };
 
   bool cancelActiveMode() override {
     if(_activeMode == 0){return false;}

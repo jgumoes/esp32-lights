@@ -3,7 +3,6 @@
 
 #include "../DeviceTime/include/DeviceTime.h"
 #include "lightDefines.h"
-#include <PrintDebug.h>
 // #include <PrintDebug.h>
 
 /**
@@ -48,10 +47,10 @@ static bool areColoursEmpty(duty_t values[nChannels+1]){
  */
 class InterpolationClass{
   private:
-    uint64_t _colourStartTime_uS;     // UTC start time of colour interpolation
-    uint64_t _brightnessStartTime_uS; // UTC start time of brightness interpolation
-    uint64_t _colourWindow_uS;        // windows need to be 64 bits to allow conversion from rates
-    uint64_t _brightnessWindow_uS;
+    uint64_t _colourStartTime_uS = 0;     // UTC start time of colour interpolation
+    uint64_t _brightnessStartTime_uS = 0; // UTC start time of brightness interpolation
+    uint64_t _colourWindow_uS = 0;        // windows need to be 64 bits to allow conversion from rates
+    uint64_t _brightnessWindow_uS = 0;
     duty_t _startingValues[nChannels+1];
     duty_t _finalValues[nChannels+1];
     uint8_t _isDone[nChannels+1];
@@ -70,6 +69,7 @@ class InterpolationClass{
       if(
         window_uS == 0
         || dT >= window_uS
+        || lightVals.values[index] == _finalValues[index]
       ){
         lightVals.values[index] = _finalValues[index];
         _isDone[index] = true;
@@ -88,10 +88,6 @@ class InterpolationClass{
       int64_t k = b0w + (window_uS>>1); // folding negative change into the always-positive top means window/2 is always added
 
       int32_t newValue = (k + diff*dT)/window_uS;
-      // int32_t newValue = _startingValues[index] + (((diff * dT) + (window_uS >> 1))/window_uS);
-      // int32_t newValue = _startingValues[index] + interpDivide((int64_t)(dT*diff), (int64_t)(window_uS));
-      // int32_t newValue = _startingValues[index] + roundingDivide((int64_t)(dT*diff), (int64_t)(window_uS));
-
       if(
         (diff > 0 && newValue > _finalValues[index])
         || (diff < 0 && newValue < _finalValues[index])
@@ -105,6 +101,14 @@ class InterpolationClass{
     }
 
   public:
+    InterpolationClass(){
+      for(uint8_t i = 0; i < nChannels+1; i++){
+        _startingValues[i] = 0;
+        _finalValues[i] = 0;
+        _isDone[i] = 0;
+      }
+    }
+  
     /**
      * @brief update the light values
      * 
@@ -133,58 +137,49 @@ class InterpolationClass{
      * @param finalValues[] nChannels+1 
      * @return true if interpolation is already finished;
      * @return false if interpolation needs to be active
+     * @returns if the interpolation is finished
      */
     bool initialise(uint64_t utcTimestamp_uS, uint64_t window_uS, LightStateStruct& lightVals, duty_t finalValues[]){
-      // initialise the values even if not needed. it might be used for a quick change
-      bool notNeeded = !isQuickChangeNeeded(lightVals, finalValues);
-
+      bool notNeeded = true;
       _colourStartTime_uS = utcTimestamp_uS;
       _brightnessStartTime_uS = utcTimestamp_uS;
       _colourWindow_uS = window_uS;
       _brightnessWindow_uS = window_uS;
       for(uint8_t i = 0; i < nChannels+1; i++){
-        _startingValues[i] = lightVals.values[i];
         _finalValues[i] = finalValues[i];
-        _isDone[i] = (window_uS == 0) && notNeeded;
+        // _isDone[i] = (window_uS == 0) && notNeeded;
+        _isDone[i] = (window_uS == 0) || lightVals.values[i] == finalValues[i];
+        _startingValues[i] = _isDone[i] ? finalValues[i] : lightVals.values[i];
+        notNeeded &= _isDone[i];
       }
+
       return notNeeded;
     };
 
     /**
-     * @brief set a new final brightness, then calls update(). if forceNewInterpolation is true, it'll use the softChangeWindow_S as the new interpolation window. otherwise, it'll use either the softChangeWindow_S or the current interpolation, whichever ends later. flashing modes will want forceNewInterpolation = false;
+     * @brief set a new final brightness.
      * 
      * @param finalBrightness new final brightness value
      * @param lightVals address of the current values struct. current values will be used a starting values
      * @param utcTimestamp_uS utc timestamp in microseconds
      * @param softChangeWindow_S softChange window in seconds
-     * @param forceNewInterpolation if true, ignores the colour change window
-     * @return true if the interpolation is finished
      */
-    bool setFinalBrightness(duty_t finalBrightness, LightStateStruct& lightVals, uint64_t utcTimestamp_uS, uint8_t softChangeWindow_S, bool forceNewInterpolation){
-      if(utcTimestamp_uS < _colourStartTime_uS){return false;} // TODO: this should return an error type
+    void setFinalBrightness(duty_t finalBrightness, LightStateStruct& lightVals, uint64_t utcTimestamp_uS, uint8_t softChangeWindow_S){
+      if(utcTimestamp_uS < _colourStartTime_uS){return;} // TODO: this should return an error type
 
       _startingValues[0] = lightVals.values[0];
       _finalValues[0] = finalBrightness;
       _brightnessStartTime_uS = utcTimestamp_uS;
+      _brightnessWindow_uS = softChangeWindow_S * secondsToMicros;
 
-      uint64_t softWindow_uS = softChangeWindow_S * secondsToMicros;
-      uint64_t colourEndTime_uS = _colourWindow_uS + _colourStartTime_uS;
-      // if there's a colour change that'll end after the soft change, use that endtime instead (unless forced off)
-      _brightnessWindow_uS = ((utcTimestamp_uS + softWindow_uS) >= (colourEndTime_uS * !forceNewInterpolation))
-                            ? softWindow_uS
-                            : colourEndTime_uS - _brightnessStartTime_uS;
-
-      // // adjust brightness window so it finishes at same time as colour window
-      // _brightnessWindow_uS = _colourWindow_uS + _colourStartTime_uS - _brightnessStartTime_uS;
-
-      // // use softChange if it would finish later than brightness window
-      // if((softChangeWindow_S * secondsToMicros) > _brightnessWindow_uS){
-      //   _brightnessWindow_uS = softChangeWindow_S * secondsToMicros;
-      // }
-      // _isDone[0] = _brightnessWindow_uS == 0;
       _isDone[0] = false;
-      return update(lightVals, utcTimestamp_uS);
     };
+
+    duty_t getFinalBrightness(){return _finalValues[0];}
+
+    void getFinalValues(duty_t vals[nChannels+1]){
+      memcpy(vals, _finalValues, nChannels + 1);
+    }
 
     bool isFinished(){
       bool finished = true;
@@ -204,7 +199,6 @@ class ModalStrategyInterface
 {
 public:
   // TODO: fast interpolation should be common to all modes
-  // ModalStrategyInterface(uint64_t utcStartTime_uS): _utcStartTime_uS(utcStartTime_uS){};
 
   /**
    * @brief calculates and updates the light values based
@@ -239,7 +233,7 @@ public:
    * 
    * @param vals vals[0] is brightness, the rest is colour ratios
    */
-  virtual void getTargetVals(duty_t vals[], uint64_t utcTimestamp_uS, LightStateStruct& lightVals) = 0;
+  virtual void getTargetVals(duty_t vals[nChannels+1], uint64_t utcTimestamp_uS, LightStateStruct& lightVals) = 0;
 
   /**
    * @brief returns the target brightness
@@ -259,10 +253,8 @@ public:
 class ConstantBrightnessMode : public ModalStrategyInterface
 {
 private:
-bool _quickChangeActive;
-duty_t _targetValues[nChannels+1];  // TODO: replace with accessing finalValues from InterpolationClass
-std::shared_ptr<InterpolationClass> _quickChangeClass = std::make_shared<InterpolationClass>(); // TODO: make this static in virtual class
-std::shared_ptr<ConfigManagerClass> _configs;
+  std::shared_ptr<InterpolationClass> _interpClass;
+  std::shared_ptr<ConfigManagerClass> _configs;
 
 public:
   const modeUUID modeID;
@@ -274,8 +266,8 @@ public:
    * 
    * @param currentTime_uS 
    * @param triggerTime_uS 
-   * @param modeData[] array of size modePacketSize
-   * @param previousVals[] array of size nChannels+1
+   * @param modeData[modePacketSize] array of size modePacketSize
+   * @param interpClass
    * @param currentVals 
    * @param isActive 
    * @param configs 
@@ -284,63 +276,54 @@ public:
     uint64_t currentTime_uS,
     uint64_t triggerTime_uS,
     duty_t modeData[modePacketSize],
-    duty_t previousVals[],
+    std::shared_ptr<InterpolationClass> interpClass,
     LightStateStruct& currentVals,
     bool isActive,
     std::shared_ptr<ConfigManagerClass> configs
   ) : ModalStrategyInterface(),
       modeID(modeData[0]),
+      _interpClass(interpClass),
       isActive(isActive),
       _configs(configs)
   {
     uint64_t utcStartTime_uS = currentTime_uS;
 
-    // force on if active and off
-    duty_t defaultOnBrightness = _configs->getModalConfigs().defaultOnBrightness;
+    // fill target colour vals
+    duty_t targetValues[nChannels+1] = {_interpClass->getFinalBrightness()};
+    for(uint8_t i = 0; i < nChannels; i++){
+      targetValues[i+1] = modeData[i+2];
+    }
     duty_t minOnBrightness = _configs->getModalConfigs().minOnBrightness;
-    if(isActive && (currentVals.state * previousVals[0] < defaultOnBrightness)){
+
+    // set current vals to target vals if lights are off
+    if(currentVals.state == 0 || currentVals.values[0] < minOnBrightness){
+      memcpy(currentVals.values, targetValues, nChannels+1);
+    }
+
+    // force on default brightness if brightness is under default
+    if(isActive){
+      duty_t defaultOnBrightness = _configs->getModalConfigs().defaultOnBrightness;
       currentVals.state = true;
+      // force current vals to min on brightness
       if(currentVals.values[0] < minOnBrightness){currentVals.values[0] = minOnBrightness;}
-      previousVals[0] = previousVals[0] < defaultOnBrightness
+      targetValues[0] = currentVals.values[0] <= defaultOnBrightness
                         ? defaultOnBrightness
                         : currentVals.values[0];
     }
     
-    // _targetValues[0] = previousVals[0] * currentVals.state;
-    _targetValues[0] = previousVals[0];
-    for(uint8_t i = 0; i < nChannels; i++){
-      _targetValues[i+1] = modeData[i+2];
-    }
-    if(currentVals.state == 0){
-      memcpy(currentVals.values, _targetValues, nChannels+1);
-    }
-
-    uint64_t window = _configs->getModalConfigs().changeoverWindow * secondsToMicros;
-    // if(currentVals.state){
-      _quickChangeActive = !_quickChangeClass->initialise(utcStartTime_uS, window, currentVals, _targetValues);
-    // }
-
+    uint64_t window = _configs->getModalConfigs().softChangeWindow * secondsToMicros;
+    _interpClass->initialise(utcStartTime_uS, window, currentVals, targetValues);
+    updateLightVals(utcStartTime_uS, currentVals);
   };
 
   void updateLightVals(uint64_t utcTimestamp_uS, LightStateStruct& lightVals) override {
-    PrintDebug_function("updateLightVals");
-    PrintDebug_UINT8_array("current vals before update", lightVals.values, nChannels+1);
-    if(_quickChangeActive){
-      _quickChangeActive = !_quickChangeClass->update(lightVals, utcTimestamp_uS);
+    _interpClass->update(lightVals, utcTimestamp_uS);
+
+    if(lightVals.values[0] < _configs->getModalConfigs().minOnBrightness){
+      lightVals.state = false;
+      lightVals.values[0] = 0;
+      _interpClass->getFinalValues(lightVals.values); // TODO: will if statements make this more efficient?
     }
-    // if lights are set to on but brightness is currently 0
-    const duty_t minOnBrightness = _configs->getModalConfigs().minOnBrightness;
-    lightVals.state = lightVals.values[0] > 0;
-    // if(
-    //   lightVals.state
-    //   && lightVals.values[0] < minOnBrightness
-    //   && _targetValues[0] > 0
-    // ){
-    //   lightVals.values[0] = minOnBrightness;
-    // }
-    PrintDebug_UINT8_array("target vals", _targetValues, nChannels+1);
-    PrintDebug_UINT8_array("current vals after update", lightVals.values, nChannels+1);
-    PrintDebug_endFunction;
     return;
   }
 
@@ -349,29 +332,23 @@ public:
 
     duty_t defaultBrightness = _configs->getModalConfigs().defaultOnBrightness;
     if(isActive && (brightness < defaultBrightness)){brightness = defaultBrightness;} // TODO: min values should be set as pointers in the initialisation. for active mode, minOnBrightness should point to defaultBrightness
+    
     duty_t minOnBrightness = _configs->getModalConfigs().minOnBrightness;
-
-    // if(brightness == 0 && window == 0){lightVals.state = false;}
-    if(brightness > 0){
-      brightness = brightness >= minOnBrightness ? brightness : minOnBrightness;
-      lightVals.state = true;
-      lightVals.values[0] = lightVals.values[0] > 0
-                            ? lightVals.values[0]
-                            : minOnBrightness;
+    if(brightness < minOnBrightness){
+      brightness = (minOnBrightness-1) * softChange; // minB - 1 is identical to 0
+    }
+    else{
+      // if new brightness is on, make sure state is on and current brightness is at least min
+      lightVals.state = true; // TODO: is this redundant? can it be removed? does it duplicate the final line of this method?
+      if(lightVals.values[0] < minOnBrightness){
+        lightVals.values[0] = minOnBrightness;
+      }
     }
     
-    // if lights have fallen to 0, state should be off
-    // if(lightVals.values[0] == 0 && lightVals.state == true){lightVals.values[0] = minOnBrightness;}
-    // lightVals.state = ((brightness > 0) || window > 0);
-    
-    // setting a new brightness during a colour change should force an immediate update
-    _targetValues[0] = brightness;
-    _quickChangeActive = !_quickChangeClass->setFinalBrightness(
-      brightness, lightVals, utcTimestamp_uS, window, true
+    _interpClass->setFinalBrightness(
+      brightness, lightVals, utcTimestamp_uS, window
     );
-    lightVals.state = lightVals.values[0] > 0;
-
-    // updateLightVals(utcTimestamp_uS, lightVals);
+    updateLightVals(utcTimestamp_uS, lightVals);
   }
 
   /**
@@ -395,35 +372,24 @@ public:
     lightVals.state = newState;
 
     if(newState == false){
-      // disable the quick change if the lights are off
-      _quickChangeActive = false;
-      for(uint8_t i = 1; i < nChannels+1; i++){
-        lightVals.values[i] = _targetValues[i];
-      }
+      _interpClass->getFinalValues(lightVals.values); // yeat on passed the colour interpolation
       return false;
     }
 
     // if turning on:
 
+    
     // previous brightness or default minimum, whichever's bigger
+    duty_t minB = _configs->getModalConfigs().minOnBrightness;
     duty_t defaultOnBrightness = _configs->getModalConfigs().defaultOnBrightness;
-    duty_t newBrightness = lightVals.values[0] < defaultOnBrightness
-                          ? newBrightness = defaultOnBrightness
+    duty_t newBrightness = lightVals.values[0] < minB
+                          ? defaultOnBrightness
                           : lightVals.values[0];
-    lightVals.values[0] = _configs->getModalConfigs().minOnBrightness; // set current brightness to min for a soft on
-    _targetValues[0] = newBrightness;
-    for(uint8_t i = 1; i < nChannels+1; i++){
-      // TODO: replace lightVals with end colour ratios
-      // TODO: actually, why am I doing this?
-      _targetValues[i] = lightVals.values[i];
-    }
+    lightVals.values[0] = minB; // set current brightness to min for a soft on
 
-    // interpolation should be reinitialised, incase a sudden brightness change happens
-    _quickChangeActive = !_quickChangeClass->initialise(
-      utcTimestamp_uS,_configs->getModalConfigs().softChangeWindow*secondsToMicros, lightVals, _targetValues
-    );
-    const duty_t minOnBrightness = _configs->getModalConfigs().minOnBrightness;
-    if(lightVals.values[0] < minOnBrightness){lightVals.values[0] = minOnBrightness;}
+    uint8_t window_s = _configs->getModalConfigs().softChangeWindow;
+    _interpClass->setFinalBrightness(newBrightness, lightVals, utcTimestamp_uS, window_s);
+    updateLightVals(utcTimestamp_uS, lightVals);
     return false;
   }
 
@@ -434,17 +400,15 @@ public:
    * @param utcTimestamp_uS 
    * @param lightVals 
    */
-  void getTargetVals(duty_t vals[], uint64_t utcTimestamp_uS, LightStateStruct& lightVals){
+  void getTargetVals(duty_t vals[nChannels+1], uint64_t utcTimestamp_uS, LightStateStruct& lightVals){
     updateLightVals(utcTimestamp_uS, lightVals);
-    for(uint8_t i = 0; i < nChannels+1; i++){
-      vals[i] = _targetValues[i];
-    }
+    _interpClass->getFinalValues(vals);
   }
 
-  duty_t getTargetBrightness() override {return _targetValues[0];}
+  duty_t getTargetBrightness() override {return _interpClass->getFinalBrightness();}
 
   void timeAdjust(int64_t adjustment_uS) override {
-    _quickChangeClass->timeAdjust(adjustment_uS);
+    _interpClass->timeAdjust(adjustment_uS);
   }
 };
 
