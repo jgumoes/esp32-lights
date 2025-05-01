@@ -25,4 +25,29 @@ const struct EventDataPacket testEvent9 = {9, 8 /*chirp*/, timeToSeconds(7, 0, 0
 
 const struct EventDataPacket testEvent10 = {10, 8, timeToSeconds(22, 0, 0), 0b01111111, oneHour, true};
 
+std::vector<EventDataPacket> getAllTestEvents() {
+  std::vector<EventDataPacket> allEvents;
+  EventDataPacket event1 = testEvent1;
+  allEvents.push_back(event1);
+  EventDataPacket event2 = testEvent2;
+  allEvents.push_back(event2);
+  EventDataPacket event3 = testEvent3;
+  allEvents.push_back(event3);
+  EventDataPacket event4 = testEvent4;
+  allEvents.push_back(event4);
+  EventDataPacket event5 = testEvent5;
+  allEvents.push_back(event5);
+  EventDataPacket event6 = testEvent6;
+  allEvents.push_back(event6);
+  EventDataPacket event7 = testEvent7;
+  allEvents.push_back(event7);
+  EventDataPacket event8 = testEvent8;
+  allEvents.push_back(event8);
+  EventDataPacket event9 = testEvent9;
+  allEvents.push_back(event9);
+  EventDataPacket event10 = testEvent10;
+  allEvents.push_back(event10);
+  return allEvents;
+};
+
 #endif

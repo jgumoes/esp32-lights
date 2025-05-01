@@ -37,8 +37,9 @@ auto EventManagerFactory(
   std::shared_ptr<DeviceTimeInterface> deviceTime,
   std::vector<EventDataPacket> testEvents
 ){
-  std::vector<ModeDataPacket> modeDataPackets = {};
+  std::vector<ModeDataStruct> modeDataPackets = {};
   auto mockStorageHAL = std::make_shared<MockStorageHAL>(modeDataPackets, testEvents);
+  std::vector<TestModeDataStruct> testModes = {mvpModes["warmConstBrightness"]};
   auto dataStorage = std::make_shared<DataStorageClass>(std::move(mockStorageHAL));
   return EventManager(modalLights, configs,deviceTime, dataStorage->getAllEvents());
 }
