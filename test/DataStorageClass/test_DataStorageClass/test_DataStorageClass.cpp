@@ -8,8 +8,6 @@
 void setUp(void){}
 void tearDown(void){}
 
-TestChannels channel = TestChannels::white;  // TODO: delete me
-
 std::shared_ptr<DataStorageClass> DataStorageFactory(
     std::vector<ModeDataStruct> testModes,
     std::vector<EventDataPacket> eventDataPackets
@@ -127,19 +125,21 @@ void testEventGetters(void){
 }
 
 void testModeGetters(void){
-  // TODO: test that ID=1 always returns default constant brightness, even when no data is given
+  TestChannels channel = TestChannels::RGB; // TODO: iterate over all TestChannels
+  // test that ID=1 always returns default constant brightness, even when no data is given
   {
     std::vector<ModeDataStruct> storedModes = {};
     std::vector<EventDataPacket> storedEvents = {testEvent1, testEvent2, testEvent3, testEvent4, testEvent5, testEvent6, testEvent7, testEvent8};
 
+    const ModeDataStruct defaultConst = convertTestModeStruct(defaultConstantBrightness, channel);
+    
     std::shared_ptr<DataStorageClass> testClass = DataStorageFactory(storedModes, storedEvents);
     uint8_t buffer[modePacketSize];
     TEST_ASSERT_TRUE(testClass->getMode(1, buffer));
-    TEST_ASSERT_EQUAL(1, buffer[0]);
+    TEST_ASSERT_EQUAL(defaultConst.ID, buffer[0]);
     TEST_ASSERT_EQUAL(ModeTypes::constantBrightness, buffer[1]);
-    for(uint8_t i = 2; i < getModeDataSize(ModeTypes::constantBrightness); i++){
-      TEST_ASSERT_EQUAL(255, buffer[i]);
-    }
+    TEST_ASSERT_EQUAL_UINT8_ARRAY(defaultConst.endColourRatios, &buffer[2], nChannels);
+    TEST_ASSERT_EQUAL(defaultConst.minBrightness, buffer[getModeDataSize(ModeTypes::constantBrightness) - 1]);
     
     TEST_ASSERT_FALSE(testClass->getMode(2, buffer));
   }
@@ -156,11 +156,12 @@ void testModeGetters(void){
     uint8_t testBuffer[modePacketSize];
 
     // test default constant brightness first
-    memcpy(expectedBuffer, defaultConstBrightnessBuffer, modePacketSize);
+    serializeModeDataStruct(convertTestModeStruct(defaultConstantBrightness, channel), expectedBuffer);
     TEST_ASSERT_TRUE(testClass->getMode(1, testBuffer));
     TEST_ASSERT_EQUAL_UINT8_ARRAY(
       expectedBuffer, testBuffer, getModeDataSize(ModeTypes::constantBrightness)
     );
+    TEST_ASSERT_EQUAL(0, testBuffer[getModeDataSize(ModeTypes::constantBrightness) - 1]);
 
     // test all the other modes
     for(auto& mode : testModes){
@@ -168,6 +169,7 @@ void testModeGetters(void){
 
       TEST_ASSERT_TRUE(testClass->getMode(mode.ID, testBuffer));
       TEST_ASSERT_EQUAL_UINT8_ARRAY(expectedBuffer, testBuffer, getModeDataSize(mode.type));
+      TEST_ASSERT_EQUAL(mode.minBrightness, testBuffer[getModeDataSize(ModeTypes::constantBrightness) - 1]);
     }
   }
 
@@ -177,7 +179,7 @@ void testModeGetters(void){
     // test default constant brightness first
     {
       uint8_t expectedBuffer[modePacketSize];
-      memcpy(expectedBuffer, defaultConstBrightnessBuffer, modePacketSize);
+      serializeModeDataStruct(convertTestModeStruct(defaultConstantBrightness, channel), expectedBuffer);
       
       uint8_t changedBuffer[modePacketSize];
       TEST_ASSERT_TRUE(testClass->getMode(1, changedBuffer));
@@ -235,8 +237,17 @@ void testStorageValidation(void){
   TEST_IGNORE_MESSAGE("not yet implemented (post MVP)");
 }
 
+void noPrintDebug(){
+  #ifdef __PRINT_DEBUG_H__
+    TEST_ASSERT_MESSAGE(false, "did you forget to remove the print debugs?");
+  #else
+    TEST_ASSERT(true);
+  #endif
+}
+
 void RUN_UNITY_TESTS(){
   UNITY_BEGIN();
+  RUN_TEST(noPrintDebug);
   RUN_TEST(testIterableEventCollection);
   RUN_TEST(testEventGetters);
   RUN_TEST(testModeGetters);

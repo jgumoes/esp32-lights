@@ -3,7 +3,6 @@
 
 #include "../DeviceTime/include/DeviceTime.h"
 #include "lightDefines.h"
-#include <PrintDebug.h>
 
 /**
  * @brief is performing a quick change necessary? basically, are the two arrays different?
@@ -304,13 +303,10 @@ public:
       _softChangeWindow_S(configs.softChangeWindow),
       _minOnBrightness(configs.minOnBrightness)
   {
-    PrintDebug_function("ConstantBrightnessMode::ConstantBrightnessMode");
-
     uint64_t utcStartTime_uS = currentTime_uS;
     _minSettableBrightness = _minOnBrightness;
 
     duty_t oldTargets[nChannels+1]; _interpClass->getFinalValues(oldTargets);
-    PrintDebug_UINT8_array("old target vals", oldTargets, nChannels+1);
 
     // fill target colour vals
     duty_t targetValues[nChannels+1] = {_interpClass->getFinalBrightness()};
@@ -326,12 +322,8 @@ public:
 
     // force on default brightness if brightness is under default
     if(isActive){
-      PrintDebug_message("loading active mode");
       const duty_t modeMinB = modeData->minBrightness;
       _minSettableBrightness = modeMinB > _minOnBrightness ? modeMinB : _minOnBrightness;
-      PrintDebug_UINT8("modeMinB", modeMinB);
-      PrintDebug_UINT8("_minOnBrightness", _minOnBrightness);
-      PrintDebug_UINT8("_minSettableBrightness", _minSettableBrightness);
       currentVals.state = true;
       // force current vals to min on brightness
       if(currentVals.values[0] < _minOnBrightness){currentVals.values[0] = _minOnBrightness;}
@@ -339,11 +331,9 @@ public:
                         ? _minSettableBrightness
                         : currentVals.values[0];
     }
-    PrintDebug_UINT8_array("new target vals", targetValues, nChannels+1);
     uint64_t window = _softChangeWindow_S * secondsToMicros;
     _interpClass->initialise(utcStartTime_uS, window, currentVals, targetValues);
     updateLightVals(utcStartTime_uS, currentVals);
-    PrintDebug_endFunction;
   };
 
   void updateLightVals(uint64_t utcTimestamp_uS, LightStateStruct& lightVals) override {
@@ -358,11 +348,6 @@ public:
   }
 
   duty_t setBrightness(uint64_t utcTimestamp_uS, LightStateStruct& lightVals, duty_t brightness, bool softChange) override {
-    PrintDebug_function("ConstantBrightnessMode::setBrightness");
-    PrintDebug_UINT8("requested brightness", brightness);
-    PrintDebug_UINT8("min settable brightness", _minSettableBrightness);
-    PrintDebug_UINT8("active min brightness", modeData->minBrightness);
-    PrintDebug_variable("isActive?", isActive);
     uint8_t window = softChange ? _softChangeWindow_S : 0;
 
     if(isActive && (brightness < _minSettableBrightness)){brightness = _minSettableBrightness;} // TODO: min values should be set as pointers in the initialisation. for active mode, minOnBrightness should point to defaultBrightness
@@ -378,12 +363,10 @@ public:
       }
     }
     
-    PrintDebug_UINT8("final target brightness", brightness);
     _interpClass->setFinalBrightness(
       brightness, lightVals, utcTimestamp_uS, window
     );
     updateLightVals(utcTimestamp_uS, lightVals);
-    PrintDebug_endFunction;
     return brightness;
   }
 
@@ -397,11 +380,7 @@ public:
    */
   bool setState(uint64_t utcTimestamp_uS, LightStateStruct& lightVals, bool newState) override {
     if(newState == lightVals.state){
-      PrintDebug_function("set state with repeat state");
-      PrintDebug_UINT8("mode ID", modeData->ID);
       duty_t targetVals[nChannels+1]; _interpClass->getFinalValues(targetVals);
-      PrintDebug_UINT8_array("target vals", targetVals, nChannels+1);
-      PrintDebug_endFunction;
       // this should only happen due to a race condition between a slow network and a button press
       return false;
     }

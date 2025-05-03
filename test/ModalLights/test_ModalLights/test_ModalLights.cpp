@@ -99,7 +99,7 @@ void testConfigGuards(){
   TEST_ASSERT_EQUAL(0, testClass->getSetBrightness());
   TEST_ASSERT_EQUAL(false, testClass->getState());
 
-  // TODO: test that minOnBrightness = 0 gets rejected
+  // test that minOnBrightness = 0 gets rejected
   {
     TEST_ASSERT_FALSE(testClass->changeMinOnBrightness(badConfigs.minOnBrightness));
 
@@ -108,7 +108,7 @@ void testConfigGuards(){
     TEST_ASSERT_EQUAL(goodConfigs.minOnBrightness, testClass->getSetBrightness());
   }
 
-  // TODO: test that soft change window over 15 gets rejected
+  // test that soft change window over 15 gets rejected
   {
     TEST_ASSERT_FALSE(testClass->changeSoftChangeWindow(badConfigs.softChangeWindow));
 

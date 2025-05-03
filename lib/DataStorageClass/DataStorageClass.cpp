@@ -21,6 +21,7 @@ bool DataStorageClass::getMode(modeUUID modeID, uint8_t dataPacket[modePacketSiz
     for(uint8_t i = 2; i<nChannels+2; i++){
       dataPacket[i] = 255;
     }
+    dataPacket[getModeDataSize(ModeTypes::constantBrightness)-1] = 0;
     return true;
   }
   // if modeID not found:

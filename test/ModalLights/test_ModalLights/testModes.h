@@ -35,32 +35,61 @@ struct TestModeDataStruct {
                     // [timeWindow MSB][timeWindow LSB][0]
 };
 
+/**
+ * @brief convert a TestModeDataStruct into a ModeDataStruct
+ * 
+ * @param testStruct 
+ * @param channel 
+ * @return ModeDataStruct 
+ */
+ModeDataStruct convertTestModeStruct(TestModeDataStruct testStruct, TestChannels channel){
+  ModeDataStruct dataStruct{
+    .ID = testStruct.ID,
+    .type = testStruct.type,
+    .maxBrightness = testStruct.brightness1,
+    .minBrightness = testStruct.brightness0,
+    .finalMaxBrightness = testStruct.finalBrightness1,
+    .finalMinBrightness = testStruct.finalBrightness0
+  };
+  switch(channel){
+    case TestChannels::white:
+      for(uint8_t i = 0; i < nChannels; i++){
+        dataStruct.endColourRatios[i] = testStruct.endColourRatios.white[i];
+        dataStruct.startColourRatios[i] = testStruct.startColourRatios.white[i];
+      }
+      break;
+
+    case TestChannels::whiteAndWarm:
+      for(uint8_t i = 0; i < nChannels; i++){
+        dataStruct.endColourRatios[i] = testStruct.endColourRatios.whiteAndWarm[i];
+        dataStruct.startColourRatios[i] = testStruct.startColourRatios.whiteAndWarm[i];
+      }
+      break;
+
+    case TestChannels::RGB:
+      for(uint8_t i = 0; i < nChannels; i++){
+        dataStruct.endColourRatios[i] = testStruct.endColourRatios.RGB[i];
+        dataStruct.startColourRatios[i] = testStruct.startColourRatios.RGB[i];
+      }
+      break;
+    default:
+      throw("channel doesn't exist");
+  }
+  memcpy(dataStruct.time, testStruct.time, 3);
+  return dataStruct;
+}
+
+/**
+ * @brief converts a vector array of TestModeDataStructs to a vector array of ModeDataStructs
+ * 
+ * @param testArray 
+ * @param channel 
+ * @return std::vector<ModeDataStruct> 
+ */
 std::vector<ModeDataStruct> makeModeDataStructArray(std::vector<TestModeDataStruct> testArray, TestChannels channel){
   std::vector<ModeDataStruct> dataArray;
   for(auto& testStruct : testArray){
-    ModeDataStruct dataStruct{.ID = testStruct.ID, .type = testStruct.type, .maxBrightness = testStruct.brightness1, .minBrightness = testStruct.brightness0, .finalMaxBrightness = testStruct.finalBrightness1, .finalMinBrightness = testStruct.finalBrightness0};
-    for(uint8_t i = 0; i < nChannels; i++){
-      switch(channel){
-        case TestChannels::white:
-          dataStruct.endColourRatios[i] = testStruct.endColourRatios.white[i];
-          dataStruct.startColourRatios[i] = testStruct.startColourRatios.white[i];
-          break;
-
-        case TestChannels::whiteAndWarm:
-          dataStruct.endColourRatios[i] = testStruct.endColourRatios.whiteAndWarm[i];
-          dataStruct.startColourRatios[i] = testStruct.startColourRatios.whiteAndWarm[i];
-          break;
-
-        case TestChannels::RGB:
-          dataStruct.endColourRatios[i] = testStruct.endColourRatios.RGB[i];
-          dataStruct.startColourRatios[i] = testStruct.startColourRatios.RGB[i];
-          break;
-        default:
-          throw("channel doesn't exist");
-      }
-    }
-    memcpy(dataStruct.time, testStruct.time, 3);
-    dataArray.push_back(dataStruct);
+    dataArray.push_back(convertTestModeStruct(testStruct, channel));
   }
   return dataArray;
 };
@@ -103,7 +132,7 @@ const TestModeDataStruct defaultConstantBrightness = {
   .ID = 1,
   .type = ModeTypes::constantBrightness,
   .endColourRatios = ColourRatiosStruct{.white = {255}, .whiteAndWarm = {255, 255}, .RGB = {255, 255, 255}},
-  .brightness0 = 1
+  .brightness0 = 0
 };
 
 // these modes are intended to be used for the mvp, so have explicit IDs
