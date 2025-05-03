@@ -1,4 +1,5 @@
-#pragma(once)
+#ifndef __TEST_MODES_H__
+#define __TEST_MODES_H__
 
 #include <Arduino.h>
 #include <ModalLights.h>
@@ -16,44 +17,13 @@ struct ColourRatiosStruct{
   duty_t RGB[8] = {0,0,0,0,0,0,0,0};
 };
 
-struct ModeDataStruct {
-  modeUUID ID;
-  ModeTypes type;
-  duty_t endColourRatios[nChannels] ;
-  duty_t startColourRatios[nChannels];
-
-  duty_t brightness1; // max/end/target
-  duty_t brightness0; // min/start
-  duty_t finalBrightness1;  // final max brightness
-  duty_t finalBrightness0;  // final min brightness
-
-  uint8_t time[3];  // [rate/window/period][0][0]
-                    // [initialPeriod][finalPeriod][chirpDuration]
-                    // [timeWindow MSB][timeWindow LSB][0]
-};
-
-void serializeModeDataStruct(ModeDataStruct dataStruct, uint8_t buffer[modePacketSize]){
-  buffer[0] = dataStruct.ID;
-  buffer[1] = static_cast<uint8_t>(dataStruct.type);
-  switch(dataStruct.type){
-    case ModeTypes::constantBrightness:
-      for(uint8_t i = 0; i < nChannels; i++){
-        buffer[2+i] = dataStruct.endColourRatios[i];
-      }
-      return;
-
-    default:
-      throw("mode type doesn't exist");
-  }
-}
-
-ColourRatiosStruct emptyColourRatios;
+const ColourRatiosStruct emptyColourRatios;
 
 struct TestModeDataStruct {
   const modeUUID ID = 0;
   const ModeTypes type = ModeTypes::nullMode;
-  const ColourRatiosStruct endColourRatios = emptyColourRatios;
-  const ColourRatiosStruct startColourRatios = emptyColourRatios;
+  const ColourRatiosStruct endColourRatios;
+  const ColourRatiosStruct startColourRatios;
 
   const duty_t brightness1 = 0; // max/end/target
   const duty_t brightness0 = 0; // min/start
@@ -68,7 +38,7 @@ struct TestModeDataStruct {
 std::vector<ModeDataStruct> makeModeDataStructArray(std::vector<TestModeDataStruct> testArray, TestChannels channel){
   std::vector<ModeDataStruct> dataArray;
   for(auto& testStruct : testArray){
-    ModeDataStruct dataStruct{.ID = testStruct.ID, .type = testStruct.type, .brightness1 = testStruct.brightness1, .brightness0 = testStruct.brightness0, .finalBrightness1 = testStruct.finalBrightness1, .finalBrightness0 = testStruct.finalBrightness0};
+    ModeDataStruct dataStruct{.ID = testStruct.ID, .type = testStruct.type, .maxBrightness = testStruct.brightness1, .minBrightness = testStruct.brightness0, .finalMaxBrightness = testStruct.finalBrightness1, .finalMinBrightness = testStruct.finalBrightness0};
     for(uint8_t i = 0; i < nChannels; i++){
       switch(channel){
         case TestChannels::white:
@@ -93,7 +63,7 @@ std::vector<ModeDataStruct> makeModeDataStructArray(std::vector<TestModeDataStru
     dataArray.push_back(dataStruct);
   }
   return dataArray;
-}
+};
 
 modeUUID makeTestModeID(){
   static modeUUID id = 255;
@@ -108,7 +78,7 @@ modeUUID makeTestModeID(){
  * @param modeID 
  * @return TestModeDataStruct 
  */
-TestModeDataStruct makeConstBrightnessTestStruct(ColourRatiosStruct colours, modeUUID modeID=0){
+TestModeDataStruct makeConstBrightnessTestStruct(ColourRatiosStruct colours, duty_t activeMinB, modeUUID modeID=0){
   modeID = modeID == 0 ? makeTestModeID() : modeID;
   if(modeID == 1){
     throw("you can't have an ID of 1, its taken");
@@ -117,6 +87,7 @@ TestModeDataStruct makeConstBrightnessTestStruct(ColourRatiosStruct colours, mod
     .ID = modeID,
     .type = ModeTypes::constantBrightness,
     .endColourRatios = colours,
+    .brightness0 = activeMinB,
   };
   return testStruct;
 }
@@ -126,7 +97,14 @@ TestModeDataStruct makeConstBrightnessTestStruct(ColourRatiosStruct colours, mod
 // mvp
 
 // expected constant brightness buffer. this is hard wired into the source code, so shouldn't be constructed through structs
-const uint8_t defaultConstBrightnessBuffer[modePacketSize] = {1, 1, 255, 255, 255, 255, 255, 255, 255, 255};
+// const uint8_t defaultConstBrightnessBuffer[modePacketSize] = {1, 1, 255, 255, 255, 255, 255, 255, 255, 255};
+
+const TestModeDataStruct defaultConstantBrightness = {
+  .ID = 1,
+  .type = ModeTypes::constantBrightness,
+  .endColourRatios = ColourRatiosStruct{.white = {255}, .whiteAndWarm = {255, 255}, .RGB = {255, 255, 255}},
+  .brightness0 = 1
+};
 
 // these modes are intended to be used for the mvp, so have explicit IDs
 static std::map<std::string, TestModeDataStruct> mvpModes = {
@@ -134,7 +112,7 @@ static std::map<std::string, TestModeDataStruct> mvpModes = {
     .white = {255},
     .whiteAndWarm = {0, 255},
     .RGB = {255, 192, 111}
-  }, 2)},
+  }, 100, 2)},
 };
 
 static std::map<std::string, TestModeDataStruct> testOnlyModes = {
@@ -142,19 +120,21 @@ static std::map<std::string, TestModeDataStruct> testOnlyModes = {
     .white = {255},
     .whiteAndWarm = {126, 255},
     .RGB = {142, 111, 255}
-  })},
+  }, 100)},
 };
 
 // chuck all the mvp and test modes into a single vector array
 std::vector<TestModeDataStruct> getAllTestingModes(){
   std::vector<TestModeDataStruct> modeArray;
   for(const auto& pair : mvpModes){
-    modeArray.push_back(pair.second);
+    TestModeDataStruct mode = pair.second;
+    modeArray.push_back(mode);
   }
   for(const auto& pair : testOnlyModes){
-    modeArray.push_back(pair.second);
+    TestModeDataStruct mode = pair.second;
+    modeArray.push_back(mode);
   }
   return modeArray;
 }
 
-const duty_t constantBrightnessColourRatios[] = {255, 255, 255, 255, 255, 255, 255, 255};
+#endif

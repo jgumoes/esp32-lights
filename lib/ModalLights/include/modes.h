@@ -3,7 +3,7 @@
 
 #include "../DeviceTime/include/DeviceTime.h"
 #include "lightDefines.h"
-// #include <PrintDebug.h>
+#include <PrintDebug.h>
 
 /**
  * @brief is performing a quick change necessary? basically, are the two arrays different?
@@ -216,7 +216,7 @@ public:
    * @param brightness 
    * @param softChange i.e. should the brightness change be gradually?
    */
-  virtual void setBrightness(uint64_t utcTimestamp_uS, LightStateStruct& lightVals, duty_t brightness, bool softChange) = 0;
+  virtual duty_t setBrightness(uint64_t utcTimestamp_uS, LightStateStruct& lightVals, duty_t brightness, bool softChange) = 0;
 
   /**
    * @brief politely asks the mode to set the state. the mode will update lightVals accordingly. since state change comes from button presses, and button presses cancel active modes, this method returns true if it thinks it's ready to be cancelled. background modes should always return false.
@@ -248,25 +248,42 @@ public:
    * @param adjustment_uS adjustment amount in microseconds
    */
   virtual void timeAdjust(int64_t adjustment_uS) = 0;
+
+  /**
+   * @brief perform any logic concerning the change of the softOnWindow and update the lights
+   * 
+   * @param newWindow_S 
+   */
+  virtual void changeSoftChangeWindow(uint8_t newWindow_S, uint64_t utcTimestamp_uS, LightStateStruct& lightVals) = 0;
+
+  /**
+   * @brief perform any logic concerning a change in minimum on brightness and update the lights
+   * 
+   * @param newMinBrightness 
+   */
+  virtual void changeMinOnBrightness(duty_t newMinBrightness, uint64_t utcTimestamp_uS, LightStateStruct& lightVals) = 0;
 };
 
 class ConstantBrightnessMode : public ModalStrategyInterface
 {
 private:
   std::shared_ptr<InterpolationClass> _interpClass;
-  std::shared_ptr<ConfigManagerClass> _configs;
+  duty_t _softChangeWindow_S;
+  duty_t _minOnBrightness;
+  duty_t _minSettableBrightness;  // either active min or _minOnBrightness
 
 public:
-  const modeUUID modeID;
   const bool isActive;
   const ModeTypes type = ModeTypes::constantBrightness;
+
+  const ModeDataStruct* modeData;
 
   /**
    * @brief Construct a new Constant Brightness Mode object
    * 
    * @param currentTime_uS 
    * @param triggerTime_uS 
-   * @param modeData[modePacketSize] array of size modePacketSize
+   * @param modeData
    * @param interpClass
    * @param currentVals 
    * @param isActive 
@@ -275,51 +292,64 @@ public:
   ConstantBrightnessMode(
     uint64_t currentTime_uS,
     uint64_t triggerTime_uS,
-    duty_t modeData[modePacketSize],
+    ModeDataStruct *modeDataStruct,
     std::shared_ptr<InterpolationClass> interpClass,
     LightStateStruct& currentVals,
     bool isActive,
-    std::shared_ptr<ConfigManagerClass> configs
+    const ModalConfigsStruct& configs
   ) : ModalStrategyInterface(),
-      modeID(modeData[0]),
+      modeData(modeDataStruct),
       _interpClass(interpClass),
       isActive(isActive),
-      _configs(configs)
+      _softChangeWindow_S(configs.softChangeWindow),
+      _minOnBrightness(configs.minOnBrightness)
   {
+    PrintDebug_function("ConstantBrightnessMode::ConstantBrightnessMode");
+
     uint64_t utcStartTime_uS = currentTime_uS;
+    _minSettableBrightness = _minOnBrightness;
+
+    duty_t oldTargets[nChannels+1]; _interpClass->getFinalValues(oldTargets);
+    PrintDebug_UINT8_array("old target vals", oldTargets, nChannels+1);
 
     // fill target colour vals
     duty_t targetValues[nChannels+1] = {_interpClass->getFinalBrightness()};
-    for(uint8_t i = 0; i < nChannels; i++){
-      targetValues[i+1] = modeData[i+2];
-    }
-    duty_t minOnBrightness = _configs->getModalConfigs().minOnBrightness;
+    // for(uint8_t i = 0; i < nChannels; i++){
+    //   targetValues[i+1] = modeData[i+2];
+    // }
+    memcpy(&targetValues[1], modeData->endColourRatios, nChannels);
 
     // set current vals to target vals if lights are off
-    if(currentVals.state == 0 || currentVals.values[0] < minOnBrightness){
+    if(currentVals.state == 0 || currentVals.values[0] < _minOnBrightness){
       memcpy(currentVals.values, targetValues, nChannels+1);
     }
 
     // force on default brightness if brightness is under default
     if(isActive){
-      duty_t defaultOnBrightness = _configs->getModalConfigs().defaultOnBrightness;
+      PrintDebug_message("loading active mode");
+      const duty_t modeMinB = modeData->minBrightness;
+      _minSettableBrightness = modeMinB > _minOnBrightness ? modeMinB : _minOnBrightness;
+      PrintDebug_UINT8("modeMinB", modeMinB);
+      PrintDebug_UINT8("_minOnBrightness", _minOnBrightness);
+      PrintDebug_UINT8("_minSettableBrightness", _minSettableBrightness);
       currentVals.state = true;
       // force current vals to min on brightness
-      if(currentVals.values[0] < minOnBrightness){currentVals.values[0] = minOnBrightness;}
-      targetValues[0] = currentVals.values[0] <= defaultOnBrightness
-                        ? defaultOnBrightness
+      if(currentVals.values[0] < _minOnBrightness){currentVals.values[0] = _minOnBrightness;}
+      targetValues[0] = currentVals.values[0] <= _minSettableBrightness
+                        ? _minSettableBrightness
                         : currentVals.values[0];
     }
-    
-    uint64_t window = _configs->getModalConfigs().softChangeWindow * secondsToMicros;
+    PrintDebug_UINT8_array("new target vals", targetValues, nChannels+1);
+    uint64_t window = _softChangeWindow_S * secondsToMicros;
     _interpClass->initialise(utcStartTime_uS, window, currentVals, targetValues);
     updateLightVals(utcStartTime_uS, currentVals);
+    PrintDebug_endFunction;
   };
 
   void updateLightVals(uint64_t utcTimestamp_uS, LightStateStruct& lightVals) override {
     _interpClass->update(lightVals, utcTimestamp_uS);
 
-    if(lightVals.values[0] < _configs->getModalConfigs().minOnBrightness){
+    if(lightVals.values[0] < _minOnBrightness){
       lightVals.state = false;
       lightVals.values[0] = 0;
       _interpClass->getFinalValues(lightVals.values); // TODO: will if statements make this more efficient?
@@ -327,28 +357,34 @@ public:
     return;
   }
 
-  void setBrightness(uint64_t utcTimestamp_uS, LightStateStruct& lightVals, duty_t brightness, bool softChange) override {
-    uint8_t window = softChange ? _configs->getModalConfigs().softChangeWindow : 0;
+  duty_t setBrightness(uint64_t utcTimestamp_uS, LightStateStruct& lightVals, duty_t brightness, bool softChange) override {
+    PrintDebug_function("ConstantBrightnessMode::setBrightness");
+    PrintDebug_UINT8("requested brightness", brightness);
+    PrintDebug_UINT8("min settable brightness", _minSettableBrightness);
+    PrintDebug_UINT8("active min brightness", modeData->minBrightness);
+    PrintDebug_variable("isActive?", isActive);
+    uint8_t window = softChange ? _softChangeWindow_S : 0;
 
-    duty_t defaultBrightness = _configs->getModalConfigs().defaultOnBrightness;
-    if(isActive && (brightness < defaultBrightness)){brightness = defaultBrightness;} // TODO: min values should be set as pointers in the initialisation. for active mode, minOnBrightness should point to defaultBrightness
+    if(isActive && (brightness < _minSettableBrightness)){brightness = _minSettableBrightness;} // TODO: min values should be set as pointers in the initialisation. for active mode, minOnBrightness should point to defaultBrightness
     
-    duty_t minOnBrightness = _configs->getModalConfigs().minOnBrightness;
-    if(brightness < minOnBrightness){
-      brightness = (minOnBrightness-1) * softChange; // minB - 1 is identical to 0
+    if(brightness < _minOnBrightness){
+      brightness = (_minOnBrightness-1) * softChange; // minB - 1 is identical to 0
     }
     else{
       // if new brightness is on, make sure state is on and current brightness is at least min
-      lightVals.state = true; // TODO: is this redundant? can it be removed? does it duplicate the final line of this method?
-      if(lightVals.values[0] < minOnBrightness){
-        lightVals.values[0] = minOnBrightness;
+      lightVals.state = true; // TODO: is this redundant? can it be removed? does it duplicate the final line of this method? should it be removed?
+      if(lightVals.values[0] < _minOnBrightness){
+        lightVals.values[0] = _minOnBrightness;
       }
     }
     
+    PrintDebug_UINT8("final target brightness", brightness);
     _interpClass->setFinalBrightness(
       brightness, lightVals, utcTimestamp_uS, window
     );
     updateLightVals(utcTimestamp_uS, lightVals);
+    PrintDebug_endFunction;
+    return brightness;
   }
 
   /**
@@ -361,6 +397,11 @@ public:
    */
   bool setState(uint64_t utcTimestamp_uS, LightStateStruct& lightVals, bool newState) override {
     if(newState == lightVals.state){
+      PrintDebug_function("set state with repeat state");
+      PrintDebug_UINT8("mode ID", modeData->ID);
+      duty_t targetVals[nChannels+1]; _interpClass->getFinalValues(targetVals);
+      PrintDebug_UINT8_array("target vals", targetVals, nChannels+1);
+      PrintDebug_endFunction;
       // this should only happen due to a race condition between a slow network and a button press
       return false;
     }
@@ -379,16 +420,13 @@ public:
     // if turning on:
 
     
-    // previous brightness or default minimum, whichever's bigger
-    duty_t minB = _configs->getModalConfigs().minOnBrightness;
-    duty_t defaultOnBrightness = _configs->getModalConfigs().defaultOnBrightness;
-    duty_t newBrightness = lightVals.values[0] < minB
-                          ? defaultOnBrightness
+    // previous brightness or minimum, whichever's bigger
+    duty_t newBrightness = lightVals.values[0] < _minOnBrightness
+                          ? _minOnBrightness
                           : lightVals.values[0];
-    lightVals.values[0] = minB; // set current brightness to min for a soft on
+    lightVals.values[0] = _minOnBrightness; // set current brightness to min for a soft on
 
-    uint8_t window_s = _configs->getModalConfigs().softChangeWindow;
-    _interpClass->setFinalBrightness(newBrightness, lightVals, utcTimestamp_uS, window_s);
+    _interpClass->setFinalBrightness(newBrightness, lightVals, utcTimestamp_uS, _softChangeWindow_S);
     updateLightVals(utcTimestamp_uS, lightVals);
     return false;
   }
@@ -409,6 +447,18 @@ public:
 
   void timeAdjust(int64_t adjustment_uS) override {
     _interpClass->timeAdjust(adjustment_uS);
+  }
+
+  void changeSoftChangeWindow(uint8_t newWindow_S, uint64_t utcTimestamp_uS, LightStateStruct& lightVals) override {
+    _softChangeWindow_S = newWindow_S;
+    updateLightVals(utcTimestamp_uS, lightVals);
+  }
+
+  void changeMinOnBrightness(duty_t newMinBrightness, uint64_t utcTimestamp_uS, LightStateStruct& lightVals) override {
+    _minOnBrightness = newMinBrightness;
+    duty_t activeMin = isActive && modeData->minBrightness > _minOnBrightness;
+    _minSettableBrightness = activeMin ? modeData->minBrightness : _minOnBrightness;
+    updateLightVals(utcTimestamp_uS, lightVals);
   }
 };
 

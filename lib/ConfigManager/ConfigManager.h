@@ -7,6 +7,11 @@
 
 #include "projectDefines.h"
 
+/*
+TODO: config manager should be brocken into destination specific class (i.e. ModalConfigManager, DeviceTimeConfigManager, etc.)
+TODO: the subclasses should access the same quasi-singleton HAL, or hard-coded position values
+*/
+
 /**
  * the config hal should get the entire configs array when initialised. the array should populate an ordered map. 
  * 
@@ -15,22 +20,7 @@
  * 
  */
 
-// struct ConfigsStruct
-// {
-//   // RTC_interface
-//   int32_t timezone = 0;  // timezone offset in seconds
-//   uint16_t DST = 0;      // daylight savings offset in seconds
-//   uint32_t maxSecondsBetweenSyncs = 0;  // max seconds until an RTC or network sync is required
-
-//   // EventManager
-//   uint32_t defaultEventWindow = hardwareDefaultEventWindow;
-
-//   // Modal Lights
-//   duty_t defaultOnBrightness = 13;  // about 5%
-//   uint8_t changeoverWindow = 10;  // 10 seconds to change from one mode to the next. max value = 15
-//   uint8_t softChangeWindow = 1;   // 1 second change for sudden brightness changes. max value = 15
-// };
-
+ // TODO: move all config structs to the same header
 struct ConfigsStruct
 {
   // RTC_interface
@@ -76,7 +66,7 @@ std::unique_ptr<ConfigAbstractHAL> makeConcreteConfigHal(){
 // should store the config structs locally for quick reference. setters should set the local config, then commit to storage. checking that configs are stored correctly is the responsibility of the concrete HAL
 /**
  * @brief Accesses class for the stored configs. The configHAL dependancy must be injected through the concrete factory because C++ can't just be normal. i.e. to create a new instance: ConfigManagerClass configs(makeConcreteConfigHal<ConcreteConfigHal>())
- * TODO: config struct should store the config structs, not values. getters should return a pointer to the struct, and setters should be replaced with one method that commits configs to memory
+ * TODO: config manager should just act as a HAL, as configs should only be changed through the concerned classes
  * 
  */
 class ConfigManagerClass {
@@ -84,10 +74,6 @@ class ConfigManagerClass {
     std::unique_ptr<ConfigAbstractHAL> _configHAL;
     ConfigsStruct _configs;
   public:
-    // ConfigManagerClass(ConfigAbstractHAL& configHAL) : _configHAL(std::make_unique<ConfigAbstractHAL>(configHAL)){
-    //   _configs = _configHAL->getAllConfigs();
-    // };
-
     ConfigManagerClass(std::unique_ptr<ConfigAbstractHAL>&& configHAL) : _configHAL(std::move(configHAL)){
       // _configHAL = std::move(configHAL);
       _configs = _configHAL->getAllConfigs();

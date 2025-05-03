@@ -39,9 +39,7 @@ ModalConfigsStruct ConfigManagerClass::getModalConfigs()
   // modalConfigs.defaultOnBrightness = _configs.defaultOnBrightness == 0 ? 1 : _configs.defaultOnBrightness;
   // modalConfigs.softChangeWindow = _configs.softChangeWindow;
 
-  if(_configs.modalConfigs.defaultOnBrightness == 0){_configs.modalConfigs.defaultOnBrightness = 1;}
   if(_configs.modalConfigs.minOnBrightness == 0){_configs.modalConfigs.minOnBrightness = 1;}
-  if(_configs.modalConfigs.minOnBrightness > _configs.modalConfigs.defaultOnBrightness){_configs.modalConfigs.defaultOnBrightness = _configs.modalConfigs.minOnBrightness;}
   
   return _configs.modalConfigs;
 }
@@ -50,10 +48,8 @@ ModalConfigsStruct ConfigManagerClass::getModalConfigs()
 bool ConfigManagerClass::setModalConfigs(ModalConfigsStruct modalConfigs)
 {
   if(
-    modalConfigs.defaultOnBrightness == 0
-    || modalConfigs.minOnBrightness == 0
+    modalConfigs.minOnBrightness == 0
     || modalConfigs.softChangeWindow >= (1 << 4)
-    || modalConfigs.minOnBrightness > modalConfigs.defaultOnBrightness
   )
   {return false;}
   // _configs.changeoverWindow = modalConfigs.changeoverWindow;

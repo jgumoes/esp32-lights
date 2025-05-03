@@ -96,9 +96,12 @@ The brightness and/or colours change over the time window. It's intended for lon
 
 ## Configs
 
+The ConfigManager needs the Hardware Abstraction Layer to work, which will access a partitioned file system or EEPROM or something. However, setting and reading configs should be done via the concerned classes, i.e. get the modal lights configs by `ModalLightsInstance->getConfigs()`.
+
 ### Modal Lights
 
-- **minOnBrightness:** If the light is switched off then on, it'll turn on to the previous brightness or minOnBrightness, whichever is higher. If the light is dimmed to off, it turns on to minOnBrightness. If the light is switched off and the brightness adjusted up, the adjustment starts at 0 brightness.
+- **minOnBrightness:** Default = 1. The minimum meaningful On brightness. if the light is an indicator, this could be 1, but if the light is a source of illumination, 1 is probably too low to see anything.
+- **softChangeWindow:** Default = 1. If brightness is set or lights are turned on, it will interpolate to the On brightness over softChangeWindow. If lights are adjusted (i.e. with an encoder dial), this value is ignored and changes are instant
 
 ## Important Defines
 
@@ -129,15 +132,9 @@ Events should be removed/updated from EventManager and DataStorageClass independ
 
 ### DeviceTime
 
-DeviceTime primarily uses an onboard register to manage device time. The register uses UTC time in microseconds since 2000. The 2000 epoch is compatible with the BLE-SIG specified Device Time Service. This project doesn't need a resolution greater the milliseconds, but the esp32 timer peripheral can only do microseconds and the time buffer shouldn't overflow until we're all dead anyway.
+DeviceTime primarily uses an onboard register to manage device time. The register uses UTC time in microseconds since 2000. The 2000 epoch is compatible with the BLE-SIG specified Device Time Service and 1970 isn't, and I started this project intending to use BLE (I probably won't, but might reuse DeviceTime in projects that do). This project doesn't need a resolution greater the milliseconds, but the esp32 timer peripheral can only do microseconds and the time buffer shouldn't overflow until we're all dead anyway.
 
-The time should default to the BUILD_TIMESTAMP when the program starts. It should also write BUILD_TIMESTAMP to the RTC chip if the RTC time is 0, meaning a fresh upload won't need extra steps to set the time!
-
-#### With RTC
-
-// TODO: i don't want this. fetching from RTC can freeze functionality, so I want the RTOS loop to check the timeFault flag instead
-
-The RTC_interface stores the local timestamp, and should be written to when dst or timezone changes. Yeah this is pretty awkward, but it means the reference time will be locally correct if there's some kind of fault with the configManager (like if configs are written to a bad block or something). This shouldn't effect the usage at all.
+The time should default to the BUILD_TIMESTAMP when the program starts. DeviceTime has a timeFault flag that's raised when time is under BUILD_TIMESTAMP, or it's just been a while since the last time sync.
 
 ### Data Storage
 

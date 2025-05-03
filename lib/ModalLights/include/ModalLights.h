@@ -85,7 +85,6 @@ class ModalLightsInterface{
     void toggleState(){
       setState(!_lightVals.state);
     }
-    // virtual void toggleState(InteractionSources source) = 0;  // post MVP
 };
 
 /**
@@ -101,7 +100,9 @@ private:
   std::unique_ptr<VirtualLightsClass> _lights;
   std::shared_ptr<DeviceTimeClass> _deviceTime;
   std::shared_ptr<DataStorageClass> _dataStorage;
-  std::shared_ptr<ConfigManagerClass> _configs;
+  std::shared_ptr<ConfigManagerClass> _configsClass;
+  ModalConfigsStruct _configs;
+  
   std::shared_ptr<InterpolationClass> _interpClass = std::make_shared<InterpolationClass>();
 
   modeUUID _activeMode = 0;
@@ -116,15 +117,15 @@ private:
   uint64_t _nextActiveTriggerTimeUTC_uS = 0;
   uint64_t _nextBackgroundTriggerTimeUTC_uS = 0;
   
-  uint8_t _activeModeData[modePacketSize];      // data packet, including uuid and type
-  uint8_t _backgroundModeData[modePacketSize];  // data packet, including uuid and type
+  ModeDataStruct _activeModeData = ModeDataStruct{};
+  ModeDataStruct _backgroundModeData = ModeDataStruct{};
 
   /**
    * @brief change the current mode. _activeMode and _backgroundMode values must already be set, and the data already loaded from storage. if _activeMode is unset, it'll load initialise _backgroundMode
    * 
    */
   void _changeMode(){
-    uint8_t* dataPacket;
+    ModeDataStruct* dataPacket;
     bool isActive;
     uint64_t* triggerTimeUTC_uS;
     modeUUID* modeID;
@@ -133,7 +134,7 @@ private:
     {
       if(_activeMode != 0){
         isActive = true;
-        dataPacket = _activeModeData;
+        dataPacket = &_activeModeData;
         triggerTimeUTC_uS = &_activeModeTriggerTimeUTC_uS;
       }
       else{
@@ -141,15 +142,17 @@ private:
         if(_backgroundMode == 0){_loadMode();}
 
         isActive = false;
-        dataPacket = _backgroundModeData;
+        dataPacket = &_backgroundModeData;
         triggerTimeUTC_uS = &_backgroundModeTriggerTimeUTC_uS;
       }
     }
 
-    ModeTypes modeType = static_cast<ModeTypes>(dataPacket[1]);
+    // ModeTypes modeType = static_cast<ModeTypes>(dataPacket[1]);
+    ModeTypes modeType = dataPacket->type;
     uint64_t currentTimeUTC_uS = _deviceTime->getUTCTimestampMicros();
-    duty_t previousValues[nChannels+1];
-    _mode->getTargetVals(previousValues, currentTimeUTC_uS, _lightVals);
+    // NOTE: these will be useful when interpolation class is disassembled
+    // duty_t previousValues[nChannels+1];
+    // _mode->getTargetVals(previousValues, currentTimeUTC_uS, _lightVals);
 
     // initialise the new mode
     switch(modeType){
@@ -174,31 +177,33 @@ private:
    * 
    */
   void _loadMode(){
-    uint8_t* dataPacket;
+    ModeDataStruct* dataPacket;
     bool isActive;
     uint64_t* triggerTimeUTC_uS;
     modeUUID* modeID;
     { // set the mode variables
       if(_nextActiveMode != 0){
         isActive = true;
-        dataPacket = _activeModeData;
+        dataPacket = &_activeModeData;
         modeID = &_nextActiveMode;
         triggerTimeUTC_uS = &_nextActiveTriggerTimeUTC_uS;
       }
       else{
         isActive = false;
-        dataPacket = _backgroundModeData;
+        dataPacket = &_backgroundModeData;
         modeID = &_nextBackgroundMode;
         triggerTimeUTC_uS = &_nextBackgroundTriggerTimeUTC_uS;
       }
     }
     
     // if mode can't be loaded, reset _next variables and bail
-    if(!_dataStorage->getMode(*modeID, dataPacket)){
+    uint8_t dataArray[modePacketSize];
+    if(!_dataStorage->getMode(*modeID, dataArray)){
       *modeID = 0;
       triggerTimeUTC_uS = 0;
       return;
     }
+    deserializeModeData(dataArray, dataPacket);
     
     // set current class varibles to _next, and reset _next variables
     if(isActive){
@@ -233,28 +238,28 @@ public:
     std::shared_ptr<DeviceTimeClass> deviceTime,
     std::shared_ptr<DataStorageClass> dataStorage,
     std::shared_ptr<ConfigManagerClass> configs
-  ) : _lights(std::move(lightsClass)), _deviceTime(deviceTime), _dataStorage(dataStorage), _configs(configs) {
+  ) : _lights(std::move(lightsClass)), _deviceTime(deviceTime), _dataStorage(dataStorage), _configsClass(configs), _configs(configs->getModalConfigs()) {
     _nextBackgroundTriggerTimeUTC_uS = _deviceTime->getUTCTimestampMicros();  // incase EventManager doesn't set any modes before update is called
 
     // _changeMode() uses the previous mode, so default constant brightness needs to be set
-    const duty_t initVals[9] = {0, 255, 255, 255, 255, 255, 255, 255, 255};
-    duty_t dataPacket[modePacketSize] = {1, 1, 255, 255, 255, 255, 255, 255, 255, 255};
-    duty_t previousValues[nChannels+1];
-    for(uint8_t i = 0; i < nChannels+1; i++){
-      previousValues[i] = initVals[i];
-      _lightVals.values[i] = initVals[i];
+    fillDefaultConstantBrightnessStruct(&_backgroundModeData, nChannels);
+    _backgroundMode = 1;
+
+    _lightVals.values[0] = 0;
+    _lightVals.state = false;
+    for(uint8_t i = 1; i < nChannels+1; i++){
+      _lightVals.values[i] = 255;
     }
     
     _mode = std::make_unique<ConstantBrightnessMode>(
       _nextBackgroundTriggerTimeUTC_uS,
       _nextBackgroundTriggerTimeUTC_uS,
-      dataPacket,
+      &_backgroundModeData,
       _interpClass,
       _lightVals,
       false,
       _configs
     );
-    _backgroundMode = 1;
     // TODO: register adjustment callback with deviceTime
   }
 
@@ -297,6 +302,7 @@ public:
    * @return duty_t the new brightness after soft change
    */
   duty_t setBrightnessLevel(duty_t brightness) override {
+    if(_nextActiveMode > 0 || _nextBackgroundMode > 0){_loadMode();}
     _mode->setBrightness(_deviceTime->getUTCTimestampMicros(), _lightVals, brightness, true);
     _lights->setChannelValues(_lightVals.getLightValues());
     return getSetBrightness();
@@ -323,7 +329,7 @@ public:
       || (!_lightVals.state && !increasing)
     ){return _lightVals.values[0];}
 
-    const duty_t minB = _configs->getModalConfigs().minOnBrightness;
+    const duty_t minB = _configs.minOnBrightness;
     duty_t newBrightness;
     if(increasing){
       duty_t oldBrightness = (_lightVals.state && (_lightVals.values[0] >= minB))
@@ -351,7 +357,7 @@ public:
    * @return duty_t 
    */
   duty_t getSetBrightness() override {
-    duty_t minB = _configs->getModalConfigs().minOnBrightness;
+    duty_t minB = _configs.minOnBrightness;
     duty_t currentB = _mode->getTargetBrightness();
     duty_t setB = currentB >= minB ? currentB : 0;
     return setB;
@@ -377,6 +383,46 @@ public:
       .backgroundMode = _backgroundMode
     };
     return currentModes;
+  }
+
+  /**
+   * @brief change the softChangeWindow config value and update lights. sets the new value in config manager
+   * 
+   * @param newWindow_S 
+   * @return true 
+   * @return false if newWindow is larger than a nibble
+   */
+  bool changeSoftChangeWindow(uint8_t newWindow_S){
+    if(newWindow_S >= (1 << 4)){return false;}
+    uint64_t utcTimestamp_uS = _deviceTime->getUTCTimestampMicros();
+    _mode->changeSoftChangeWindow(newWindow_S, utcTimestamp_uS, _lightVals);
+    _lights->setChannelValues(_lightVals.getLightValues());
+
+    _configs.softChangeWindow = newWindow_S;
+    _configsClass->setModalConfigs(_configs);
+    return true;
+  }
+
+  /**
+   * @brief change the minimum on brightness config value and update the lights. set the new value in config manager
+   * 
+   * @param newMinBrightness 
+   * @return true 
+   * @return false if new min brightness == 0
+   */
+  bool changeMinOnBrightness(duty_t newMinBrightness){
+    if(newMinBrightness == 0){return false;}
+    uint64_t utcTimestamp_uS = _deviceTime->getUTCTimestampMicros();
+    _mode->changeMinOnBrightness(newMinBrightness, utcTimestamp_uS, _lightVals);
+    _lights->setChannelValues(_lightVals.getLightValues());
+
+    _configs.minOnBrightness = newMinBrightness;
+    _configsClass->setModalConfigs(_configs);
+    return true;
+  }
+
+  ModalConfigsStruct getConfigs(){
+    return _configs;
   }
 };
 
