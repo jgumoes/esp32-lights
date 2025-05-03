@@ -8,37 +8,39 @@ uint64_t DeviceTimeClass::getUTCTimestampMicros()
     utcTime_uS = BUILD_TIMESTAMP;
     _onboardTimestamp->setTimestamp_uS(BUILD_TIMESTAMP);
   }
-  else if(utcTime_uS >= _timeOfNextSync){
+  else if(utcTime_uS >= _timeOfNextSync_uS){
     _timeFault = true;  // flags the need for an external sync
   }
   return utcTime_uS;
 };
 
-bool DeviceTimeClass::setUTCTimestamp2000(uint64_t newTimesamp, int32_t timezone, uint16_t DST)
+bool DeviceTimeClass::setUTCTimestamp2000(uint64_t newTimestamp, int32_t timezone, uint16_t DST)
 {
   if(
-    newTimesamp * 1000000 < BUILD_TIMESTAMP
-    || newTimesamp >= ONBOARD_TIMESTAMP_OVERFLOW
+    newTimestamp * secondsToMicros < BUILD_TIMESTAMP
+    || newTimestamp >= ONBOARD_TIMESTAMP_OVERFLOW
     || !isTimezoneValid(timezone)
     || !isDSTValid(DST)
   ){
     return false;
   }
   _timeFault = false;
-  _onboardTimestamp->setTimestamp_S(newTimesamp);
+  uint64_t oldUTCTimestamp_uS = _onboardTimestamp->getTimestamp_uS();
+  _onboardTimestamp->setTimestamp_S(newTimestamp);
 
-  RTCConfigsStruct configs = _configManager->getRTCConfigs();
+  int64_t oldOffset = _offset;
   if(
-    configs.DST != DST
-    || configs.timezone != timezone
+    _configs.DST != DST
+    || _configs.timezone != timezone
   ){
-    configs.DST = DST;
-    configs.timezone = timezone;
-    _configManager->setRTCConfigs(configs);
+    _configs.DST = DST;
+    _configs.timezone = timezone;
+    _setOffset();
+    _configManager->setRTCConfigs(_configs);
   }
   
-  _timeofLastSync = newTimesamp*1000000;
-  _timeOfNextSync = _timeofLastSync + _configManager->getRTCConfigs().maxSecondsBetweenSyncs*1000000;
+  _timeofLastSync_uS = newTimestamp*secondsToMicros;
+  _timeOfNextSync_uS = _timeofLastSync_uS + _configs.maxSecondsBetweenSyncs*secondsToMicros;
   return true;
 }
 
@@ -64,7 +66,6 @@ uint64_t DeviceTimeClass::getLocalTimestampMicros()
 
 uint8_t DeviceTimeClass::getDay()
 {
-  RTCConfigsStruct configs = _configManager->getRTCConfigs();
   UsefulTimeStruct uts = makeUsefulTimeStruct(getLocalTimestampSeconds());
   return uts.dayOfWeek;
 }
@@ -91,35 +92,33 @@ uint8_t DeviceTimeClass::getDate()
 
 uint64_t DeviceTimeClass::getStartOfDay()
 {
-  RTCConfigsStruct configs = _configManager->getRTCConfigs();
   UsefulTimeStruct uts = makeUsefulTimeStruct(getLocalTimestampSeconds());
   return uts.startOfDay * secondsToMicros;
 }
 
 uint64_t DeviceTimeClass::getTimeInDay()
 {
-  RTCConfigsStruct configs = _configManager->getRTCConfigs();
   uint64_t time_uS = getLocalTimestampMicros();
   UsefulTimeStruct uts = makeUsefulTimeStruct(round(time_uS/secondsToMicros));
   uint64_t timeInDay = time_uS - (uts.startOfDay * secondsToMicros);
   return timeInDay;
 }
 
-bool DeviceTimeClass::setUTCTimestamp1970(uint64_t newTimesamp, int32_t timezone, uint16_t DST)
+bool DeviceTimeClass::setUTCTimestamp1970(uint64_t newTimestamp, int32_t timezone, uint16_t DST)
 {
-  return setUTCTimestamp2000(newTimesamp - SECONDS_BETWEEN_1970_2000, timezone, DST);
+  return setUTCTimestamp2000(newTimestamp - SECONDS_BETWEEN_1970_2000, timezone, DST);
 }
 
-bool DeviceTimeClass::setLocalTimestamp2000(uint64_t newTimesamp, int32_t timezone, uint16_t DST)
+bool DeviceTimeClass::setLocalTimestamp2000(uint64_t newTimestamp, int32_t timezone, uint16_t DST)
 {
-  uint64_t utc = newTimesamp - timezone - DST;
+  uint64_t utc = newTimestamp - timezone - DST;
   return setUTCTimestamp2000(utc, timezone, DST);
 }
 
-bool DeviceTimeClass::setLocalTimestamp1970(uint64_t newTimesamp, int32_t timezone, uint16_t DST)
+bool DeviceTimeClass::setLocalTimestamp1970(uint64_t newTimestamp, int32_t timezone, uint16_t DST)
 {
-  uint64_t localTimestamp = newTimesamp - SECONDS_BETWEEN_1970_2000;
-  return setLocalTimestamp2000(newTimesamp - SECONDS_BETWEEN_1970_2000, timezone, DST);
+  uint64_t localTimestamp = newTimestamp - SECONDS_BETWEEN_1970_2000;
+  return setLocalTimestamp2000(newTimestamp - SECONDS_BETWEEN_1970_2000, timezone, DST);
 }
 
 bool DeviceTimeClass::hasTimeFault()
@@ -130,22 +129,17 @@ bool DeviceTimeClass::hasTimeFault()
 uint64_t DeviceTimeClass::convertUTCToLocalMicros(uint64_t utcTimestamp_uS)
 {
   // TODO: check DST start and end bounds
-  RTCConfigsStruct configs = _configManager->getRTCConfigs();
-  int64_t offset = (configs.DST + configs.timezone) * secondsToMicros;
-  if(abs(offset) > utcTimestamp_uS){
+  if(abs(_offset) > utcTimestamp_uS){
     return 0;
   }
-  return utcTimestamp_uS + offset;
+  return utcTimestamp_uS + _offset;
 }
 
 uint64_t DeviceTimeClass::convertLocalToUTCMicros(uint64_t localTimestamp_uS)
 {
   // TODO: check DST start and end bounds
-  RTCConfigsStruct configs = _configManager->getRTCConfigs();
-  int64_t offset = configs.DST + configs.timezone;
-  offset = offset * secondsToMicros;
-  if(abs(offset) > localTimestamp_uS){
+  if(abs(_offset) > localTimestamp_uS){
     return 0;
   }
-  return localTimestamp_uS - offset;
+  return localTimestamp_uS - _offset;
 }

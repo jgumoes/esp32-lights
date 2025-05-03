@@ -134,6 +134,9 @@ void testConfigGuards(){
   const ModalConfigsStruct actualConfigs = testClass->getConfigs();
   TEST_ASSERT_EQUAL(goodConfigs.minOnBrightness, actualConfigs.minOnBrightness);
   TEST_ASSERT_EQUAL(goodConfigs.softChangeWindow, actualConfigs.softChangeWindow);
+
+  // TODO: check valid configs are written to ConfigManager
+  TEST_FAIL_MESSAGE("need to test that configs are written to config manager");
 }
 
 void test_convertToDataPackets_helper(){

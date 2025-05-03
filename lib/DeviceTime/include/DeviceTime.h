@@ -11,8 +11,7 @@
 
 #include "ProjectDefines.h"
 #include "onboardTimestamp.h"
-// #include "ConfigManager.h"
-#include "../ConfigManager/ConfigManager.h"
+#include "ConfigManager.h"
 #include "timeHelpers.h"
 
 #define secondsToMicros (uint64_t)1000000
@@ -30,17 +29,24 @@ uint64_t static roundMicrosToMillis(uint64_t time){
  * 
  */
 class DeviceTimeClass{
-  protected:
+  private:
     std::shared_ptr<ConfigManagerClass> _configManager;
     std::unique_ptr<OnboardTimestamp> _onboardTimestamp = std::make_unique<OnboardTimestamp>();
 
     bool _timeFault = true;
 
-    uint64_t _timeofLastSync = 0; // UTC time of the last sync with an external source (i.e. network or RTC chip)
-    uint64_t _timeOfNextSync = 0; // UTC time in micros of the next automatic sync
+    uint64_t _timeofLastSync_uS = 0; // UTC time of the last sync with an external source (i.e. network or RTC chip)
+    uint64_t _timeOfNextSync_uS = 0; // UTC time in micros of the next automatic sync
+
+    RTCConfigsStruct _configs;
+    int64_t _offset = 0;
+
+    void _setOffset(){
+      _offset = (_configs.DST + _configs.timezone) * secondsToMicros;
+    }
 
   public:
-    DeviceTimeClass(std::shared_ptr<ConfigManagerClass> configManager) : _configManager(configManager){};
+    DeviceTimeClass(std::shared_ptr<ConfigManagerClass> configManager) : _configManager(configManager), _configs(_configManager->getRTCConfigs()){};
 
     /**
      * @brief get the UTC timestamp in microseconds
@@ -58,8 +64,6 @@ class DeviceTimeClass{
      * @return if operation was successful
      */
     bool setUTCTimestamp2000(uint64_t newTimesamp, int32_t timezone, uint16_t DST);
-    
-    // nothing below needs to be overriden
     
     /**
      * @brief gets the local timestamp in microseconds
@@ -162,6 +166,17 @@ class DeviceTimeClass{
     bool setLocalTimestamp1970(uint64_t newTimesamp, int32_t timezone, uint16_t DST);
 
     /**
+     * @brief Set the local timestamp without config changes. use to sync with RTC chip
+     * 
+     * @param newTimestamp 
+     * @return true 
+     * @return false 
+     */
+    bool setLocalTimestamp2000(uint64_t newTimestamp){
+      return setLocalTimestamp2000(newTimestamp, _configs.timezone, _configs.DST);
+    };
+
+    /**
      * @brief returns true if a time fault is detected and a network update is required
      * 
      * @return true 
@@ -174,16 +189,32 @@ class DeviceTimeClass{
      * 
      * @return uint64_t UTC timestamp in microseconds
      */
-    uint64_t getTimeOfLastSync(){return _timeofLastSync;}
+    uint64_t getTimeOfLastSync(){return _timeofLastSync_uS;}
 
     /**
      * @brief Get the utc time of the next sync in microseconds
      * 
      * @return uint64_t UTC timestamp in microseconds
      */
-    uint64_t getTimeOfNextSync(){return _timeOfNextSync;}
+    uint64_t getTimeOfNextSync(){return _timeOfNextSync_uS;}
+
+    bool setMaxTimeBetweenSyncs(uint32_t timeBetweenSyncs_S){
+      if(timeBetweenSyncs_S == 0){return false;}
+      _configs.maxSecondsBetweenSyncs = timeBetweenSyncs_S;
+      _timeOfNextSync_uS = _timeofLastSync_uS + (timeBetweenSyncs_S*secondsToMicros);
+
+      _timeFault = getUTCTimestampMicros() >= _timeOfNextSync_uS;
+      return true;
+    }
 
 // some helper functions that can be used anywhere without fetching a new timestamp
+
+    /**
+     * @brief Get the current Device Time configs
+     * 
+     * @return RTCConfigsStruct 
+     */
+    RTCConfigsStruct getConfigs(){return _configs;}
 
     /**
      * @brief checks the validity of the timezone, according to BLE-SIG specifications
