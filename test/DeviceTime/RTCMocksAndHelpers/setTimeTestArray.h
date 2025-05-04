@@ -30,7 +30,7 @@ let convert2000To1970 = (localTimestamp, offset) => {
 
 struct TestParamsStruct
 {
-  String testName = "";
+  std::string testName = "";
   uint64_t localTimestamp = 0;
   uint8_t seconds = 0;
   uint8_t minutes = 0;

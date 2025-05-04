@@ -13,10 +13,10 @@
 #endif
 
 #if defined ESP32 || defined ESP32S3
-  #define ONBOARD_TIMESTAMP_OVERFLOW (~(uint64_t)0) >> (64-54)
+  #define ONBOARD_TIMESTAMP_OVERFLOW ((~(uint64_t)0) >> (64-54))
 #else
 // overflow for unit testing in the native environment should the smallest defined overflow 
-  #define ONBOARD_TIMESTAMP_OVERFLOW (~(uint64_t)0) >> (64-54)
+  #define ONBOARD_TIMESTAMP_OVERFLOW ((~(uint64_t)0) >> (64-54))
 #endif
 
 #define TIMESTAMP_TIMER_GROUP TIMER_GROUP_0

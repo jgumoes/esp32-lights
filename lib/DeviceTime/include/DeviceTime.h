@@ -8,13 +8,12 @@
 #define __DEVICETIME_H__
 
 #include <Arduino.h>
+#include <etl/observer.h>
 
 #include "ProjectDefines.h"
 #include "onboardTimestamp.h"
 #include "ConfigManager.h"
 #include "timeHelpers.h"
-
-#define secondsToMicros (uint64_t)1000000
 
 uint64_t static roundMicrosToSeconds(uint64_t time){
   return (time / secondsToMicros) + (time % secondsToMicros >= (secondsToMicros/2));
@@ -24,11 +23,17 @@ uint64_t static roundMicrosToMillis(uint64_t time){
   return (time / 1000) + (time % 1000 >= 500);
 }
 
+typedef etl::observer<const TimeUpdateStruct&> TimeObserver;
+
+#ifndef MAX_TIME_OBSERVERS
+#define MAX_TIME_OBSERVERS 2
+#endif
+
 /**
  * @brief interface for DeviceTime. getUTCTimestampMicros() and setUTCTimestamp2000() need to be overriden by concrete implementation, but everything else should be RTC-agnostic so is non-virtual
  * 
  */
-class DeviceTimeClass{
+class DeviceTimeClass : public etl::observable<TimeObserver, MAX_TIME_OBSERVERS>{
   private:
     std::shared_ptr<ConfigManagerClass> _configManager;
     std::unique_ptr<OnboardTimestamp> _onboardTimestamp = std::make_unique<OnboardTimestamp>();
@@ -39,7 +44,7 @@ class DeviceTimeClass{
     uint64_t _timeOfNextSync_uS = 0; // UTC time in micros of the next automatic sync
 
     RTCConfigsStruct _configs;
-    int64_t _offset = 0;
+    int64_t _offset = 0;  // local time = UTC + offset
 
     void _setOffset(){
       _offset = (_configs.DST + _configs.timezone) * secondsToMicros;

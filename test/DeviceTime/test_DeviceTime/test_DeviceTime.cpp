@@ -74,18 +74,27 @@ void setLocalTimestamp2000(void){
   // setup
   OnboardTimestamp testingTimer;
   DeviceTimeClass deviceTime = deviceTimeFactory();
+
+  TimeChangeFinder updateCheck(deviceTime.getLocalTimestampMicros(), deviceTime.getUTCTimestampMicros());
+  TestObserver observer;
+  deviceTime.add_observer(observer);
   
   // test setLocalTimestamp without config changes
   {
     const TestParamsStruct testParams = {"july_31_25_1hr_dst_minus_8hr_timezone", 807244446, 6, 34, 2, 4, 31, 7, 25, -8*60*60, 60*60};
     TEST_ASSERT(deviceTime.setLocalTimestamp2000(testParams.localTimestamp, testParams.timezone, testParams.DST));
+    TEST_TIME_UPDATE_OBSERVER(observer, updateCheck, testParams);
 
     const uint64_t change_S = 420;
     deviceTime.setLocalTimestamp2000(testParams.localTimestamp + 420);
-    TEST_ASSERT_EQUAL(testParams.localTimestamp +change_S, deviceTime.getLocalTimestampSeconds());
+    TEST_ASSERT_EQUAL(testParams.localTimestamp + change_S, deviceTime.getLocalTimestampSeconds());
 
     const uint64_t expUTC_S = change_S + testParams.localTimestamp - (testParams.DST + testParams.timezone);
     TEST_ASSERT_EQUAL(expUTC_S, deviceTime.getUTCTimestampSeconds());
+
+    TimeUpdateStruct expectedUpdates = updateCheck.setTimes_S(expUTC_S, expUTC_S + testParams.DST + testParams.timezone);
+    TEST_ASSERT_EQUAL_TimeUpdateStruct(expectedUpdates, observer.getUpdates());
+    TEST_ASSERT_EQUAL(1, observer.getCallCountAndReset());
 
     RTCConfigsStruct configs = deviceTime.getConfigs();
     TEST_ASSERT_EQUAL(testParams.DST, configs.DST);
@@ -96,7 +105,9 @@ void setLocalTimestamp2000(void){
   for(int i = 0; i < testArray.size(); i++)
   {
     TestParamsStruct testParams = testArray.at(i);
+    const std::string message = "i = " + std::to_string(i) + "; " + testParams.testName;
     TEST_ASSERT(deviceTime.setLocalTimestamp2000(testParams.localTimestamp, testParams.timezone, testParams.DST));
+    TEST_TIME_UPDATE_OBSERVER_MESSAGE(observer, updateCheck, testParams, message.c_str());
 
     // configs were written
     RTCConfigsStruct rtcConfigs = globalConfigs->getRTCConfigs();
@@ -110,10 +121,47 @@ void setLocalTimestamp2000(void){
   // time can't be set before build time
   {
     TestParamsStruct testParams = testArray.at(1);
+    // with configs
     TEST_ASSERT(deviceTime.setLocalTimestamp2000(testParams.localTimestamp, testParams.timezone, testParams.DST));
-
+    observer.resetParams();
+    
     TEST_ASSERT_FALSE(deviceTime.setLocalTimestamp2000(beginningOfTime.localTimestamp, beginningOfTime.timezone, beginningOfTime.DST));
     testLocalGetters_helper(testParams, deviceTime);
+    TEST_ASSERT_EQUAL(0, observer.getCallCount());
+    TEST_ASSERT_EQUAL_TimeUpdateStruct(noTimeUpdates, observer.getUpdates());
+
+    // without configs
+    TEST_ASSERT_FALSE(deviceTime.setLocalTimestamp2000(beginningOfTime.localTimestamp));
+    testLocalGetters_helper(testParams, deviceTime);
+    TEST_ASSERT_EQUAL(0, observer.getCallCount());
+    TEST_ASSERT_EQUAL_TimeUpdateStruct(noTimeUpdates, observer.getUpdates());
+  }
+  
+  // time can't be set past timestamp overflow, with configs
+  {
+    // at overflow
+    TEST_ASSERT_FALSE(deviceTime.setLocalTimestamp2000(ONBOARD_TIMESTAMP_OVERFLOW, 0, 0));
+    TEST_ASSERT_EQUAL(0, observer.getCallCount());
+    TEST_ASSERT_EQUAL_TimeUpdateStruct(noTimeUpdates, observer.getUpdates());
+
+    TEST_ASSERT_TRUE_MESSAGE(ONBOARD_TIMESTAMP_OVERFLOW < (UINT64_MAX/2), "ONBOARD_TIMESTAMP_OVERFLOW is too high, this will break tests");
+    // after overflow
+    TEST_ASSERT_FALSE(deviceTime.setLocalTimestamp2000(ONBOARD_TIMESTAMP_OVERFLOW*2, 0, 0));
+    TEST_ASSERT_EQUAL(0, observer.getCallCount());
+    TEST_ASSERT_EQUAL_TimeUpdateStruct(noTimeUpdates, observer.getUpdates());
+  }
+
+  // time can't be set past timestamp overflow, without configs
+  {
+    // at overflow
+    TEST_ASSERT_FALSE(deviceTime.setLocalTimestamp2000(ONBOARD_TIMESTAMP_OVERFLOW));
+    TEST_ASSERT_EQUAL(0, observer.getCallCount());
+    TEST_ASSERT_EQUAL_TimeUpdateStruct(noTimeUpdates, observer.getUpdates());
+
+    // after overflow
+    TEST_ASSERT_FALSE(deviceTime.setLocalTimestamp2000(ONBOARD_TIMESTAMP_OVERFLOW*2));
+    TEST_ASSERT_EQUAL(0, observer.getCallCount());
+    TEST_ASSERT_EQUAL_TimeUpdateStruct(noTimeUpdates, observer.getUpdates());
   }
 }
 
@@ -121,11 +169,17 @@ void setLocalTimestamp1970(void){
   // setup
   OnboardTimestamp testingTimer;
   DeviceTimeClass deviceTime = deviceTimeFactory();
+
+  TimeChangeFinder updateCheck(deviceTime.getLocalTimestampMicros(), deviceTime.getUTCTimestampMicros());
+  TestObserver observer;
+  deviceTime.add_observer(observer);
+
   for(int i = 0; i < testArray.size(); i++)
   {
     TestParamsStruct testParams = testArray.at(i);
     uint64_t testTimestamp = testParams.localTimestamp + SECONDS_BETWEEN_1970_2000;
     TEST_ASSERT(deviceTime.setLocalTimestamp1970(testTimestamp, testParams.timezone, testParams.DST));
+    TEST_TIME_UPDATE_OBSERVER(observer, updateCheck, testParams);
 
     // local getters
     testLocalGetters_helper(testParams, deviceTime);
@@ -143,8 +197,24 @@ void setLocalTimestamp1970(void){
     TEST_ASSERT(deviceTime.setLocalTimestamp1970(goodTimestamp, testParams.timezone, testParams.DST));
     TEST_ASSERT_EQUAL(testParams.localTimestamp, deviceTime.getLocalTimestampSeconds());
 
+    observer.resetParams();
     TEST_ASSERT_FALSE(deviceTime.setLocalTimestamp1970(beginningOfTime.localTimestamp, beginningOfTime.timezone, beginningOfTime.DST));
     testLocalGetters_helper(testParams, deviceTime);
+    TEST_ASSERT_EQUAL(0, observer.getCallCount());
+    TEST_ASSERT_EQUAL_TimeUpdateStruct(noTimeUpdates, observer.getUpdates());
+  }
+
+  // time can't be set past timestamp overflow
+  {
+    // at overflow
+    TEST_ASSERT_FALSE(deviceTime.setLocalTimestamp1970(ONBOARD_TIMESTAMP_OVERFLOW, 0, 0));
+    TEST_ASSERT_EQUAL(0, observer.getCallCount());
+    TEST_ASSERT_EQUAL_TimeUpdateStruct(noTimeUpdates, observer.getUpdates());
+
+    // after overflow
+    TEST_ASSERT_FALSE(deviceTime.setLocalTimestamp1970(ONBOARD_TIMESTAMP_OVERFLOW*2, 0, 0));
+    TEST_ASSERT_EQUAL(0, observer.getCallCount());
+    TEST_ASSERT_EQUAL_TimeUpdateStruct(noTimeUpdates, observer.getUpdates());
   }
 }
 
@@ -153,11 +223,16 @@ void setUTCTimestamp2000(void){
   OnboardTimestamp testingTimer;
   DeviceTimeClass deviceTime = deviceTimeFactory();
 
+  TimeChangeFinder updateCheck(deviceTime.getLocalTimestampMicros(), deviceTime.getUTCTimestampMicros());
+  TestObserver observer;
+  deviceTime.add_observer(observer);
+  
   for(int i = 0; i < testArray.size(); i++)
   {
     TestParamsStruct testParams = testArray.at(i);
     uint64_t testTimestamp = testParams.localTimestamp - testParams.DST - testParams.timezone;
     TEST_ASSERT(deviceTime.setUTCTimestamp2000(testTimestamp, testParams.timezone, testParams.DST));
+    TEST_TIME_UPDATE_OBSERVER(observer, updateCheck, testParams);
 
     // local getters
     testLocalGetters_helper(testParams, deviceTime);
@@ -175,9 +250,25 @@ void setUTCTimestamp2000(void){
     uint64_t testTimestamp = testParams.localTimestamp - testParams.DST - testParams.timezone;
     TEST_ASSERT(deviceTime.setUTCTimestamp2000(testTimestamp, testParams.timezone, testParams.DST));
 
+    observer.resetParams();
     TEST_ASSERT_FALSE(deviceTime.setUTCTimestamp2000(beginningOfTime.localTimestamp, beginningOfTime.timezone, beginningOfTime.DST));
     testLocalGetters_helper(testParams, deviceTime);
     TEST_ASSERT_EQUAL(testTimestamp, deviceTime.getUTCTimestampSeconds());
+    TEST_ASSERT_EQUAL(0, observer.getCallCount());
+    TEST_ASSERT_EQUAL_TimeUpdateStruct(noTimeUpdates, observer.getUpdates());
+  }
+
+  // time can't be set past timestamp overflow
+  {
+    // at overflow
+    TEST_ASSERT_FALSE(deviceTime.setUTCTimestamp2000(ONBOARD_TIMESTAMP_OVERFLOW, 0, 0));
+    TEST_ASSERT_EQUAL(0, observer.getCallCount());
+    TEST_ASSERT_EQUAL_TimeUpdateStruct(noTimeUpdates, observer.getUpdates());
+
+    // after overflow
+    TEST_ASSERT_FALSE(deviceTime.setUTCTimestamp2000(ONBOARD_TIMESTAMP_OVERFLOW*2, 0, 0));
+    TEST_ASSERT_EQUAL(0, observer.getCallCount());
+    TEST_ASSERT_EQUAL_TimeUpdateStruct(noTimeUpdates, observer.getUpdates());
   }
 }
 
@@ -186,11 +277,16 @@ void setUTCTimestamp1970(void){
   OnboardTimestamp testingTimer;
   DeviceTimeClass deviceTime = deviceTimeFactory();
 
+  TimeChangeFinder updateCheck(deviceTime.getLocalTimestampMicros(), deviceTime.getUTCTimestampMicros());
+  TestObserver observer;
+  deviceTime.add_observer(observer);
+
   for(int i = 0; i < testArray.size(); i++)
   {
     TestParamsStruct testParams = testArray.at(i);
     uint64_t testTimestamp = testParams.localTimestamp - testParams.DST - testParams.timezone + SECONDS_BETWEEN_1970_2000;
     TEST_ASSERT(deviceTime.setUTCTimestamp1970(testTimestamp, testParams.timezone, testParams.DST));
+    TEST_TIME_UPDATE_OBSERVER(observer, updateCheck, testParams);
 
     // local getters
     testLocalGetters_helper(testParams, deviceTime);
@@ -209,10 +305,26 @@ void setUTCTimestamp1970(void){
     TEST_ASSERT(deviceTime.setUTCTimestamp1970(testTimestamp, testParams.timezone, testParams.DST));
     TEST_ASSERT_EQUAL(testParams.localTimestamp, deviceTime.getLocalTimestampSeconds());
 
+    observer.resetParams();
     TEST_ASSERT_FALSE(deviceTime.setUTCTimestamp1970(beginningOfTime.localTimestamp, beginningOfTime.timezone, beginningOfTime.DST));
     testLocalGetters_helper(testParams, deviceTime);
     TEST_ASSERT_EQUAL(testParams.localTimestamp, deviceTime.getLocalTimestampSeconds());
     TEST_ASSERT_EQUAL(testTimestamp - SECONDS_BETWEEN_1970_2000, deviceTime.getUTCTimestampSeconds());
+    TEST_ASSERT_EQUAL(0, observer.getCallCount());
+    TEST_ASSERT_EQUAL_TimeUpdateStruct(noTimeUpdates, observer.getUpdates());
+  }
+
+  // time can't be set past timestamp overflow
+  {
+    // at overflow
+    TEST_ASSERT_FALSE(deviceTime.setUTCTimestamp1970(ONBOARD_TIMESTAMP_OVERFLOW, 0, 0));
+    TEST_ASSERT_EQUAL(0, observer.getCallCount());
+    TEST_ASSERT_EQUAL_TimeUpdateStruct(noTimeUpdates, observer.getUpdates());
+
+    // after overflow
+    TEST_ASSERT_FALSE(deviceTime.setUTCTimestamp1970(ONBOARD_TIMESTAMP_OVERFLOW*2, 0, 0));
+    TEST_ASSERT_EQUAL(0, observer.getCallCount());
+    TEST_ASSERT_EQUAL_TimeUpdateStruct(noTimeUpdates, observer.getUpdates());
   }
 }
 
@@ -246,6 +358,7 @@ void testTimeFault(){
   const uint64_t goodUTCTimestamp_S = utcTimeFromTestParams(goodTime);
   testClass.setLocalTimestamp2000(goodTime.localTimestamp, goodTime.timezone, goodTime.DST);
   TEST_ASSERT_EQUAL(false, testClass.hasTimeFault());
+  TEST_ASSERT_EQUAL(secondsInDay*secondsToMicros, testClass.getTimeOfNextSync() - testClass.getTimeOfLastSync());
 
   // timeFault is raised after max time between syncs
   onboardTime.setTimestamp_S(goodUTCTimestamp_S + secondsInDay);
@@ -261,6 +374,9 @@ void testTimeFault(){
   // shortening max time between syncs gets a timefault sooner
   const uint32_t newMaxTime = secondsInDay/2;
 
+  TestObserver observer;
+  testClass.add_observer(observer);
+
   TEST_ASSERT_TRUE(newMaxTime < testClass.getConfigs().maxSecondsBetweenSyncs);
   const uint64_t newUTCTimestamp_S = testClass.getUTCTimestampSeconds() + newMaxTime;
   onboardTime.setTimestamp_S(newUTCTimestamp_S);
@@ -268,15 +384,21 @@ void testTimeFault(){
   TEST_ASSERT_TRUE(newUTCTimestamp_S < testClass.getTimeOfNextSync());
   TEST_ASSERT_EQUAL(false, testClass.hasTimeFault());
   testClass.setMaxTimeBetweenSyncs(newMaxTime);
+  TEST_ASSERT_EQUAL(newMaxTime*secondsToMicros, testClass.getTimeOfNextSync() - testClass.getTimeOfLastSync());
   TEST_ASSERT_EQUAL(true, testClass.hasTimeFault());
   TEST_ASSERT_EQUAL(newMaxTime, testClass.getConfigs().maxSecondsBetweenSyncs);
 
-  // TODO: test subscribers haven't been notified
+  // test subscribers haven't been notified
+  TEST_ASSERT_EQUAL(0, observer.getCallCount());
+  TEST_ASSERT_EQUAL_TimeUpdateStruct(noTimeUpdates, observer.getUpdates());
 
   // increasing max time between syncs clears the time fault
   testClass.setMaxTimeBetweenSyncs(newMaxTime + 1);
   TEST_ASSERT_EQUAL(false, testClass.hasTimeFault());
   TEST_ASSERT_EQUAL(newMaxTime + 1, testClass.getConfigs().maxSecondsBetweenSyncs);
+
+  // test subscribers haven't been notified
+  TEST_TIME_OBSERVER_NOT_NOTIFIED(observer);
 
   // set onboard timestamp to a bad time
   onboardTime.setTimestamp_S(faultTimeParams.localTimestamp);
@@ -285,11 +407,13 @@ void testTimeFault(){
 }
 
 void testErrorsCatching(void){
-  // test that the timzone and DST according to BLE-SIG's absolute banger of a read, GATT Specification Supplement
+  // test the timzone and DST according to BLE-SIG's absolute banger of a read, GATT Specification Supplement
   // bad timestamps and time faults already been tested in the other tests
   TestParamsStruct goodTime = testArray.at(0);
   DeviceTimeClass testClass = deviceTimeFactory(goodTime);
 
+  TestObserver observer;
+  testClass.add_observer(observer);
   // bad timezone
   {
     // negative out-of-bounds
@@ -299,6 +423,7 @@ void testErrorsCatching(void){
     TEST_ASSERT_FALSE(testClass.setLocalTimestamp2000(badTimezone1.localTimestamp, badTimezone1.timezone, badTimezone1.DST));
     TEST_ASSERT_NOT_EQUAL(badTimezone1.localTimestamp, testClass.getLocalTimestampSeconds());
     TEST_ASSERT_NOT_EQUAL(badTimezone1.timezone, globalConfigs->getRTCConfigs().timezone);
+    TEST_TIME_OBSERVER_NOT_NOTIFIED(observer);
 
     // positive out-of-bounds
     TestParamsStruct badTimezone2 = testArray.at(6);
@@ -307,6 +432,7 @@ void testErrorsCatching(void){
     TEST_ASSERT_FALSE(testClass.setLocalTimestamp2000(badTimezone2.localTimestamp, badTimezone2.timezone, badTimezone2.DST));
     TEST_ASSERT_NOT_EQUAL(badTimezone2.localTimestamp, testClass.getLocalTimestampSeconds());
     TEST_ASSERT_NOT_EQUAL(badTimezone2.timezone, globalConfigs->getRTCConfigs().timezone);
+    TEST_TIME_OBSERVER_NOT_NOTIFIED(observer);
 
     // not a multiple of 15 minutes
     TestParamsStruct badTimezone3 = testArray.at(6);
@@ -315,6 +441,7 @@ void testErrorsCatching(void){
     TEST_ASSERT_FALSE(testClass.setLocalTimestamp2000(badTimezone3.localTimestamp, badTimezone3.timezone, badTimezone3.DST));
     TEST_ASSERT_NOT_EQUAL(badTimezone3.localTimestamp, testClass.getLocalTimestampSeconds());
     TEST_ASSERT_NOT_EQUAL(badTimezone3.timezone, globalConfigs->getRTCConfigs().timezone);
+    TEST_TIME_OBSERVER_NOT_NOTIFIED(observer);
   }
 
   // bad DST
@@ -325,6 +452,7 @@ void testErrorsCatching(void){
     TEST_ASSERT_FALSE(testClass.setLocalTimestamp2000(badDST1.localTimestamp, badDST1.timezone, badDST1.DST));
     TEST_ASSERT_NOT_EQUAL(badDST1.localTimestamp, testClass.getLocalTimestampSeconds());
     TEST_ASSERT_NOT_EQUAL(badDST1.DST, globalConfigs->getRTCConfigs().DST);
+    TEST_TIME_OBSERVER_NOT_NOTIFIED(observer);
 
     TestParamsStruct badDST2 = testArray.at(6);
     badDST2.testName = "bad DST 2";
@@ -332,6 +460,7 @@ void testErrorsCatching(void){
     TEST_ASSERT_FALSE(testClass.setLocalTimestamp2000(badDST2.localTimestamp, badDST2.timezone, badDST2.DST));
     TEST_ASSERT_NOT_EQUAL(badDST2.localTimestamp, testClass.getLocalTimestampSeconds());
     TEST_ASSERT_NOT_EQUAL(badDST2.DST, globalConfigs->getRTCConfigs().DST);
+    TEST_TIME_OBSERVER_NOT_NOTIFIED(observer);
 
     TestParamsStruct badDST3 = testArray.at(6);
     badDST3.testName = "bad DST 3";
@@ -339,6 +468,7 @@ void testErrorsCatching(void){
     TEST_ASSERT_FALSE(testClass.setLocalTimestamp2000(badDST3.localTimestamp, badDST3.timezone, badDST3.DST));
     TEST_ASSERT_NOT_EQUAL(badDST3.localTimestamp, testClass.getLocalTimestampSeconds());
     TEST_ASSERT_NOT_EQUAL(badDST3.DST, globalConfigs->getRTCConfigs().DST);
+    TEST_TIME_OBSERVER_NOT_NOTIFIED(observer);
   }
 
   // bad time
@@ -349,6 +479,7 @@ void testErrorsCatching(void){
     RTCConfigsStruct testConfigs = globalConfigs->getRTCConfigs();
     TEST_ASSERT_NOT_EQUAL(testConfigs.DST, badTime1.DST);
     TEST_ASSERT_NOT_EQUAL(testConfigs.timezone, badTime1.timezone);
+    TEST_TIME_OBSERVER_NOT_NOTIFIED(observer);
   }
 }
 

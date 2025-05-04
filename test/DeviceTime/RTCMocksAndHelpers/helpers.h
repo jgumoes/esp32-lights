@@ -1,6 +1,8 @@
 #ifndef __NATIVE_HELPERS_H__
 #define __NATIVE_HELPERS_H__
 
+#include "DeviceTime.h"
+#include "ProjectDefines.h"
 #include "setTimeTestArray.h"
 
 #define ONES(decimal) ((decimal) % 10)
@@ -9,22 +11,8 @@
 #define AS_BCD(decimal) (TENS(decimal) << 4) | ONES(decimal)
 #define AS_DEC(bcd) ((((bcd) >> 4) * 10) + ((bcd) & 0b00001111))
 
-// #include<iostream>
-
 #include <algorithm>
 #define COPY_ARRAY(inputArray, destinationArray) std::copy(std::begin(inputArray), std::end(inputArray), std::begin(destinationArray))
-
-#ifdef _GLIBCXX_IOSTREAM
-#define PRINT_AS_INT(title, value) std::cout << title << ": " << static_cast<int>(value) << std::endl
-
-#define PRINT_ARRAY(name, array, length) std::cout << name << ":" << std::endl; \
-  for(int i = 0; i < length; i++){\
-    std::cout << '\t';\
-    PRINT_AS_INT(i, array[i]);\
-  }
-#endif
-
-#define EXPECT_CLOSE_TO(testValue, expectedValue) EXPECT_TRUE(testValue >= (expectedValue - 1)); EXPECT_TRUE(testValue <= (expectedValue + 1))
 
 uint64_t findTimeInDay(TestParamsStruct testParams){
   uint64_t timestamp = testParams.seconds;
@@ -53,6 +41,144 @@ uint64_t utcTimeFromTestParams(TestParamsStruct testParams){
   TEST_ASSERT_EQUAL_MESSAGE(testParams.date, deviceTime.getDate(), ("testParams: " + testParams.testName + "; fail: getDate").c_str());\
   TEST_ASSERT_EQUAL_MESSAGE(findStartOfDay(testParams), deviceTime.getStartOfDay(), ("testParams: " + testParams.testName + "; fail: getStartOfDay").c_str());\
   TEST_ASSERT_EQUAL_MESSAGE(findTimeInDay(testParams), deviceTime.getTimeInDay(), ("testParams: " + testParams.testName + "; fail: getTimeInDay").c_str());\
+}
+
+class TestObserver : public TimeObserver{
+  private:
+    int _calls = 0;
+    TimeUpdateStruct _updates{
+      .utcTimeChange_uS= 0,
+      .localTimeChange_uS = 0
+    };
+  public:
+    TestObserver(){};
+    
+    void notification(const TimeUpdateStruct& timeUpdates){
+      _updates = timeUpdates;
+      _calls++;
+    };
+
+    void resetParams(){
+      _calls = 0;
+      _updates.utcTimeChange_uS = 0;
+      _updates.localTimeChange_uS = 0;
+    }
+
+    int getCallCount(){return _calls;}
+
+    int getCallCountAndReset(){
+      int calls = _calls;
+      _calls = 0;
+      return calls;
+    }
+
+    TimeUpdateStruct getUpdates(){return _updates;}
+};
+
+/**
+ * @brief helper class to cache the previous times, and find the time changes between previous times and new times
+ * 
+ */
+class TimeChangeFinder{
+  private:
+    uint64_t _utcTimes_uS[2] = {0, 0};
+    uint64_t _localTimes_uS[2] = {0, 0};
+
+    bool _index = true;
+  public:
+    TimeChangeFinder(){};
+    TimeChangeFinder(uint64_t utcTime_uS, uint64_t localTime_uS){
+      _utcTimes_uS[_index] = utcTime_uS;
+      _localTimes_uS[_index] = localTime_uS;
+    }
+
+    TimeUpdateStruct setTimes_uS(uint64_t utcTime_uS, uint64_t localTime_uS){
+      _index = !_index;
+      _utcTimes_uS[_index] = utcTime_uS;
+      _localTimes_uS[_index] = localTime_uS;
+      return getTimeUpdates();
+    }
+
+    TimeUpdateStruct setTimes_S(uint64_t utcTime_S, uint64_t localTime_S){
+      return setTimes_uS(utcTime_S*secondsToMicros, localTime_S*secondsToMicros);
+    }
+
+    TimeUpdateStruct setTimes(TestParamsStruct testParams){
+      uint64_t localtime_S = testParams.localTimestamp;
+      uint64_t utcTime_S = utcTimeFromTestParams(testParams);
+      return setTimes_S(utcTime_S, localtime_S);
+    }
+
+    TimeUpdateStruct getTimeUpdates(){
+      int64_t utcTimeChange_uS = _utcTimes_uS[_index] - _utcTimes_uS[!_index];
+      int64_t localTimeChange_uS = _localTimes_uS[_index] - _localTimes_uS[!_index];
+      return TimeUpdateStruct{
+        .utcTimeChange_uS = utcTimeChange_uS,
+        .localTimeChange_uS = localTimeChange_uS
+      };
+    }
+};
+
+/**
+ * @brief tests that the actual TimeUpdateStruct matches the expected TimeUpdateStruct
+ * 
+ */
+#define TEST_ASSERT_EQUAL_TimeUpdateStruct(expUpdates, actUpdates) {\
+  TEST_ASSERT_EQUAL(expUpdates.utcTimeChange_uS, actUpdates.utcTimeChange_uS);\
+  TEST_ASSERT_EQUAL(expUpdates.localTimeChange_uS, actUpdates.localTimeChange_uS);\
+}
+
+/**
+ * @brief tests that the actual TimeUpdateStruct matches the expected TimeUpdateStruct
+ * 
+ */
+#define TEST_ASSERT_EQUAL_TimeUpdateStruct_MESSAGE(expUpdates, actUpdates, message) {\
+  std::string utcMessage = "utc failed; " + std::string(message);\
+  TEST_ASSERT_EQUAL_MESSAGE(expUpdates.utcTimeChange_uS, actUpdates.utcTimeChange_uS, utcMessage.c_str());\
+  std::string localMessage = "local failed; " + std::string(message);\
+  TEST_ASSERT_EQUAL_MESSAGE(expUpdates.localTimeChange_uS, actUpdates.localTimeChange_uS, localMessage.c_str());\
+}
+
+/**
+ * @brief tests that the observer has been called once, updates updateCheck with expected times from testParams, and the expected TimeUpdateStruct from updateCheck matches the TimeUpdateStruct notified to the observer
+ * @param observer TestObserver instance
+ * @param updateCheck TimeChangeFinder instance
+ * @param testParams TestParamsStruct
+ */
+#define TEST_TIME_UPDATE_OBSERVER(observer, updateCheck, testParams){\
+  TimeUpdateStruct expUpdates = updateCheck.setTimes(testParams);\
+  TimeUpdateStruct actUpdates = observer.getUpdates();\
+  TEST_ASSERT_EQUAL(1, observer.getCallCountAndReset());\
+  TEST_ASSERT_EQUAL_TimeUpdateStruct(expUpdates, actUpdates);\
+}
+
+/**
+ * @brief tests that the observer has been called once, updates updateCheck with expected times from testParams, and the expected TimeUpdateStruct from updateCheck matches the TimeUpdateStruct notified to the observer
+ * @param observer TestObserver instance
+ * @param updateCheck TimeChangeFinder instance
+ * @param testParams TestParamsStruct
+ * @param message c string
+ */
+#define TEST_TIME_UPDATE_OBSERVER_MESSAGE(observer, updateCheck, testParams, message){\
+  TimeUpdateStruct expUpdates = updateCheck.setTimes(testParams);\
+  TimeUpdateStruct actUpdates = observer.getUpdates();\
+  TEST_ASSERT_EQUAL_MESSAGE(1, observer.getCallCountAndReset(), message);\
+  TEST_ASSERT_EQUAL_TimeUpdateStruct_MESSAGE(expUpdates, actUpdates, message);\
+}
+
+const TimeUpdateStruct noTimeUpdates{
+  .utcTimeChange_uS = 0,
+  .localTimeChange_uS = 0
+};
+
+/**
+ * @brief tests that the observer class has not been notified of time updates, without resetting any values
+ * @param observer TestObserver instance
+ */
+#define TEST_TIME_OBSERVER_NOT_NOTIFIED(observer){\
+  TEST_ASSERT_EQUAL(0, observer.getCallCount());\
+  TimeUpdateStruct noTimeUpdates;\
+  TEST_ASSERT_EQUAL_TimeUpdateStruct(noTimeUpdates, observer.getUpdates());\
 }
 
 #endif

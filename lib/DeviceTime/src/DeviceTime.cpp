@@ -16,16 +16,18 @@ uint64_t DeviceTimeClass::getUTCTimestampMicros()
 
 bool DeviceTimeClass::setUTCTimestamp2000(uint64_t newTimestamp, int32_t timezone, uint16_t DST)
 {
+  const uint64_t newUTCTimestamp_uS = newTimestamp*secondsToMicros;
   if(
     newTimestamp * secondsToMicros < BUILD_TIMESTAMP
     || newTimestamp >= ONBOARD_TIMESTAMP_OVERFLOW
+    || newUTCTimestamp_uS >= ONBOARD_TIMESTAMP_OVERFLOW
     || !isTimezoneValid(timezone)
     || !isDSTValid(DST)
   ){
     return false;
   }
   _timeFault = false;
-  uint64_t oldUTCTimestamp_uS = _onboardTimestamp->getTimestamp_uS();
+  const uint64_t oldUTCTimestamp_uS = _onboardTimestamp->getTimestamp_uS();
   _onboardTimestamp->setTimestamp_S(newTimestamp);
 
   int64_t oldOffset = _offset;
@@ -39,8 +41,15 @@ bool DeviceTimeClass::setUTCTimestamp2000(uint64_t newTimestamp, int32_t timezon
     _configManager->setRTCConfigs(_configs);
   }
   
-  _timeofLastSync_uS = newTimestamp*secondsToMicros;
-  _timeOfNextSync_uS = _timeofLastSync_uS + _configs.maxSecondsBetweenSyncs*secondsToMicros;
+  _timeofLastSync_uS = newUTCTimestamp_uS;
+  _timeOfNextSync_uS = newUTCTimestamp_uS + _configs.maxSecondsBetweenSyncs*secondsToMicros;
+
+  const int64_t utcTimeChange_uS = newUTCTimestamp_uS - oldUTCTimestamp_uS;
+  const TimeUpdateStruct timeUpdates{
+    .utcTimeChange_uS = utcTimeChange_uS,
+    .localTimeChange_uS = utcTimeChange_uS + _offset - oldOffset
+  };
+  notify_observers(timeUpdates);
   return true;
 }
 

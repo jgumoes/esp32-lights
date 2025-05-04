@@ -136,6 +136,25 @@ DeviceTime primarily uses an onboard register to manage device time. The registe
 
 The time should default to the BUILD_TIMESTAMP when the program starts. DeviceTime has a timeFault flag that's raised when time is under BUILD_TIMESTAMP, or it's just been a while since the last time sync.
 
+DeviceTime implements the observer pattern through [Embedded Template Library](https://www.etlcpp.com/home.html). This allows any class dependant on knowing the time, to handle changes properly. i.e. EventManager needs to know about DST changes, ModalController needs to know UTC changes to keep the interpolations nice and smooth. Remember to add references to observer classes to the DeviceTime instance!
+
+```c++
+#define MAX_TIME_OBSERVERS 2  // the maximum number of time observers
+
+/**
+ * @brief passed to observers when time is set. newTime = oldTime + change
+ * 
+ */
+struct TimeUpdateStruct{
+  int64_t utcTimeChange_uS = 0;
+  int64_t localTimeChange_uS = 0;
+};
+
+typedef etl::observer<const TimeUpdateStruct&> TimeObserver;  // observers need to publicly inherent TimeObserver
+```
+
+When setting DST or timezone values, a timestamp must also be provided. The reason is i won't be implementing storage for the MVP. This means the DST and timezone values will always default to 0 on boot. If the RTC chip holds the local timestamp (and it should), DeviceTime will have the correct times on boot, and setting the correct utc timestamp with the correct offsets will result in a small change in local time (max<=0.5 seconds).
+
 ### Data Storage
 
 Data storage will ultimately happen in 3 locations: (1) on the phone app, which then syncs with (2) the homeserver as soon as possible. The home server will then sync the changes with (3) the relavent devices.

@@ -23,6 +23,17 @@
   #define BUILD_TIMESTAMP 637609298000000
 #endif
 
+#define secondsToMicros (uint64_t)1000000
+
+/**
+ * @brief passed to observers when time is set. newTime = oldTime + change
+ * 
+ */
+struct TimeUpdateStruct{
+  int64_t utcTimeChange_uS = 0;
+  int64_t localTimeChange_uS = 0;
+};
+
 /* EventManager */
 typedef uint8_t eventUUID;
 // hardware default event window = 1 hour
