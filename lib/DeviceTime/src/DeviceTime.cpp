@@ -47,7 +47,8 @@ bool DeviceTimeClass::setUTCTimestamp2000(uint64_t newTimestamp, int32_t timezon
   const int64_t utcTimeChange_uS = newUTCTimestamp_uS - oldUTCTimestamp_uS;
   const TimeUpdateStruct timeUpdates{
     .utcTimeChange_uS = utcTimeChange_uS,
-    .localTimeChange_uS = utcTimeChange_uS + _offset - oldOffset
+    .localTimeChange_uS = utcTimeChange_uS + _offset - oldOffset,
+    .currentLocalTime_uS = newUTCTimestamp_uS + _offset
   };
   notify_observers(timeUpdates);
   return true;

@@ -32,6 +32,7 @@
 struct TimeUpdateStruct{
   int64_t utcTimeChange_uS = 0;
   int64_t localTimeChange_uS = 0;
+  uint64_t currentLocalTime_uS;
 };
 
 /* EventManager */

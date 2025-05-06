@@ -28,7 +28,7 @@ let convert2000To1970 = (localTimestamp, offset) => {
 #include <ArduinoFake.h>
 #include <vector>
 
-struct TestParamsStruct
+struct TestTimeParamsStruct
 {
   std::string testName = "";
   uint64_t localTimestamp = 0;
@@ -45,11 +45,11 @@ struct TestParamsStruct
 
 uint64_t buildTimestampS = BUILD_TIMESTAMP/1000000;
 
-TestParamsStruct const buildTimeParams = { "Time Fault", buildTimestampS, 38, 41, 17, 7, 15, 3, 20, 0, 0};
-TestParamsStruct const beginningOfTime = {"at_the_beginning_of_time", 0, 0, 0, 0, 6, 1, 1, 0, -60*60*11, 0};
-TestParamsStruct const badTime = { "bad time", buildTimestampS - 1, 37, 41, 17, 7, 15, 3, 20, 60*60*11, 60*60};
+TestTimeParamsStruct const buildTimeParams = { "Time Fault", buildTimestampS, 38, 41, 17, 7, 15, 3, 20, 0, 0};
+TestTimeParamsStruct const beginningOfTime = {"at_the_beginning_of_time", 0, 0, 0, 0, 6, 1, 1, 0, -60*60*11, 0};
+TestTimeParamsStruct const badTime = { "bad time", buildTimestampS - 1, 37, 41, 17, 7, 15, 3, 20, 60*60*11, 60*60};
 
-std::vector<TestParamsStruct> const testArray = {
+std::vector<TestTimeParamsStruct> const testArray = {
   {"during_british_winter_time_2023", 729082742, 2, 59, 10, 2, 7, 2, 23, 0, 0},
   {"during_british_summer_time_2023", 743102001, 21, 13, 17, 3, 19, 7, 23, 0, 60*60},
   {"feb_28_2023", 730925880, 0, 58, 18, 2, 28, 2, 23, 0, 0},
