@@ -91,7 +91,7 @@ class ModalLightsInterface{
  * LightsClass must have method setDutyCycle(duty_t)
 */
 // template<uint8_t nChannels>
-class ModalLightsController : public ModalLightsInterface
+class ModalLightsController : public ModalLightsInterface, public TimeObserver
 {
 private:
   /* data */
@@ -260,7 +260,9 @@ public:
       false,
       _configs
     );
-    // TODO: register adjustment callback with deviceTime
+
+    // register adjustment callback with deviceTime
+    _deviceTime->add_observer(*this);
   }
 
   /**
@@ -423,6 +425,12 @@ public:
 
   ModalConfigsStruct getConfigs(){
     return _configs;
+  }
+
+  void notification(const TimeUpdateStruct& timeUpdates){
+    if(timeUpdates.utcTimeChange_uS != 0){
+      _mode->timeAdjust(timeUpdates.utcTimeChange_uS);
+    }
   }
 };
 

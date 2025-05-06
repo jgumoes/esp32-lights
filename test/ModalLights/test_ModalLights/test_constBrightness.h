@@ -341,7 +341,6 @@ void testBrightnessAdjustment(){
 }
 
 void testSetBrightness(){
-  // TODO: make sure tests use getBrightnessLevel() where appropriate
   // test behaviour when the brightness is set to a value (should be soft change)
   const TestChannels channel = TestChannels::RGB; // TODO: iterate over all channels
 
@@ -373,7 +372,6 @@ void testSetBrightness(){
     testObjects.timestamp->setTimestamp_S(currentTestTime);
     testClass->updateLights();
     const duty_t expectedBrightness1 = round(255/2.);
-    // TODO: keep checking for getBrightnessLevel()
     TEST_ASSERT_EQUAL(expectedBrightness1, testClass->getBrightnessLevel());
     for(int i = 0; i < nChannels; i++){
       TEST_ASSERT_EQUAL(expectedBrightness1, currentChannelValues[i]);
@@ -385,6 +383,7 @@ void testSetBrightness(){
     testClass->updateLights();
     const duty_t expectedBrightness2 = 255;
     TEST_ASSERT_EQUAL(expectedBrightness2, testClass->getSetBrightness());
+    TEST_ASSERT_EQUAL(expectedBrightness2, testClass->getBrightnessLevel());
     for(int i = 0; i < nChannels; i++){
       TEST_ASSERT_EQUAL(expectedBrightness2, currentChannelValues[i]);
     }
@@ -394,6 +393,7 @@ void testSetBrightness(){
     testObjects.timestamp->setTimestamp_S(currentTestTime);
     testClass->updateLights();
     TEST_ASSERT_EQUAL(expectedBrightness2, testClass->getSetBrightness());
+    TEST_ASSERT_EQUAL(expectedBrightness2, testClass->getBrightnessLevel());
     for(int i = 0; i < nChannels; i++){
       TEST_ASSERT_EQUAL(expectedBrightness2, currentChannelValues[i]);
     }
@@ -1098,7 +1098,6 @@ void testActiveBehaviour(){
     testClass->setModeByUUID(activeMode.ID, startTime, true);
     testClass->updateLights();
     incrementTimeAndUpdate_S(60, testObjects);
-    // TODO: carefully re-write when default brightness is removed
     // test that brightness can be set
     const duty_t newBrightness = 150;
     TEST_ASSERT_EQUAL(newBrightness, testClass->setBrightnessLevel(newBrightness));
@@ -1636,7 +1635,7 @@ void testChangeover(){
     fillChannelBrightness(expColours2, expColours2, activeMinB);
   }
 
-  // TODO: loading an active mode mid brightness change should end at the previous target brightness
+  // loading an active mode mid brightness change should end at the previous target brightness
   {
     testClass->setModeByUUID(1, 69, false);
     testClass->updateLights();
@@ -1803,8 +1802,6 @@ void testChangeover(){
       TEST_ASSERT_EQUAL_UINT8_ARRAY(expectedChannelVals, currentChannelValues, nChannels);
     }
   }
-  
-  // TODO: test with a time adjustment mid-way
 }
 
 void testTimeChanges(void){
@@ -1834,7 +1831,7 @@ void testTimeChanges(void){
   incrementTimeAndUpdate_S(60, testObjects);
   TEST_ASSERT_EQUAL(maxB, testClass->getBrightnessLevel());
 
-  // TODO: changing time in constant state shouldn't do anything
+  // changing time in constant state shouldn't do anything
   {
     testClass->updateLights();
     {
@@ -1860,11 +1857,11 @@ void testTimeChanges(void){
     }
   }
 
-  // TODO: changing time during changeover or soft change shouldn't effect interpolation
+  // changing time during changeover or soft change shouldn't effect interpolation
   {
     testClass->setBrightnessLevel(minB);
-    TEST_ASSERT_EQUAL(minB, testClass->getBrightnessLevel());
     const uint64_t time = incrementTimeAndUpdate_S(60, testObjects);
+    TEST_ASSERT_EQUAL(minB, testClass->getBrightnessLevel());
     TestModeDataStruct newMode = mvpModes["warmConstBrightness"];
     const duty_t *ratios1 = defaultConstantBrightness.endColourRatios.RGB;
     const duty_t *ratios2 = newMode.endColourRatios.RGB;

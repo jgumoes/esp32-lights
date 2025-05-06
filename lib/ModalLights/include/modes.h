@@ -310,9 +310,6 @@ public:
 
     // fill target colour vals
     duty_t targetValues[nChannels+1] = {_interpClass->getFinalBrightness()};
-    // for(uint8_t i = 0; i < nChannels; i++){
-    //   targetValues[i+1] = modeData[i+2];
-    // }
     memcpy(&targetValues[1], modeData->endColourRatios, nChannels);
 
     // set current vals to target vals if lights are off
