@@ -1,5 +1,5 @@
 /**
- * declare project defines here to avoid circular dependancies when including storage interfaces
+ * declare project defines here to avoid circular dependancies when including structs, typedefs, etc.
  * 
  */
 #ifndef __PROJECT_DEFINES_H__
@@ -38,12 +38,12 @@ struct TimeUpdateStruct{
 /* EventManager */
 typedef uint8_t eventUUID;
 // hardware default event window = 1 hour
-#define hardwareDefaultEventWindow 60*60
+#define hardwareDefaultEventWindow 60*60 + 1
 // minimum event window = 1 minute
 #define hardwareMinimumEventWindow 60
 
 struct EventManagerConfigsStruct {
-  uint32_t defaultEventWindow = hardwareDefaultEventWindow;
+  uint32_t defaultEventWindow_S = hardwareDefaultEventWindow;
 };
 
 // the data packet that gets recieved from the network and loaded from storage

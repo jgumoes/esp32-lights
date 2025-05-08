@@ -59,7 +59,14 @@
     "list": "cpp",
     "format": "cpp",
     "span": "cpp",
-    "variant": "cpp"
+    "variant": "cpp",
+    "chrono": "cpp",
+    "condition_variable": "cpp",
+    "ratio": "cpp",
+    "mutex": "cpp",
+    "semaphore": "cpp",
+    "stop_token": "cpp",
+    "thread": "cpp"
   },
   "cmake.configureOnOpen": false,
 }

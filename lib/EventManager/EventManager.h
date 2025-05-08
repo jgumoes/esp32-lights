@@ -30,18 +30,20 @@ namespace EventManagerErrors {
   constexpr eventError_t success = 1;
 };
 
-class EventManager
+typedef std::map<eventUUID, EventMappingStruct> EventMap_t;
+
+class EventManager : public TimeObserver
 {
 private:
   std::shared_ptr<ModalLightsInterface> _modalLights;
   std::shared_ptr<ConfigManagerClass> _configs;
   std::shared_ptr<DeviceTimeClass> _deviceTime;
 
-  std::map<eventUUID, EventMappingStruct> _events; // map of stored EventObjects. keys are UUIDs
+  EventMap_t _events; // map of stored EventObjects. keys are UUIDs
   uint64_t _nextEventID = 0; // UUID of the next event to trigger
   uint64_t _nextEventTime = ~0; // time of next event, in seconds
 
-  uint64_t _previousBackgroundEventTime = 0;  // addEvent uses this to check if a new brackground event should be triggered
+  uint64_t _previousBackgroundEventTime = 0;  // addEvent uses this to check if a new background event should be triggered
 
   /**
    * @brief checks the new event and returns the appropriate error code. skips the eventID check if `updating = true`
@@ -63,6 +65,8 @@ private:
 
   void _findNextEvent();
 
+  void _rebuildBackgroundTriggers(uint64_t timestampS);
+
   /**
    * @brief returns the correct event window. if eventWindow == 0, returns the default
    * 
@@ -71,7 +75,7 @@ private:
    */
   uint32_t _checkEventWindow(uint32_t eventWindow){
     if(eventWindow == 0){
-      return _configs->getEventManagerConfigs().defaultEventWindow;
+      return _configs->getEventManagerConfigs().defaultEventWindow_S;
     }
     return eventWindow;
   }
@@ -102,6 +106,8 @@ private:
    * @return eventUUID 
    */
   eventUUID _findInitialTriggers(uint64_t timestampS);
+
+  void _check(uint64_t timeStampS);
 public:
   // TODO: integrate ErrorManager
   EventManager(
@@ -184,6 +190,33 @@ public:
    * @param timestampS current local time in seconds
    */
   void check();
+
+  void notification(const TimeUpdateStruct& timeUpdates){
+    uint64_t adjWindow_uS = _configs->getEventManagerConfigs().defaultEventWindow_S * secondsToMicros;
+    bool bigChange = abs(timeUpdates.localTimeChange_uS) > adjWindow_uS;
+
+    uint64_t timestampS = roundMicrosToSeconds(timeUpdates.currentLocalTime_uS);
+    /*
+    if negative adjustment:
+      - small change rebuilds background events only
+      - large change rebuilds active too
+    if positive adjustment:
+      - under event window gets ignored
+      - over event window
+    */
+   // TODO: this can be more efficient
+   if(!bigChange && (timeUpdates.localTimeChange_uS < 0)){
+    // small negative change
+    _rebuildBackgroundTriggers(timestampS);
+   }
+   else if(bigChange){
+     rebuildTriggerTimes(bigChange);
+   }
+   else{
+    _check(timestampS);
+   }
+    // _check(roundMicrosToSeconds(timeUpdates.currentLocalTime_uS));
+  };
 };
 
 #endif

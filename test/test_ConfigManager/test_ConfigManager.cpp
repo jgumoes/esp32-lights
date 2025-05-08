@@ -41,7 +41,7 @@ void EventManagerConfigs(void){
   // should default to default
   {
     EventManagerConfigsStruct returnedConfigs = configs->getEventManagerConfigs();
-    TEST_ASSERT_EQUAL(hardwareDefaultEventWindow, returnedConfigs.defaultEventWindow);
+    TEST_ASSERT_EQUAL(hardwareDefaultEventWindow, returnedConfigs.defaultEventWindow_S);
   }
   
   // change the values
@@ -50,10 +50,10 @@ void EventManagerConfigs(void){
     TEST_ASSERT_NOT_EQUAL(hardwareDefaultEventWindow, newEventWindow);  // just making sure
 
     EventManagerConfigsStruct eventConfigs;
-    eventConfigs.defaultEventWindow = newEventWindow;
+    eventConfigs.defaultEventWindow_S = newEventWindow;
     TEST_ASSERT_TRUE(configs->setEventManagerConfigs(eventConfigs));
     EventManagerConfigsStruct returnedConfigs = configs->getEventManagerConfigs();
-    TEST_ASSERT_EQUAL(newEventWindow, returnedConfigs.defaultEventWindow);
+    TEST_ASSERT_EQUAL(newEventWindow, returnedConfigs.defaultEventWindow_S);
   }
 
   // rejects eventWindow = 0
@@ -61,11 +61,11 @@ void EventManagerConfigs(void){
     EventManagerConfigsStruct returnedConfigs1 = configs->getEventManagerConfigs();
 
     EventManagerConfigsStruct eventConfigs;
-    eventConfigs.defaultEventWindow = 0;
+    eventConfigs.defaultEventWindow_S = 0;
     TEST_ASSERT_FALSE(configs->setEventManagerConfigs(eventConfigs));
 
     EventManagerConfigsStruct returnedConfigs2 = configs->getEventManagerConfigs();
-    TEST_ASSERT_EQUAL(returnedConfigs1.defaultEventWindow, returnedConfigs2.defaultEventWindow);
+    TEST_ASSERT_EQUAL(returnedConfigs1.defaultEventWindow_S, returnedConfigs2.defaultEventWindow_S);
   }
 }
 

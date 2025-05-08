@@ -162,6 +162,7 @@ void validateModePacketTest(){
 
 void testModeSwitching(){
   // when an active and background mode are set at the same time, when update is called the active mode is loaded first
+  // TODO: setting a mode that's already set shouldn't reset the mode
   // TODO: load an active mode, loading a background mode then cancelling the active without calling update should switch to the pending background mode
   // TODO: trying to load a non-existant mode should do nothing
 

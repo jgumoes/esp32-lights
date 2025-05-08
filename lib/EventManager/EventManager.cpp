@@ -27,18 +27,18 @@ EventManager::EventManager(
   EventStorageIterator events
 ) : _modalLights(modalLights), _configs(configs), _deviceTime(deviceTime)
 {
-  uint32_t defaultEventWindow = _configs->getEventManagerConfigs().defaultEventWindow;
+  uint32_t defaultEventWindow_S = _configs->getEventManagerConfigs().defaultEventWindow_S;
   uint64_t timestampS = _deviceTime->getLocalTimestampSeconds();
-  // for(EventDataPacket event : eventStructs){
   while(events.hasMore()){
     // timestampS - eventWindow in case there was an alarm that should have triggered just before reboot
     if(_addEvent(timestampS, events.getNext()) != EventManagerErrors::success){
       // TODO: alert server of the error
     };
   };
+  _deviceTime->add_observer(*this);
   eventUUID activeEvent = _findInitialTriggers(timestampS);
   _findNextEvent();
-  check();
+  _check(timestampS);
 };
 
 eventError_t EventManager::_addEvent(uint64_t timestampS, EventDataPacket newEvent, bool updating)
@@ -60,7 +60,6 @@ eventError_t EventManager::_addEvent(uint64_t timestampS, EventDataPacket newEve
   uint32_t window = newEvent.isActive
     ? _checkEventWindow(newEvent.eventWindow)
     : 0;
-
   _events[newEventID].nextTriggerTime = _findNextTriggerTime(timestampS - window, newEventID);
 
   if(_events[newEventID].isActive == false){
@@ -159,7 +158,7 @@ eventError_t EventManager::addEvent(EventDataPacket newEvent)
     return error;
   }
   _findNextEvent();
-  check();
+  _check(timestampS);
   return error;
 }
 
@@ -186,7 +185,7 @@ void EventManager::updateEvents(EventDataPacket *events, eventError_t *eventErro
     eventErrors[i] = _addEvent(timestampS, events[i], true);
   }
   _findInitialTriggers(timestampS);
-  check();
+  _check(timestampS);
 }
 
 eventError_t EventManager::updateEvent(EventDataPacket event)
@@ -200,13 +199,18 @@ eventError_t EventManager::updateEvent(EventDataPacket event)
     return error;
   }
   _findInitialTriggers(timestampS);
-  check();
+  _check(timestampS);
   return error;
 }
 
 void EventManager::check()
 {
   uint64_t timestampS = _deviceTime->getLocalTimestampSeconds();
+  _check(timestampS);
+}
+
+void EventManager::_check(uint64_t timestampS)
+{
   while(timestampS >= _nextEventTime){
     if(_events[_nextEventID].isActive == false
       || (_events[_nextEventID].isActive
@@ -230,7 +234,6 @@ eventUUID EventManager::_findInitialTriggers(uint64_t timestampS)
   uint64_t currentActiveEventTime = 0;
   std::vector<eventUUID> skippedEvents = {};
 
-  RTCConfigsStruct rtcConfigs = _configs->getRTCConfigs();
   UsefulTimeStruct timeStruct = makeUsefulTimeStruct(timestampS);
 
   for(auto [eventID, event] : _events){
@@ -298,5 +301,43 @@ void EventManager::rebuildTriggerTimes(bool checkMissedActive)
     _callEvent(timestampS, activeEvent);
   }
   _findNextEvent();
-  check();
+  _check(timestampS);
+}
+
+void EventManager::_rebuildBackgroundTriggers(uint64_t timestampS)
+{
+  if(_events.size() == 0){return;}
+  UsefulTimeStruct uts = makeUsefulTimeStruct(timestampS);
+  EventMap_t::iterator mapIt = _events.begin();
+  eventUUID currentEventID;
+  uint64_t currentEventTime_S;
+  // find the first background event
+  for(mapIt; mapIt != _events.end(); mapIt++){
+    if(!mapIt->second.isActive){
+      currentEventID = mapIt->first;
+      currentEventTime_S = findPreviousTriggerTime(mapIt->second, uts);
+      break;
+    }
+  }
+  mapIt++;
+  // find the other background events
+  for(mapIt; mapIt != _events.end(); mapIt++){
+    eventUUID eventID = mapIt->first;
+    EventMappingStruct event = mapIt->second;
+    if(!event.isActive){
+      uint64_t previousTrigger = findPreviousTriggerTime(event, uts);
+      if(previousTrigger > currentEventTime_S){
+        _events[currentEventID].nextTriggerTime = _findNextTriggerTime(timestampS, currentEventID);
+        currentEventID = eventID;
+        currentEventTime_S = previousTrigger;
+        _events[eventID].nextTriggerTime = previousTrigger;
+      }
+      else{
+        _events[eventID].nextTriggerTime = _findNextTriggerTime(timestampS, eventID);
+      }
+    }
+  }
+  _nextEventID = currentEventID;
+  _nextEventTime = currentEventTime_S;
+  _check(timestampS);
 }

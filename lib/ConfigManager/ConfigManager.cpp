@@ -20,14 +20,14 @@ bool ConfigManagerClass::setRTCConfigs(RTCConfigsStruct rtcConfigs){
 EventManagerConfigsStruct ConfigManagerClass::getEventManagerConfigs()
 {
   // EventManagerConfigsStruct eventConfigs;
-  // eventConfigs.defaultEventWindow = _configs.defaultEventWindow;
+  // eventConfigs.defaultEventWindow_S = _configs.defaultEventWindow_S;
   return _configs.eventConfigs;
 }
 
 bool ConfigManagerClass::setEventManagerConfigs(EventManagerConfigsStruct eventConfigs)
 {
-  if(eventConfigs.defaultEventWindow == 0){return false;}
-  // _configs.defaultEventWindow = eventConfigs.defaultEventWindow;
+  if(eventConfigs.defaultEventWindow_S == 0){return false;}
+  // _configs.defaultEventWindow_S = eventConfigs.defaultEventWindow_S;
   _configs.eventConfigs = eventConfigs;
   return _configHAL->setConfigs(_configs);
 }

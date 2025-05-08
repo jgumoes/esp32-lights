@@ -19,11 +19,13 @@ const struct EventDataPacket testEvent6 = {6, 5 /*wakeup alarm*/, timeToSeconds(
 
 const struct EventDataPacket testEvent7 = {7, 6 /*post-wakeup background mode*/, timeToSeconds(7, 0, 0) /*7am*/, 0b01111111 /*mon-fri*/, oneHour, false};
 
-const struct EventDataPacket testEvent8 = {8, 7 /*wakeup alarm*/, 36000 /*10am*/, 0b01111111 /*weekend*/, oneHour, true};
+const struct EventDataPacket testEvent8 = {8, 7 /*wakeup alarm*/, 36000 /*10am*/, 0b01111111 /*everyday*/, oneHour, true};
 
 const struct EventDataPacket testEvent9 = {9, 8 /*chirp*/, timeToSeconds(7, 0, 0) /*7am*/, 0b01111111 /*mon-fri*/, oneHour, true};
 
 const struct EventDataPacket testEvent10 = {10, 8, timeToSeconds(22, 0, 0), 0b01111111, oneHour, true};
+
+const struct EventDataPacket testEvent11 = {11, 10, timeToSeconds(8, 30, 0), 0b00011111 /*weekday*/, oneHour, true};
 
 std::vector<EventDataPacket> getAllTestEvents() {
   std::vector<EventDataPacket> allEvents;
@@ -47,6 +49,8 @@ std::vector<EventDataPacket> getAllTestEvents() {
   allEvents.push_back(event9);
   EventDataPacket event10 = testEvent10;
   allEvents.push_back(event10);
+  EventDataPacket event11 = event11;
+  allEvents.push_back(event11);
   return allEvents;
 };
 
