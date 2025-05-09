@@ -484,6 +484,35 @@ void testErrorsCatching(void){
   }
 }
 
+void moreObserverTests(){
+  // test observer is notified by DST and Timezone updates
+  // timestamp changes and rejected changes are already tested for in the above tests
+  OnboardTimestamp testingTimer;
+  DeviceTimeClass deviceTime = deviceTimeFactory();
+  const uint64_t utcTimestamp_uS = deviceTime.getUTCTimestampMicros();
+  TimeChangeFinder updateCheck(deviceTime.getLocalTimestampMicros(), utcTimestamp_uS);
+  TestObserver observer;
+  deviceTime.add_observer(observer);
+
+  // test DST change, no UTC change
+  const uint16_t newDST = 60*60;
+  deviceTime.setUTCTimestamp2000(roundMicrosToSeconds(utcTimestamp_uS), 0, newDST);
+  const uint64_t expLocalTime_uS = utcTimestamp_uS + newDST*secondsToMicros;
+  const TimeUpdateStruct dstUpdate = updateCheck.setTimes_uS(utcTimestamp_uS, expLocalTime_uS);
+  TEST_ASSERT_EQUAL(1, observer.getCallCount());
+  TEST_ASSERT_EQUAL_TimeUpdateStruct(dstUpdate, observer.getUpdates());
+
+  // test timezone change, no local change
+  const int32_t newTimezone = -8*60*60;
+  deviceTime.setLocalTimestamp2000(roundMicrosToSeconds(expLocalTime_uS), newTimezone, newDST);
+  const uint64_t expUTCTime_uS = expLocalTime_uS - ((newDST + newTimezone)*secondsToMicros);
+  const TimeUpdateStruct localUpdate = updateCheck.setTimes_uS(expUTCTime_uS, expLocalTime_uS);
+  TEST_ASSERT_EQUAL(2, observer.getCallCount());
+  TEST_ASSERT_EQUAL_TimeUpdateStruct(dstUpdate, observer.getUpdates());
+
+  // TODO: test updates to just DST and timezone, without timestamp changes (not implemented yet)
+}
+
 void noPrintDebug(){
   #ifdef __PRINT_DEBUG_H__
     TEST_ASSERT_MESSAGE(false, "did you forget to remove the print debugs?");

@@ -87,26 +87,26 @@ class TimeChangeFinder{
     bool _index = true;
   public:
     TimeChangeFinder(){};
-    TimeChangeFinder(uint64_t utcTimeAdj_uS, uint64_t localTime_uS){
-      _utcTimes_uS[_index] = utcTimeAdj_uS;
+    TimeChangeFinder(uint64_t utcTime_uS, uint64_t localTime_uS){
+      _utcTimes_uS[_index] = utcTime_uS;
       _localTimes_uS[_index] = localTime_uS;
     }
 
-    TimeUpdateStruct setTimes_uS(uint64_t utcTimeAdj_uS, uint64_t localTime_uS){
+    TimeUpdateStruct setTimes_uS(uint64_t utcTime_uS, uint64_t localTime_uS){
       _index = !_index;
-      _utcTimes_uS[_index] = utcTimeAdj_uS;
+      _utcTimes_uS[_index] = utcTime_uS;
       _localTimes_uS[_index] = localTime_uS;
       return getTimeUpdates();
     }
 
-    TimeUpdateStruct setTimes_S(uint64_t utcTimeAdj_uS, uint64_t localTime_S){
-      return setTimes_uS(utcTimeAdj_uS*secondsToMicros, localTime_S*secondsToMicros);
+    TimeUpdateStruct setTimes_S(uint64_t utcTime_S, uint64_t localTime_S){
+      return setTimes_uS(utcTime_S*secondsToMicros, localTime_S*secondsToMicros);
     }
 
     TimeUpdateStruct setTimes(TestTimeParamsStruct testParams){
       uint64_t localtime_S = testParams.localTimestamp;
-      uint64_t utcTimeAdj_uS = utcTimeFromTestParams(testParams);
-      return setTimes_S(utcTimeAdj_uS, localtime_S);
+      uint64_t utcTime_S = utcTimeFromTestParams(testParams);
+      return setTimes_S(utcTime_S, localtime_S);
     }
 
     TimeUpdateStruct getTimeUpdates(){
