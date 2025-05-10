@@ -513,6 +513,37 @@ void moreObserverTests(){
   // TODO: test updates to just DST and timezone, without timestamp changes (not implemented yet)
 }
 
+void test_makeUsefulTimeStruct(){
+  for(int t = 0; t < testArray.size(); t++){
+    const TestTimeParamsStruct testTime = testArray.at(t);
+    const uint32_t expTimeInDay = timeToSeconds(testTime.hours, testTime.minutes, testTime.seconds);
+    const UsefulTimeStruct expUTS{
+      .timeInDay = expTimeInDay,
+      .startOfDay = testTime.localTimestamp - expTimeInDay,
+      .dayOfWeek = testTime.dayOfWeek
+    };
+    const UsefulTimeStruct actualUTS = makeUsefulTimeStruct(testTime.localTimestamp);
+    TEST_ASSERT_EQUAL_MESSAGE(expUTS.timeInDay, actualUTS.timeInDay, testTime.testName.c_str());
+    TEST_ASSERT_EQUAL_MESSAGE(expUTS.startOfDay, actualUTS.startOfDay, testTime.testName.c_str());
+    TEST_ASSERT_EQUAL_MESSAGE(expUTS.dayOfWeek, actualUTS.dayOfWeek, testTime.testName.c_str());
+  }
+
+  const uint64_t mondayAtMidnight = 794275200;
+  const int timesPerDay = 30;
+  for(int day = 1; day < 8; day++){
+    for(int K = 0; K <= timesPerDay; K++){
+      const uint32_t timeInDay = (K*(secondsInDay-1))/timesPerDay;
+      const uint64_t startOfDay = mondayAtMidnight + (day-1)*secondsInDay;
+      const uint64_t testTimestamp = timeInDay + startOfDay;
+      std::string message = "day = " + std::to_string(day) + "; time in day = " + std::to_string(timeInDay);
+      const UsefulTimeStruct actualUTS = makeUsefulTimeStruct(testTimestamp);
+      TEST_ASSERT_EQUAL_MESSAGE(timeInDay, actualUTS.timeInDay, message.c_str());
+      TEST_ASSERT_EQUAL_MESSAGE(startOfDay, actualUTS.startOfDay, message.c_str());
+      TEST_ASSERT_EQUAL_MESSAGE(day, actualUTS.dayOfWeek, message.c_str());
+    }
+  }
+}
+
 void noPrintDebug(){
   #ifdef __PRINT_DEBUG_H__
     TEST_ASSERT_MESSAGE(false, "did you forget to remove the print debugs?");
@@ -532,6 +563,7 @@ void RUN_UNITY_TESTS(){
   RUN_TEST(setUTCTimestamp1970);
   RUN_TEST(testTimeFault);
   RUN_TEST(testErrorsCatching);
+  RUN_TEST(test_makeUsefulTimeStruct);
   UNITY_END();
 };
 
