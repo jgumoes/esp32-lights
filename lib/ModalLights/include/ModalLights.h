@@ -278,6 +278,7 @@ public:
       _nextActiveTriggerTimeUTC_uS = _deviceTime->convertLocalToUTCMicros(triggerTimeLocal_S * secondsToMicros);
     }
     else{
+      // TODO: reject if modeID == currentBackgroundMode, unless the mode is dependant on trigger time
       _nextBackgroundMode = modeID;
       _nextBackgroundTriggerTimeUTC_uS = _deviceTime->convertLocalToUTCMicros(triggerTimeLocal_S * secondsToMicros);
     }

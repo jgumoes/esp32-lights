@@ -1,86 +1,35 @@
 #include "EventManager.h"
 
-#define maxTimeOfDay 86399
-#define daysOfWeekMask 0b01111111
-
-uint64_t inline findPreviousTriggerTime(EventMappingStruct event, UsefulTimeStruct timeStruct){
-  uint8_t today = timeStruct.dayOfWeek - 1;
-  uint32_t timeInDay = timeStruct.timeInDay;
-  for(int x = 0; x < 7; x++){
-    uint8_t searchDay = (1 << ((7 + today - x)%7));
-    if(searchDay & event.daysOfWeek
-        && event.timeOfDay <= timeInDay
-      ){
-        
-        return timeStruct.startOfDay + event.timeOfDay - 60*60*24*x;
-    };
-    timeInDay = maxTimeOfDay;
-  }
-  // TODO: alert an error because the function should not reach here
-  return 0;
-};
-
-EventManager::EventManager(
-  std::shared_ptr<ModalLightsInterface> modalLights,
-  std::shared_ptr<ConfigManagerClass> configs,
-  std::shared_ptr<DeviceTimeClass> deviceTime,
-  EventStorageIterator events
-) : _modalLights(modalLights), _configs(configs), _deviceTime(deviceTime)
+EventManager::EventManager(std::shared_ptr<ModalLightsInterface> modalLights, std::shared_ptr<ConfigManagerClass> configManager, std::shared_ptr<DeviceTimeClass> deviceTime, EventStorageIterator events)
+  : _modalLights(modalLights), _configManager(configManager), _configs(configManager->getEventManagerConfigs()),
+    _active(std::make_unique<ActiveEventSupervisor>(_configs)),
+    _background(std::make_unique<BackgroundEventSupervisor>(_configs)), _deviceTime(deviceTime)
 {
-  uint32_t defaultEventWindow_S = _configs->getEventManagerConfigs().defaultEventWindow_S;
-  uint64_t timestampS = _deviceTime->getLocalTimestampSeconds();
+  const uint64_t timestamp_S = _deviceTime->getLocalTimestampSeconds();
   while(events.hasMore()){
-    // timestampS - eventWindow in case there was an alarm that should have triggered just before reboot
-    if(_addEvent(timestampS, events.getNext()) != EventManagerErrors::success){
+    EventDataPacket event = events.getNext();
+    eventError_t error = isEventDataPacketValid(event, false);
+    if(error == EventManagerErrors::success){
+      error = event.isActive
+            ? _active->addEvent(timestamp_S, event)
+            : _background->addEvent(timestamp_S, event);
+    }
+    if(error != EventManagerErrors::success){
       // TODO: alert server of the error
     };
   };
   _deviceTime->add_observer(*this);
-  eventUUID activeEvent = _findInitialTriggers(timestampS);
-  _findNextEvent();
-  _check(timestampS);
-};
-
-eventError_t EventManager::_addEvent(uint64_t timestampS, EventDataPacket newEvent, bool updating)
-{
-  eventError_t error = _isNewEventValid(newEvent, updating);
-  if(error != EventManagerErrors::success){return error;}
-  eventUUID newEventID = newEvent.eventID;
-
-  EventMappingStruct event = {
-    0,
-    newEvent.modeID,
-    newEvent.timeOfDay,
-    newEvent.daysOfWeek,
-    newEvent.eventWindow,
-    newEvent.isActive
-  };
-  _events[newEventID] = event;
-
-  uint32_t window = newEvent.isActive
-    ? _checkEventWindow(newEvent.eventWindow)
-    : 0;
-  _events[newEventID].nextTriggerTime = _findNextTriggerTime(timestampS - window, newEventID);
-
-  if(_events[newEventID].isActive == false){
-    uint64_t previousTriggerTime = findPreviousTriggerTime(_events[newEventID], makeUsefulTimeStruct(timestampS));
-    if(previousTriggerTime > _previousBackgroundEventTime){
-      _events[newEventID].nextTriggerTime = previousTriggerTime;
-    }
-  }
-  if(_events[newEventID].nextTriggerTime < _nextEventTime){
-    _nextEventID = newEventID;
-    _nextEventTime = _events[newEventID].nextTriggerTime;
-  }
-  return error;
+  _check(timestamp_S);
 }
 
-eventError_t EventManager::_isNewEventValid(EventDataPacket newEvent, bool updating)
-{
-  // TODO: alert server of bad event packets
+eventError_t EventManager::isEventDataPacketValid(const EventDataPacket &newEvent, const bool updating){
+  const bool duplicateEventID =
+    _active->doesEventExist(newEvent.eventID)
+    || _background->doesEventExist(newEvent.eventID);
+  
   if(newEvent.eventID == 0
     || newEvent.modeID == 0
-    || (updating ^ (_events.count(newEvent.eventID) != 0))
+    || (duplicateEventID != updating)
   ){
     return EventManagerErrors::bad_uuid;
   }
@@ -90,254 +39,150 @@ eventError_t EventManager::_isNewEventValid(EventDataPacket newEvent, bool updat
   ){
     return EventManagerErrors::bad_time;
   }
+
+  // IMPORTANT! this MUST be the final check, as it has nothing to with the EventDataPacket
+  if(_active->getNumberOfEvents() + _background->getNumberOfEvents() >= MAX_NUMBER_OF_EVENTS){
+    return EventManagerErrors::storage_full;
+  }
   return EventManagerErrors::success;
 }
 
-uint64_t EventManager::_findNextTriggerTime(uint64_t timestampS, eventUUID eventID)
-{
-  // TODO: replace with UsefulTimeStruct
-  DateTimeStruct dt;
-
-  // get timeInDay and current day
-  convertFromLocalTimestamp(timestampS, &dt);
-  uint32_t timeInDay = dt.seconds + 60*(dt.minutes + 60*dt.hours);
-  uint8_t today = dt.dayOfWeek - 1;
-
-  // get the timestamp for the start of the day
-  dt.hours = 0;
-  dt.minutes = 0;
-  dt.seconds = 0;
-  uint64_t startOfDay = convertToLocalTimestamp(&dt);
-  for(int x = 0; x < 7; x++){
-    bool doesEventTriggerOnDay = (1 << ((today + x)%7)) & _events[eventID].daysOfWeek;
-    bool doesEventTriggerAfterTimeInDay = _events[eventID].timeOfDay > timeInDay;
-    if(doesEventTriggerOnDay
-        && doesEventTriggerAfterTimeInDay
-      ){
-        
-        uint64_t triggerTime = startOfDay + _events[eventID].timeOfDay + 60*60*24*x;
-        return triggerTime;
-    };
-    timeInDay = 0;
+void EventManager::_check(const uint64_t timestamp_S){
+  {
+    TriggeringModeStruct activeMode = _active->check(timestamp_S);
+    if(activeMode.ID != 0){
+      _modalLights->setModeByUUID(activeMode.ID, activeMode.triggerTime, true);
+    }
   }
-  // TODO: alert system of error because this should be innaccessible
-  return ~0;
-}
-
-void EventManager::_callEvent(uint64_t timestampS, eventUUID eventID)
-{
-  modeUUID modeID = _events[eventID].modeID;
-  _modalLights->setModeByUUID(modeID, _events[eventID].nextTriggerTime, _events[eventID].isActive);
-
-  if(_events[eventID].isActive == false){
-    _previousBackgroundEventTime = _events[eventID].nextTriggerTime;
-  }
-  _events[_nextEventID].nextTriggerTime = _findNextTriggerTime(timestampS + 1, _nextEventID);
-}
-
-void EventManager::_findNextEvent()
-{
-  _nextEventID = 0;
-  _nextEventTime = ~0;
-  for(const auto& [eventID, event] : _events){
-    if(event.nextTriggerTime < _nextEventTime
-      || (event.nextTriggerTime == _nextEventTime && event.isActive)
-    ){
-      _nextEventID = eventID;
-      _nextEventTime = event.nextTriggerTime;
+  {
+    TriggeringModeStruct backgroundMode = _background->check(timestamp_S);
+    if(backgroundMode.ID != 0){
+      _modalLights->setModeByUUID(backgroundMode.ID, backgroundMode.triggerTime, false);
     }
   }
 }
 
-eventError_t EventManager::addEvent(EventDataPacket newEvent)
-{
-  uint64_t timestampS = _deviceTime->getLocalTimestampSeconds();
-  eventUUID newEventID = newEvent.eventID;
-  eventError_t error = _addEvent(timestampS, newEvent);
+
+EventTimeStruct EventManager::getNextEvent(){
+  const EventTimeStruct nextActive = _active->getNextEvent();
+  const EventTimeStruct nextBackground = _background->getNextEvent();
+  
+  const bool backgroundTriggersFirst = (
+    nextActive.triggerTime > nextBackground.triggerTime
+    && nextBackground.triggerTime != 0
+  );
+  if(
+    !backgroundTriggersFirst
+    && nextActive.ID != 0
+  ){
+    return nextActive;
+  }
+  return nextBackground;
+};
+
+eventError_t EventManager::addEvent(const EventDataPacket& newEvent){
+  eventError_t error = isEventDataPacketValid(newEvent, false);
   if(error != EventManagerErrors::success){
     return error;
   }
-  _findNextEvent();
-  _check(timestampS);
+  uint64_t timestamp_S = _deviceTime->getLocalTimestampSeconds();
+  error = newEvent.isActive
+        ? _active->addEvent(timestamp_S, newEvent)
+        : _background->addEvent(timestamp_S, newEvent);
+  _check(timestamp_S);
+
+  // TODO: add event to storage
   return error;
-}
-
-void EventManager::removeEvents(eventUUID *eventIDs, nEvents_t number)
-{
-  uint64_t timestampS = _deviceTime->getLocalTimestampSeconds();
-  for(int i = 0; i < number; i++){
-    _events.erase(eventIDs[i]);
-  }
-  rebuildTriggerTimes(false);
-}
-
-void EventManager::removeEvent(eventUUID eventID)
-{
-  uint64_t timestampS = _deviceTime->getLocalTimestampSeconds();
-  _events.erase(eventID);
-  rebuildTriggerTimes(false);
-}
-
-void EventManager::updateEvents(EventDataPacket *events, eventError_t *eventErrors, nEvents_t number)
-{
-  uint64_t timestampS = _deviceTime->getLocalTimestampSeconds();
-  for(int i = 0; i < number; i++){
-    eventErrors[i] = _addEvent(timestampS, events[i], true);
-  }
-  _findInitialTriggers(timestampS);
-  _check(timestampS);
-}
-
-eventError_t EventManager::updateEvent(EventDataPacket event)
-{
-  uint64_t timestampS = _deviceTime->getLocalTimestampSeconds();
-  eventError_t error = _addEvent(timestampS, event, true);
-  if(
-    error != EventManagerErrors::success
-    || _events.count(event.eventID) == 0
-  ){
-    return error;
-  }
-  _findInitialTriggers(timestampS);
-  _check(timestampS);
-  return error;
-}
-
-void EventManager::check()
-{
-  uint64_t timestampS = _deviceTime->getLocalTimestampSeconds();
-  _check(timestampS);
-}
-
-void EventManager::_check(uint64_t timestampS)
-{
-  while(timestampS >= _nextEventTime){
-    if(_events[_nextEventID].isActive == false
-      || (_events[_nextEventID].isActive
-        && timestampS <= (_nextEventTime + _checkEventWindow(_events[_nextEventID].eventWindow)))
-    ){
-      _callEvent(timestampS, _nextEventID);
-    }
-    else {
-      _events[_nextEventID].nextTriggerTime = _findNextTriggerTime(timestampS, _nextEventID);
-    }
-    _findNextEvent();
-  }
-}
-
-eventUUID EventManager::_findInitialTriggers(uint64_t timestampS)
-{
-  eventUUID currentBackgroundEventID = 0;
-  uint64_t currentBackgroundEventTime = 0;
-
-  eventUUID currentActiveEventID = 0;
-  uint64_t currentActiveEventTime = 0;
-  std::vector<eventUUID> skippedEvents = {};
-
-  UsefulTimeStruct timeStruct = makeUsefulTimeStruct(timestampS);
-
-  for(auto [eventID, event] : _events){
-    if(event.isActive == true){
-      uint64_t triggerTime = _events[eventID].nextTriggerTime;
-      if(triggerTime <= timestampS
-        && triggerTime > currentActiveEventTime
-      ){
-        if(currentActiveEventID != 0){
-          // reset the old currentActiveEventID
-          _events[currentActiveEventID].nextTriggerTime = _findNextTriggerTime(timestampS, currentActiveEventID);
-        }
-        // ear-mark the new most recent active event
-        currentActiveEventID = eventID;
-        currentActiveEventTime = triggerTime;
-      }
-      else if(triggerTime <= currentActiveEventTime
-      ){
-        _events[eventID].nextTriggerTime = _findNextTriggerTime(timestampS, eventID);
-      }
-    } 
-    else {
-      // if event is background, check the previous trigger time to see which event should be current
-      uint64_t triggerTime = findPreviousTriggerTime(event, timeStruct);
-      if(triggerTime > currentBackgroundEventTime){
-        if(currentBackgroundEventID != 0){
-          _events[currentBackgroundEventID].nextTriggerTime = _findNextTriggerTime(timestampS, currentBackgroundEventID);
-        }
-        currentBackgroundEventTime = triggerTime;
-        currentBackgroundEventID = eventID;
-      }
-      else if (_events[eventID].nextTriggerTime <= timestampS)
-      {
-        _events[eventID].nextTriggerTime = _findNextTriggerTime(timestampS, eventID);
-      }
-      
-    }
-  }
-  if(currentBackgroundEventID != 0){
-    _events[currentBackgroundEventID].nextTriggerTime = currentBackgroundEventTime;
-  }
-  if(currentActiveEventID != 0){
-    // the activeEvent should be triggered first, then search for the backgroundEvent
-    _nextEventID = currentActiveEventID;
-    _nextEventTime = currentActiveEventTime;
-    return currentActiveEventID;
-  }
-  if(currentBackgroundEventID != 0){
-    _nextEventID = currentBackgroundEventID;
-    _nextEventTime = currentBackgroundEventTime;
-    return currentBackgroundEventID;
-  }
-  return 0;
 };
 
-void EventManager::rebuildTriggerTimes(bool checkMissedActive)
-{
-  // reset all trigger times
-  uint64_t timestampS = _deviceTime->getLocalTimestampSeconds();
-  for(auto [eventID, event] : _events){
-    _events[eventID].nextTriggerTime = _findNextTriggerTime(timestampS - (_checkEventWindow(event.eventWindow) * event.isActive * checkMissedActive), eventID);
+eventError_t EventManager::removeEvent(eventUUID eventID){
+  const uint64_t timestamp_S = _deviceTime->getLocalTimestampSeconds();
+  eventError_t error = _active->removeEvent(timestamp_S, eventID);
+  if(error != EventManagerErrors::success){
+    error = _background->removeEvent(timestamp_S, eventID);
   }
-  eventUUID activeEvent = _findInitialTriggers(timestampS);
-  if(activeEvent != 0){
-    _callEvent(timestampS, activeEvent);
-  }
-  _findNextEvent();
-  _check(timestampS);
-}
+  // TODO: remove from device storage
+  _check(timestamp_S);
+  return error;
+};
 
-void EventManager::_rebuildBackgroundTriggers(uint64_t timestampS)
-{
-  if(_events.size() == 0){return;}
-  UsefulTimeStruct uts = makeUsefulTimeStruct(timestampS);
-  EventMap_t::iterator mapIt = _events.begin();
-  eventUUID currentEventID;
-  uint64_t currentEventTime_S;
-  // find the first background event
-  for(mapIt; mapIt != _events.end(); mapIt++){
-    if(!mapIt->second.isActive){
-      currentEventID = mapIt->first;
-      currentEventTime_S = findPreviousTriggerTime(mapIt->second, uts);
-      break;
-    }
+void EventManager::removeEvents(eventUUID *eventIDs, nEvents_t number){
+  for(int i = 0; i < number; i++){
+    removeEvent(eventIDs[i]);
   }
-  mapIt++;
-  // find the other background events
-  for(mapIt; mapIt != _events.end(); mapIt++){
-    eventUUID eventID = mapIt->first;
-    EventMappingStruct event = mapIt->second;
-    if(!event.isActive){
-      uint64_t previousTrigger = findPreviousTriggerTime(event, uts);
-      if(previousTrigger > currentEventTime_S){
-        _events[currentEventID].nextTriggerTime = _findNextTriggerTime(timestampS, currentEventID);
-        currentEventID = eventID;
-        currentEventTime_S = previousTrigger;
-        _events[eventID].nextTriggerTime = previousTrigger;
-      }
-      else{
-        _events[eventID].nextTriggerTime = _findNextTriggerTime(timestampS, eventID);
+};
+
+eventError_t EventManager::updateEvent(EventDataPacket event){
+  eventError_t error = isEventDataPacketValid(event, true);
+  if(error != EventManagerErrors::success){
+    return error;
+  }
+
+  const uint64_t timestamp_S = _deviceTime->getLocalTimestampSeconds();
+  if(event.isActive){
+    error = _active->updateEvent(timestamp_S, event);
+    if(error == EventManagerErrors::event_not_found){
+      // if changing background to active
+      if(_background->removeEvent(timestamp_S, event.eventID) == EventManagerErrors::success){
+        error = _active->addEvent(timestamp_S, event);
       }
     }
   }
-  _nextEventID = currentEventID;
-  _nextEventTime = currentEventTime_S;
-  _check(timestampS);
-}
+  else{
+    // if event is background
+    error = _background->updateEvent(timestamp_S, event);
+    if(error == EventManagerErrors::event_not_found){
+      // if changing active to background
+      if(_active->removeEvent(timestamp_S, event.eventID)){
+        error = _background->addEvent(timestamp_S, event);
+      }
+    }
+  }
+  // TODO: update in storage
+  _check(timestamp_S);
+  return error;
+};
+
+void EventManager::updateEvents(EventDataPacket *events, eventError_t *eventErrors, nEvents_t number){
+  for(int i = 0; i < number; i++){
+    eventErrors[i] = updateEvent(events[i]);
+  }
+  check();
+};
+
+void EventManager::rebuildTriggerTimes(){
+  const uint64_t timestamp_S = _deviceTime->getLocalTimestampSeconds();
+  _active->rebuildTriggerTimes(timestamp_S);
+  _background->rebuildTriggerTimes(timestamp_S);
+  _check(timestamp_S);
+};
+
+void EventManager::check(){
+  _check(_deviceTime->getLocalTimestampSeconds());
+};
+
+void EventManager::notification(const TimeUpdateStruct& timeUpdates){
+  uint64_t adjWindow_uS = _configs.defaultEventWindow_S * secondsToMicros;
+  bool bigChange = abs(timeUpdates.localTimeChange_uS) > adjWindow_uS;
+  bool negativeChange = timeUpdates.localTimeChange_uS < 0;
+
+  uint64_t newTimestamp_S = roundMicrosToSeconds(timeUpdates.currentLocalTime_uS);
+  
+  /*
+  desired behaviour:
+    if negative adjustment:
+      - small change rebuilds background events only
+      - large change rebuilds active too
+    if positive adjustment:
+      - under event window gets ignored, but check for triggers
+      - over event window gets rebuilt
+    */
+   
+  if(bigChange){
+    _active->updateTime(newTimestamp_S);
+  }
+  if(bigChange || negativeChange){
+    _background->updateTime(newTimestamp_S);
+  }
+  _check(newTimestamp_S);
+};

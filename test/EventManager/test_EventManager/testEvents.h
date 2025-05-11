@@ -27,6 +27,8 @@ const struct EventDataPacket testEvent10 = {10, 8, timeToSeconds(22, 0, 0), 0b01
 
 const struct EventDataPacket testEvent11 = {11, 10, timeToSeconds(8, 30, 0), 0b00011111 /*weekday*/, oneHour, true};
 
+const struct EventDataPacket testEvent12 = {8, 7 /*wakeup alarm*/, 36000 /*10am*/, 0b01111111 /*everyday*/, oneHour, false};
+
 std::vector<EventDataPacket> getAllTestEvents() {
   std::vector<EventDataPacket> allEvents;
   EventDataPacket event1 = testEvent1;

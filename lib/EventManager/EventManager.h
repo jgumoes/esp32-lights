@@ -1,5 +1,5 @@
-#ifndef __ALARM_MANAGER_H__
-#define __ALARM_MANAGER_H__
+#ifndef __EVENT_MANAGER_H__
+#define __EVENT_MANAGER_H__
 
 #include <Arduino.h>
 #include <map>
@@ -11,212 +11,129 @@
 #include "ModalLights.h"
 #include "DeviceTime.h"
 
-// the struct that EventManager uses to map the events
-struct EventMappingStruct {
-  uint64_t nextTriggerTime = 0;
-  modeUUID modeID = 0;
-  uint32_t timeOfDay = 0;
-  uint8_t daysOfWeek = 0; // lsb = Monday, msb-1 = Sunday, msb is reserved, i.e. 0b01100000 = saturday and sunday
-  uint32_t eventWindow = 0; // how long after the time should the event trigger? should equal "timeout" in the Mode Data Struct
-  bool isActive = 0;
-};
+#include "EventSupervisor.h"
 
-typedef int8_t eventError_t;
-
-namespace EventManagerErrors {
-  constexpr eventError_t bad_time = -2;
-  constexpr eventError_t bad_uuid = -1;
-  constexpr eventError_t error = 0;
-  constexpr eventError_t success = 1;
-};
-
-typedef std::map<eventUUID, EventMappingStruct> EventMap_t;
+#ifndef MAX_NUMBER_OF_EVENTS
+#define MAX_NUMBER_OF_EVENTS 100
+#endif
 
 class EventManager : public TimeObserver
 {
 private:
   std::shared_ptr<ModalLightsInterface> _modalLights;
-  std::shared_ptr<ConfigManagerClass> _configs;
   std::shared_ptr<DeviceTimeClass> _deviceTime;
+  
+  std::shared_ptr<ConfigManagerClass> _configManager;
+  EventManagerConfigsStruct _configs;
 
-  EventMap_t _events; // map of stored EventObjects. keys are UUIDs
-  uint64_t _nextEventID = 0; // UUID of the next event to trigger
-  uint64_t _nextEventTime = ~0; // time of next event, in seconds
+  std::unique_ptr<ActiveEventSupervisor> _active;
+  std::unique_ptr<BackgroundEventSupervisor> _background;
 
-  uint64_t _previousBackgroundEventTime = 0;  // addEvent uses this to check if a new background event should be triggered
+  void _check(const uint64_t timestamp_S);
 
-  /**
-   * @brief checks the new event and returns the appropriate error code. skips the eventID check if `updating = true`
-   * 
-   * @param newEvent 
-   * @param updating is newEvent actually an update of an existing event?
-   * @return eventError_t 
-   */
-  eventError_t _isNewEventValid(EventDataPacket newEvent, bool updating = false);
-
-  /**
- * @brief finds the next trigger time for a given event. Does not perform any side effects.
- * 
- * @param timestampS current timestamp in microseconds
- * @param event 
- * @return uint64_t event time in seconds
- */
-  uint64_t _findNextTriggerTime(uint64_t timestampS, eventUUID eventID);
-
-  void _findNextEvent();
-
-  void _rebuildBackgroundTriggers(uint64_t timestampS);
-
-  /**
-   * @brief returns the correct event window. if eventWindow == 0, returns the default
-   * 
-   * @param eventWindow event window to check
-   * @return uint32_t 
-   */
-  uint32_t _checkEventWindow(uint32_t eventWindow){
-    if(eventWindow == 0){
-      return _configs->getEventManagerConfigs().defaultEventWindow_S;
-    }
-    return eventWindow;
-  }
-
-  /**
-   * @brief calls the given event and finds the new trigger time for that event
-   * 
-   * @param timestampS 
-   */
-  void _callEvent(uint64_t timestampS, eventUUID eventID);
-
-  /**
- * @brief adds a new event to the Event Manager. Uses time window for active events, and checks previous trigger time for background events.
- * Performs some checks, but will not check that two events share a trigger time (simultaneous
- * events should still be triggered consecutively, but the order won't be guaranteed)
- * 
- * @param timestampS current timestamp in seconds
- * @param newEvent 
- * @param updating is newEvent an update of an existing event?
- * @return eventError_t 
- */
-  eventError_t _addEvent(uint64_t timestampS, EventDataPacket newEvent, bool updating = false);
-
-  /**
-   * @brief loops through the stored modes to find the background mode that should be triggered, and the next active mode to trigger. If overlapping active events should have triggered at the current time, it returns the latest active eventID and sets the trigger times for the missed events to the next trigger time
-   * 
-   * @param timestampS 
-   * @return eventUUID 
-   */
-  eventUUID _findInitialTriggers(uint64_t timestampS);
-
-  void _check(uint64_t timeStampS);
 public:
   // TODO: integrate ErrorManager
   EventManager(
     std::shared_ptr<ModalLightsInterface> modalLights,
-    std::shared_ptr<ConfigManagerClass> configs,
+    std::shared_ptr<ConfigManagerClass> configManager,
     std::shared_ptr<DeviceTimeClass> deviceTime,
     EventStorageIterator events
-);
+  );
   ~EventManager(){};
 
   /**
-   * @brief Get the time of the next event
+   * @brief checks the validity of the new event data packet, and returns the first error it runs in to. the final check is if the storage is full
    * 
-   * @return uint64_t timestamp in seconds
+   * @param newEvent 
+   * @param updating if true, eventID should already exist. if false, it shouldn't
+   * @return eventError_t 
    */
-  uint64_t getNextEventTime(){ return _nextEventTime;};
-
-  eventUUID getNextEventID(){ return _nextEventID;};
+  eventError_t isEventDataPacketValid(const EventDataPacket &newEvent, const bool updating);
   
   /**
-   * @brief adds a new event, and checks if it should trigger. the mode should already
-   * be registered with ModalController
+   * @brief Get the ID and time of the next event
    * 
-   * @param timestampS 
+   * @return EventTimeStruct 
+   */
+  EventTimeStruct getNextEvent();
+
+  EventTimeStruct getNextActiveEvent(){return _active->getNextEvent();}
+
+  EventTimeStruct getNextBackgroundEvent(){
+    return _background->getNextEvent();
+  }
+  
+  /**
+   * @brief checks if a new event is valid, and adds it to the map then checks for triggers.
+   * TODO: adds the event to storage
+   * 
    * @param newEvent 
    * @return eventError_t 
    */
-  eventError_t addEvent(EventDataPacket newEvent);
-
-  /**
-   * @brief removes the given events and rebuilds the trigger times
-   * 
-   * @param timestampS current timestamp in seconds
-   * @param eventIDs array of eventIDs to remove
-   * @param number number of events to remove
-   * @return eventError_t 
-   */
-  void removeEvents(eventUUID *eventIDs, nEvents_t number);
-
-  /**
-   * @brief removes a single given event and rebuilds the trigger times
-   * 
-   * @param timestampS current timestamp in seconds
-   * @param eventID ID of the event to remove
-   * @return eventError_t 
-   */
-  void removeEvent(eventUUID eventID);
-
-  /**
-   * @brief updates the given events and rebuilds the trigger times
-   * 
-   * @param timestampS current timestamp in seconds
-   * @param events array of EventDataPackets
-   * @param eventErrors array of eventError_t will get filled by this method
-   * @param number number of events to update
-   * @return eventError_t pass or fail. badEvents will hold the mode-specific errors
-   */
-  void updateEvents(EventDataPacket *events, eventError_t *eventErrors, nEvents_t number);
+  eventError_t addEvent(const EventDataPacket& newEvent);
   
   /**
-   * @brief updates a single event and rebuilds the trigger times
+   * @brief removes an event from the map, and re-builds trigger times.
+   * TODO: also removes event from storage
    * 
-   * @param timestampS current timestamp in seconds
-   * @param event data packet of the event to update
+   * @param eventID 
+   * @return eventError_t 
+   */
+  eventError_t removeEvent(eventUUID eventID);
+
+  /**
+   * @brief removes a list of events.
+   * TODO: deleteme
+   * 
+   * @param eventIDs 
+   * @param number 
+   */
+  void removeEvents(eventUUID *eventIDs, nEvents_t number);
+  
+  /**
+   * @brief checks an event and updates it. updates trigger times, then checks for triggers.
+   * 
+   * @param event 
    * @return eventError_t 
    */
   eventError_t updateEvent(EventDataPacket event);
   
   /**
-   * @brief rechecks event times given the current timestamp. should be used after hardware changes
-   * i.e. configs change, or massive adjustment to local time
+   * @brief loops through a list of events and calls updateEvent()
+   * TODO: delete me
    * 
-   * @param timestampS 
+   * @param events 
+   * @param eventErrors 
+   * @param number 
    */
-  void rebuildTriggerTimes(bool checkMissedActive = true);
-
+  void updateEvents(EventDataPacket *events, eventError_t *eventErrors, nEvents_t number);
+  
   /**
-   * @brief checks to see if nextEvent should be called, and finds the new nextEvent
+   * @brief rebuilds the trigger times, checking for missed active events, then checks for triggering events. can cause background modes to retrigger, but how that gets handled is mode-dependant so really its a ModalController problem.
    * 
-   * @param timestampS current local time in seconds
    */
+  void rebuildTriggerTimes();
+
   void check();
 
-  void notification(const TimeUpdateStruct& timeUpdates){
-    uint64_t adjWindow_uS = _configs->getEventManagerConfigs().defaultEventWindow_S * secondsToMicros;
-    bool bigChange = abs(timeUpdates.localTimeChange_uS) > adjWindow_uS;
+  void notification(const TimeUpdateStruct& timeUpdates);
 
-    uint64_t timestampS = roundMicrosToSeconds(timeUpdates.currentLocalTime_uS);
-    /*
-    if negative adjustment:
-      - small change rebuilds background events only
-      - large change rebuilds active too
-    if positive adjustment:
-      - under event window gets ignored
-      - over event window
-    */
-   // TODO: this can be more efficient
-   if(!bigChange && (timeUpdates.localTimeChange_uS < 0)){
-    // small negative change
-    _rebuildBackgroundTriggers(timestampS);
-   }
-   else if(bigChange){
-     rebuildTriggerTimes(bigChange);
-   }
-   else{
-    _check(timestampS);
-   }
-    // _check(roundMicrosToSeconds(timeUpdates.currentLocalTime_uS));
-  };
+  EventManagerConfigsStruct getConfigs(){
+    return _configs;
+  }
+  
+  eventError_t setConfigs(EventManagerConfigsStruct newConfigs){
+    if(newConfigs.defaultEventWindow_S == 0){
+      return EventManagerErrors::bad_time;
+    }
+    _configs = newConfigs;
+    const uint64_t timestamp = _deviceTime->getLocalTimestampSeconds();
+    _active->rebuildTriggerTimes(timestamp);
+    _background->rebuildTriggerTimes(timestamp);
+    _check(timestamp);
+    _configManager->setEventManagerConfigs(_configs);
+    return EventManagerErrors::success;
+  }
 };
 
 #endif

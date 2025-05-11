@@ -27,11 +27,12 @@ class MockModalLights : public ModalLightsInterface{
       else{
         _calledModes[modeID] += 1;
       }
-      _mostRecentTriggerTime = triggerTimeLocal_S;
-      _mostRecentMode = modeID;
-
+      
       if(isActive){_activeMode = modeID;}
       else{_backgroundMode = modeID;}
+
+      _mostRecentTriggerTime = triggerTimeLocal_S;
+      _mostRecentMode = modeID;
     }
 
     bool cancelActiveMode() override {

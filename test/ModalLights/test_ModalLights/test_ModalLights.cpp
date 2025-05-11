@@ -139,6 +139,16 @@ void testConfigGuards(){
   TEST_FAIL_MESSAGE("need to test that configs are written to config manager");
 }
 
+void testTimeUpdatesImmediatelyUpdateLights(){
+  TEST_FAIL_MESSAGE("very important TODO");
+}
+
+void testRepeatBackgroundModesAreIgnored(){
+  // if the set background is already the current background mode, it gets ignored (unless trigger time is important, and also different)
+  // this is the behaviour expected by EventManager
+  TEST_FAIL_MESSAGE("very important TODO, EventManager expects this behaviour");
+}
+
 void test_convertToDataPackets_helper(){
   // make sure the test helper function actually works properly!
   TEST_IGNORE_MESSAGE("TODO");
@@ -188,6 +198,8 @@ void RUN_UNITY_TESTS(){
   RUN_TEST(testInitialisation);
   RUN_TEST(validateModePacketTest);
   RUN_TEST(testModeSwitching);
+  RUN_TEST(testTimeUpdatesImmediatelyUpdateLights);
+  RUN_TEST(testRepeatBackgroundModesAreIgnored);
   
   ConstantBrightnessModeTests::constBrightness_tests();
   UNITY_END();

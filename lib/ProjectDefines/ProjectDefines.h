@@ -6,7 +6,6 @@
 #define __PROJECT_DEFINES_H__
 
 #define maxNOfModes 50
-#define maxNOfEvents 50
 
 #include <Arduino.h>
 
@@ -38,7 +37,7 @@ struct TimeUpdateStruct{
 /* EventManager */
 typedef uint8_t eventUUID;
 // hardware default event window = 1 hour
-#define hardwareDefaultEventWindow 60*60 + 1
+#define hardwareDefaultEventWindow 60*60
 // minimum event window = 1 minute
 #define hardwareMinimumEventWindow 60
 
