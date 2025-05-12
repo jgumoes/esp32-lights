@@ -2,7 +2,7 @@
 #define __DATA_STORAGE_CLASS__
 
 #include <Arduino.h>
-#include <map>
+#include <etl/flat_map.h>
 
 #include "ProjectDefines.h"
 #include "storageHAL.h"
@@ -17,8 +17,8 @@ class DataStorageClass
 private:
   std::shared_ptr<StorageHALInterface> _storage;
 
-  std::map<eventUUID, nEvents_t> _storedEventIDs;         // TODO: ID should map to an address in FRAM/EEPROM
-  std::map<modeUUID, nModes_t> _storedModeIDs = {{1, 0}}; // default constant brightness should always be in progmem
+  storedEventIDsMap_t _storedEventIDs;         // TODO: ID should map to an address in FRAM/EEPROM
+  storedModeIDsMap_t _storedModeIDs = {{1, 0}}; // default constant brightness should always be in progmem
 
 public:
   DataStorageClass(std::shared_ptr<StorageHALInterface> storage) : _storage(std::move(storage)){

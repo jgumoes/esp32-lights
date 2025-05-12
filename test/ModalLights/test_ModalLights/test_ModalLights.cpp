@@ -139,10 +139,6 @@ void testConfigGuards(){
   TEST_FAIL_MESSAGE("need to test that configs are written to config manager");
 }
 
-void testTimeUpdatesImmediatelyUpdateLights(){
-  TEST_FAIL_MESSAGE("very important TODO");
-}
-
 void testRepeatBackgroundModesAreIgnored(){
   // if the set background is already the current background mode, it gets ignored (unless trigger time is important, and also different)
   // this is the behaviour expected by EventManager
@@ -181,9 +177,15 @@ void testModeSwitching(){
   TEST_IGNORE_MESSAGE("TODO");
 }
 
-void noPrintDebug(){
+void noEmbeddedUnfriendlyLibraries(){
   #ifdef __PRINT_DEBUG_H__
     TEST_ASSERT_MESSAGE(false, "did you forget to remove the print debugs?");
+  #else
+    TEST_ASSERT(true);
+  #endif
+
+  #ifdef _GLIBCXX_MAP
+    TEST_ASSERT_MESSAGE(false, "std::map is included");
   #else
     TEST_ASSERT(true);
   #endif
@@ -191,14 +193,13 @@ void noPrintDebug(){
 
 void RUN_UNITY_TESTS(){
   UNITY_BEGIN();
-  RUN_TEST(noPrintDebug);
+  RUN_TEST(noEmbeddedUnfriendlyLibraries);
   RUN_TEST(SerializeAndDeserializeModeData);
   RUN_TEST(testConfigGuards);
   RUN_TEST(testRoundingDivide);
   RUN_TEST(testInitialisation);
   RUN_TEST(validateModePacketTest);
   RUN_TEST(testModeSwitching);
-  RUN_TEST(testTimeUpdatesImmediatelyUpdateLights);
   RUN_TEST(testRepeatBackgroundModesAreIgnored);
   
   ConstantBrightnessModeTests::constBrightness_tests();

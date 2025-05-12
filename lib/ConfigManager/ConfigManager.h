@@ -3,7 +3,6 @@
 
 #include <Arduino.h>
 #include <memory>
-// #include "RTC_interface.h"
 
 #include "projectDefines.h"
 
@@ -51,11 +50,6 @@ class ConfigAbstractHAL{
      * @return bool if operation was successful
      */
     virtual bool reloadConfigs() = 0;
-    // virtual RTCConfigsStruct getRTCConfigs() = 0;
-    // virtual bool setRTCConfigs(RTCConfigsStruct rtcConfigs) = 0;
-
-    // virtual EventManagerConfigsStruct getEventManagerConfigs() = 0;
-    // virtual bool setEventManagerConfigs() = 0;
 };
 
 template <typename ConcreteConfigHALClass>
@@ -75,7 +69,6 @@ class ConfigManagerClass {
     ConfigsStruct _configs;
   public:
     ConfigManagerClass(std::unique_ptr<ConfigAbstractHAL>&& configHAL) : _configHAL(std::move(configHAL)){
-      // _configHAL = std::move(configHAL);
       _configs = _configHAL->getAllConfigs();
     };
 

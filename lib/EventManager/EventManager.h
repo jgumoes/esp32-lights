@@ -2,8 +2,7 @@
 #define __EVENT_MANAGER_H__
 
 #include <Arduino.h>
-#include <map>
-#include <cmath>
+#include <etl/flat_map.h>
 
 #include "ProjectDefines.h"
 #include "ConfigManager.h"
@@ -12,10 +11,6 @@
 #include "DeviceTime.h"
 
 #include "EventSupervisor.h"
-
-#ifndef MAX_NUMBER_OF_EVENTS
-#define MAX_NUMBER_OF_EVENTS 100
-#endif
 
 class EventManager : public TimeObserver
 {

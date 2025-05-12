@@ -12,9 +12,8 @@
 #ifndef __LIGHT_DEFINES_H__
 #define __LIGHT_DEFINES_H__
 
-#include <stdint.h>
-// #include "ProjectDefines.h"
-// #include "PrintDebug.h"
+// #include <stdint.h>
+#include <Arduino.h>
 
 #ifndef interpDivide
   // macro for the dividing portion of interpolation. rounds to nearest int if top is positive, doesn't round if top is negative. bottom is assumed always positive

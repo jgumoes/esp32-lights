@@ -6,11 +6,7 @@
 #ifndef _TIMESTAMP_H_
 #define _TIMESTAMP_H_
 
-#ifndef native_env
-  #include <Arduino.h>
-#else
-  #include <ArduinoFake.h>
-#endif
+#include <Arduino.h>
 
 #if defined ESP32 || defined ESP32S3
   #define ONBOARD_TIMESTAMP_OVERFLOW ((~(uint64_t)0) >> (64-54))

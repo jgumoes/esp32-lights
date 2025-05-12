@@ -5,11 +5,15 @@
 #ifndef __PROJECT_DEFINES_H__
 #define __PROJECT_DEFINES_H__
 
-#define maxNOfModes 50
 
 #include <Arduino.h>
+#include <etl/flat_map.h>
 
 /* ModalLights*/
+#ifndef MAX_NUMBER_OF_MODES
+#define MAX_NUMBER_OF_MODES (size_t)100
+#endif
+
 #include "lightDefines.h"
 #include "modalLightsDefines.hpp"
 
@@ -35,6 +39,10 @@ struct TimeUpdateStruct{
 };
 
 /* EventManager */
+#ifndef MAX_NUMBER_OF_EVENTS
+#define MAX_NUMBER_OF_EVENTS (size_t)100
+#endif
+
 typedef uint8_t eventUUID;
 // hardware default event window = 1 hour
 #define hardwareDefaultEventWindow 60*60
@@ -58,6 +66,10 @@ struct EventDataPacket {
 /* Data Storage Class */
 typedef modeUUID nModes_t;
 typedef eventUUID nEvents_t;
+
+typedef etl::flat_map<eventUUID, nEvents_t, MAX_NUMBER_OF_EVENTS> storedEventIDsMap_t;
+
+typedef etl::flat_map<modeUUID, nModes_t, MAX_NUMBER_OF_MODES> storedModeIDsMap_t;
 
 // number of events/modes to preload from storage
 #ifndef DataPreloadChunkSize

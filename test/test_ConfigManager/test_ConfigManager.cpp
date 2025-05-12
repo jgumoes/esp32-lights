@@ -125,8 +125,23 @@ void ModalConfigs(void){
   }
 }
 
+void noEmbeddedUnfriendlyLibraries(){
+  #ifdef __PRINT_DEBUG_H__
+    TEST_ASSERT_MESSAGE(false, "did you forget to remove the print debugs?");
+  #else
+    TEST_ASSERT(true);
+  #endif
+
+  #ifdef _GLIBCXX_MAP
+    TEST_ASSERT_MESSAGE(false, "std::map is included");
+  #else
+    TEST_ASSERT(true);
+  #endif
+}
+
 void RUN_UNITY_TESTS(){
   UNITY_BEGIN();
+  RUN_TEST(noEmbeddedUnfriendlyLibraries);
   RUN_TEST(RTCConfigs);
   RUN_TEST(EventManagerConfigs);
   RUN_TEST(ModalConfigs);

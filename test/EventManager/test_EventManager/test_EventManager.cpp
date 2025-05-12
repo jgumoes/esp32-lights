@@ -220,7 +220,7 @@ void EventManagerSelectsCorrectBackgroundMode(void){
   std::vector<EventDataPacket> testEvents = {testEvent3, testEvent4, testEvent5};
   std::shared_ptr<MockModalLights> modalLights = std::make_shared<MockModalLights>();
 
-  std::map<uint32_t, modeUUID> testTimesAndExpectedModes = {
+  etl::flat_map<uint32_t, modeUUID, 100> testTimesAndExpectedModes = {
     {timeToSeconds(0, 0, 0), 3},
     {timeToSeconds(8, 59, 0), 3},
     {timeToSeconds(9, 0, 0), 1},
@@ -1463,9 +1463,15 @@ void testEventWindowLimits(){
   }
 }
 
-void noPrintDebug(){
+void noEmbeddedUnfriendlyLibraries(){
   #ifdef __PRINT_DEBUG_H__
     TEST_ASSERT_MESSAGE(false, "did you forget to remove the print debugs?");
+  #else
+    TEST_ASSERT(true);
+  #endif
+
+  #ifdef _GLIBCXX_MAP
+    TEST_ASSERT_MESSAGE(false, "std::map is included");
   #else
     TEST_ASSERT(true);
   #endif
@@ -1473,7 +1479,7 @@ void noPrintDebug(){
 
 void RUN_UNITY_TESTS(){
   UNITY_BEGIN();
-  RUN_TEST(noPrintDebug);
+  RUN_TEST(noEmbeddedUnfriendlyLibraries);
   RUN_TEST(EventDataPacketShouldInitialiseEmpty);
   RUN_TEST(InitialisingWithNoEvents);
   RUN_TEST(EventManagerFindsNextEventOnConstruction);

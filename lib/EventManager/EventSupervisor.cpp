@@ -124,7 +124,7 @@ TriggeringModeStruct BackgroundEventSupervisor::check(uint64_t timestamp_S){
     triggeringMode.triggerTime = event->nextTriggerTime;
     _previousEvent.ID = _nextEvent.ID;
     _previousEvent.triggerTime = _nextEvent.getNextTriggerTime();
-    event->nextTriggerTime = findNextTriggerTime(makeUsefulTimeStruct(timestamp_S + 1), event);
+    event->nextTriggerTime = findNextTriggerTime(UsefulTimeStruct(timestamp_S + 1), event);
 
     findNextEvent(_nextEvent, _events);
   }
@@ -137,7 +137,7 @@ eventError_t BackgroundEventSupervisor::addEvent(uint64_t timestamp_S, const Eve
     return EventManagerErrors::bad_uuid;
   }
 
-  const UsefulTimeStruct uts = makeUsefulTimeStruct(timestamp_S);
+  const UsefulTimeStruct uts = UsefulTimeStruct(timestamp_S);
   auto pair = _events.emplace(newEventID, EventMappingStruct(newEvent));
   EventMappingStruct* event = &pair.first->second;
 
@@ -149,7 +149,7 @@ eventError_t BackgroundEventSupervisor::addEvent(uint64_t timestamp_S, const Eve
 
 void BackgroundEventSupervisor::_rebuildTriggerTimes(uint64_t timestamp_S){
   // TODO: accept UsefulTimeStruct instead of timestamp?
-  const UsefulTimeStruct uts = makeUsefulTimeStruct(timestamp_S);
+  const UsefulTimeStruct uts = UsefulTimeStruct(timestamp_S);
   
   _nextEvent.ID = 0;
   _nextEvent.data = nullptr;
@@ -171,7 +171,7 @@ eventError_t BackgroundEventSupervisor::updateEvent(uint64_t timestamp_S, const 
   if(_events.count(eventID) == 0){
     return EventManagerErrors::event_not_found;
   }
-  UsefulTimeStruct uts = makeUsefulTimeStruct(timestamp_S);
+  UsefulTimeStruct uts = UsefulTimeStruct(timestamp_S);
   auto pair = _events.find(eventID);
   EventMappingStruct* event = &pair->second;
   *event = EventMappingStruct(eventPacket);
@@ -237,7 +237,7 @@ TriggeringModeStruct ActiveEventSupervisor::check(uint64_t timestamp_S){
       _previousEvent.ID = _nextEvent.ID;
       _previousEvent.triggerTime = _nextEvent.getNextTriggerTime();
     }
-    event->nextTriggerTime = findNextTriggerTime(makeUsefulTimeStruct(timestamp_S + 1), event);
+    event->nextTriggerTime = findNextTriggerTime(UsefulTimeStruct(timestamp_S + 1), event);
 
     findNextEvent(_nextEvent, _events);
   }
@@ -250,7 +250,7 @@ eventError_t ActiveEventSupervisor::addEvent(uint64_t timestamp_S, const EventDa
     return EventManagerErrors::bad_uuid;
   }
 
-  const UsefulTimeStruct uts = makeUsefulTimeStruct(timestamp_S);
+  const UsefulTimeStruct uts = UsefulTimeStruct(timestamp_S);
   auto pair = _events.emplace(newEventID, EventMappingStruct(newEvent));
   EventMappingStruct* event = &pair.first->second;
 
@@ -263,7 +263,7 @@ eventError_t ActiveEventSupervisor::addEvent(uint64_t timestamp_S, const EventDa
 
 void ActiveEventSupervisor::rebuildTriggerTimes(uint64_t timestamp_S){
   // TODO: accept UsefulTimeStruct instead of timestamp?
-  const UsefulTimeStruct uts = makeUsefulTimeStruct(timestamp_S);
+  const UsefulTimeStruct uts = UsefulTimeStruct(timestamp_S);
   
   _nextEvent.ID = 0;
   _nextEvent.data = nullptr;
@@ -286,7 +286,7 @@ eventError_t ActiveEventSupervisor::updateEvent(uint64_t timestamp_S, const Even
     return EventManagerErrors::event_not_found;
   }
 
-  UsefulTimeStruct uts = makeUsefulTimeStruct(timestamp_S);
+  UsefulTimeStruct uts = UsefulTimeStruct(timestamp_S);
   auto pair = _events.find(eventID);
   EventMappingStruct* event = &pair->second;
   *event = EventMappingStruct(eventPacket);
@@ -318,5 +318,5 @@ eventError_t ActiveEventSupervisor::removeEvent(uint64_t timestamp_S, eventUUID 
 }
 
 uint64_t ActiveEventSupervisor::_findNextTriggerWithWindow(const uint64_t timestamp_S, const EventMappingStruct *event){
-  return findNextTriggerTime(makeUsefulTimeStruct(timestamp_S - _checkEventWindow(event->eventWindow)), event);
+  return findNextTriggerTime(UsefulTimeStruct(timestamp_S - _checkEventWindow(event->eventWindow)), event);
 }

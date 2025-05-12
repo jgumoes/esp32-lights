@@ -39,14 +39,14 @@ class MockStorageHAL : public StorageHALInterface{
      * 
      * @param storedIDs 
      */
-    void getModeIDs(std::map<modeUUID, nModes_t>& storedIDs){
+    void getModeIDs(storedModeIDsMap_t& storedIDs){
       storedIDs.clear();
       for(uint8_t i = 0; i < _storedModes.size(); i++){
         storedIDs[_storedModes.at(i).ID] = i;
       }
     };
 
-    void getEventIDs(std::map<eventUUID, nEvents_t>& storedIDs){
+    void getEventIDs(storedEventIDsMap_t& storedIDs){
       storedIDs.clear();
       storedIDs[1] = 0;
       for(uint8_t i = 0; i < _storedEvents.size(); i++){

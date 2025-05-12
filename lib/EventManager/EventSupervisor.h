@@ -2,8 +2,7 @@
 #define __EVENT_SUPERVISOR_H__
 
 #include <Arduino.h>
-#include <map>
-// #include <etl/flat_map.h>
+#include <etl/flat_map.h>
 #include "ProjectDefines.h"
 #include <timeHelpers.h>
 
@@ -27,8 +26,7 @@ struct EventMappingStruct {
     isActive(dataPacket.isActive){};
 };
 
-typedef std::map<eventUUID, EventMappingStruct> EventMap_t;
-// typedef etl::map<eventUUID, EventMappingStruct> EventMap_t;
+typedef etl::flat_map<eventUUID, EventMappingStruct, MAX_NUMBER_OF_EVENTS> EventMap_t;
 
 typedef int8_t eventError_t;
 

@@ -76,7 +76,7 @@ uint64_t DeviceTimeClass::getLocalTimestampMicros()
 
 uint8_t DeviceTimeClass::getDay()
 {
-  UsefulTimeStruct uts = makeUsefulTimeStruct(getLocalTimestampSeconds());
+  UsefulTimeStruct uts(getLocalTimestampSeconds());
   return uts.dayOfWeek;
 }
 
@@ -102,14 +102,14 @@ uint8_t DeviceTimeClass::getDate()
 
 uint64_t DeviceTimeClass::getStartOfDay()
 {
-  UsefulTimeStruct uts = makeUsefulTimeStruct(getLocalTimestampSeconds());
+  UsefulTimeStruct uts(getLocalTimestampSeconds());
   return uts.startOfDay * secondsToMicros;
 }
 
 uint64_t DeviceTimeClass::getTimeInDay()
 {
   uint64_t time_uS = getLocalTimestampMicros();
-  UsefulTimeStruct uts = makeUsefulTimeStruct(round(time_uS/secondsToMicros));
+  UsefulTimeStruct uts(round(time_uS/secondsToMicros));
   uint64_t timeInDay = time_uS - (uts.startOfDay * secondsToMicros);
   return timeInDay;
 }

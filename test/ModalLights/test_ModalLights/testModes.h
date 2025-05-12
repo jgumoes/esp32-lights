@@ -3,6 +3,7 @@
 
 #include <Arduino.h>
 #include <ModalLights.h>
+#include <etl/flat_map.h>
 
 enum class TestChannels : channelID {
   white = static_cast<channelID>(Channels::white),
@@ -136,7 +137,7 @@ const TestModeDataStruct defaultConstantBrightness = {
 };
 
 // these modes are intended to be used for the mvp, so have explicit IDs
-static std::map<std::string, TestModeDataStruct> mvpModes = {
+static etl::flat_map<std::string, TestModeDataStruct, 255> mvpModes = {
   {"warmConstBrightness", makeConstBrightnessTestStruct(ColourRatiosStruct{
     .white = {255},
     .whiteAndWarm = {0, 255},
@@ -144,7 +145,7 @@ static std::map<std::string, TestModeDataStruct> mvpModes = {
   }, 100, 2)},
 };
 
-static std::map<std::string, TestModeDataStruct> testOnlyModes = {
+static etl::flat_map<std::string, TestModeDataStruct, 255> testOnlyModes = {
   {"purpleConstBrightness", makeConstBrightnessTestStruct(ColourRatiosStruct{
     .white = {255},
     .whiteAndWarm = {126, 255},

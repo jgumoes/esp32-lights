@@ -13,8 +13,8 @@ class StorageHALInterface{
     StorageHALInterface(){};
     
     // TODO: id maps could be stored to increase boot speed
-    virtual void getModeIDs(std::map<modeUUID, nModes_t>& storedIDs) = 0;
-    virtual void getEventIDs(std::map<eventUUID, nEvents_t>& storedIDs) = 0;
+    virtual void getModeIDs(storedModeIDsMap_t& storedIDs) = 0;
+    virtual void getEventIDs(storedEventIDsMap_t& storedIDs) = 0;
     
     /**
      * @brief gets mode by storage location

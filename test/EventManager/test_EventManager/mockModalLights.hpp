@@ -7,7 +7,7 @@
 
 class MockModalLights : public ModalLightsInterface{
   private:
-    std::map<modeUUID, uint8_t> _calledModes;
+    etl::flat_map<modeUUID, uint8_t, 255> _calledModes;
     uint8_t _cancelCallCount = 0;
     // std::shared_ptr<DataStorageClass> _storage;
     modeUUID _activeMode = 0;
