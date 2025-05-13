@@ -147,14 +147,14 @@ duty_t interpolate(duty_t initialVal, duty_t finalVal, float ratio){
  * @param c1 final colour channel array
  * @param ratio dT/window
  */
-void interpolateColourRatios(duty_t expectedArr[nChannels], const duty_t c0[nChannels], const duty_t c1[nChannels], float ratio){
+void interpolateArrays(duty_t *expectedArr, const duty_t *c0, const duty_t *c1, float ratio, uint8_t size){
   if(ratio == 0){
-    memcpy(expectedArr, c0, nChannels);
+    memcpy(expectedArr, c0, size);
   }
   if(ratio >= 1){
-    memcpy(expectedArr, c1, nChannels);
+    memcpy(expectedArr, c1, size);
   }
-  for(int c = 0; c < nChannels; c++){
+  for(int c = 0; c < size; c++){
     int db = c1[c] - c0[c];
     expectedArr[c] = static_cast<duty_t>(round(c0[c] + db*ratio));
   }
@@ -162,7 +162,7 @@ void interpolateColourRatios(duty_t expectedArr[nChannels], const duty_t c0[nCha
 
 void interpAndFillColourRatios(duty_t expectedArr[nChannels], duty_t expectedBrightness, const duty_t c0[nChannels], const duty_t c1[nChannels], float ratio){
   duty_t expectedRatios[nChannels];
-  interpolateColourRatios(expectedRatios, c0, c1, ratio);
+  interpolateArrays(expectedRatios, c0, c1, ratio, nChannels);
   fillChannelBrightness(expectedArr, expectedRatios, expectedBrightness);
 }
 

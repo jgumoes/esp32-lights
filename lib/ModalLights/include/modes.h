@@ -6,42 +6,6 @@
 #include "lightDefines.h"
 #include "interpolationClass.h"
 
-/**
- * @brief is performing a quick change necessary? basically, are the two arrays different?
- * 
- * @param lightVals the actual current values
- * @param startingValues the desired current values
- * @return true if the arrays are different and need quick change
- * @return false if the arrays are the same and don't need quick change
- */
-static bool isQuickChangeNeeded(
-  LightStateStruct& lightVals,
-  duty_t startingValues[nChannels+1]
-){
-  for(uint8_t i = 0; i < nChannels+1; i++){
-    if(lightVals.values[i] != startingValues[i]){
-      return true;
-    }
-  }
-  return false;
-}
-
-/**
- * @brief checks if the colours portion of the values array are set
- * 
- * @param values 
- * @return true if all colour ratios are 0
- * @return false 
- */
-static bool areColoursEmpty(duty_t values[nChannels+1]){
-  for(uint8_t i = 1; i < nChannels+1; i++){
-    if(values[i] != 0){
-      return false;
-    }
-  }
-  return true;
-};
-
 class ModalStrategyInterface
 {
 public:
@@ -114,7 +78,7 @@ public:
 class ConstantBrightnessMode : public ModalStrategyInterface
 {
 private:
-  std::shared_ptr<InterpolationClass> _interpClass;
+  std::shared_ptr<InterpolationClass<nChannels>> _interpClass;
   duty_t _softChangeWindow_S;
   duty_t _minOnBrightness;
   duty_t _minSettableBrightness;  // either active min or _minOnBrightness
@@ -140,7 +104,7 @@ public:
     uint64_t currentTime_uS,
     uint64_t triggerTime_uS,
     ModeDataStruct *modeDataStruct,
-    std::shared_ptr<InterpolationClass> interpClass,
+    std::shared_ptr<InterpolationClass<nChannels>> interpClass,
     LightStateStruct& currentVals,
     bool isActive,
     const ModalConfigsStruct& configs
@@ -154,10 +118,8 @@ public:
     uint64_t utcStartTime_uS = currentTime_uS;
     _minSettableBrightness = _minOnBrightness;
 
-    duty_t oldTargets[nChannels+1]; _interpClass->getFinalValues(oldTargets);
-
     // fill target colour vals
-    duty_t targetValues[nChannels+1] = {_interpClass->getFinalBrightness()};
+    duty_t *targetValues = _interpClass->targetVals;
     memcpy(&targetValues[1], modeData->endColourRatios, nChannels);
 
     // set current vals to target vals if lights are off
@@ -165,7 +127,7 @@ public:
       memcpy(currentVals.values, targetValues, nChannels+1);
     }
 
-    // force on default brightness if brightness is under default
+    // if mode is active, force on default brightness if brightness is under default
     if(isActive){
       const duty_t modeMinB = modeData->minBrightness;
       _minSettableBrightness = modeMinB > _minOnBrightness ? modeMinB : _minOnBrightness;
@@ -177,17 +139,18 @@ public:
                         : currentVals.values[0];
     }
     uint64_t window = _softChangeWindow_S * secondsToMicros;
-    _interpClass->initialise(utcStartTime_uS, window, currentVals, targetValues);
+    memcpy(_interpClass->initialVals, currentVals.values, nChannels+1);
+    _interpClass->rebuildInterpConstants_window(utcStartTime_uS, window);
     updateLightVals(utcStartTime_uS, currentVals);
   };
 
   void updateLightVals(uint64_t utcTimestamp_uS, LightStateStruct& lightVals) override {
-    _interpClass->update(lightVals, utcTimestamp_uS);
+    _interpClass->findNextValues(lightVals.values, utcTimestamp_uS);
 
     if(lightVals.values[0] < _minOnBrightness){
       lightVals.state = false;
-      lightVals.values[0] = 0;
-      _interpClass->getFinalValues(lightVals.values); // TODO: will if statements make this more efficient?
+      _interpClass->targetVals[0] = 0;
+      _interpClass->endInterpolation(lightVals.values);
     }
     return;
   }
@@ -195,21 +158,21 @@ public:
   duty_t setBrightness(uint64_t utcTimestamp_uS, LightStateStruct& lightVals, duty_t brightness, bool softChange) override {
     uint8_t window = softChange ? _softChangeWindow_S : 0;
 
-    if(isActive && (brightness < _minSettableBrightness)){brightness = _minSettableBrightness;} // TODO: min values should be set as pointers in the initialisation. for active mode, minOnBrightness should point to defaultBrightness
+    if(isActive && (brightness < _minSettableBrightness)){brightness = _minSettableBrightness;}
     
     if(brightness < _minOnBrightness){
       brightness = (_minOnBrightness-1) * softChange; // minB - 1 is identical to 0
     }
     else{
       // if new brightness is on, make sure state is on and current brightness is at least min
-      lightVals.state = true; // TODO: is this redundant? can it be removed? does it duplicate the final line of this method? should it be removed?
+      lightVals.state = true; // TODO: is this redundant? can it be removed? does it duplicate the final line of this method? should it be removed? does this line introduce functionality that wouldn't be implemented later in this function?
       if(lightVals.values[0] < _minOnBrightness){
         lightVals.values[0] = _minOnBrightness;
       }
     }
     
-    _interpClass->setFinalBrightness(
-      brightness, lightVals, utcTimestamp_uS, window
+    _interpClass->newBrightnessVal_window(
+      utcTimestamp_uS, window*secondsToMicros, lightVals.values[0], brightness
     );
     updateLightVals(utcTimestamp_uS, lightVals);
     return brightness;
@@ -225,7 +188,6 @@ public:
    */
   bool setState(uint64_t utcTimestamp_uS, LightStateStruct& lightVals, bool newState) override {
     if(newState == lightVals.state){
-      duty_t targetVals[nChannels+1]; _interpClass->getFinalValues(targetVals);
       // this should only happen due to a race condition between a slow network and a button press
       return false;
     }
@@ -237,7 +199,7 @@ public:
     lightVals.state = newState;
 
     if(newState == false){
-      _interpClass->getFinalValues(lightVals.values); // yeat on passed the colour interpolation
+      _interpClass->endInterpolation(lightVals.values); // yeat on passed the colour interpolation
       return false;
     }
 
@@ -248,9 +210,8 @@ public:
     duty_t newBrightness = lightVals.values[0] < _minOnBrightness
                           ? _minOnBrightness
                           : lightVals.values[0];
-    lightVals.values[0] = _minOnBrightness; // set current brightness to min for a soft on
 
-    _interpClass->setFinalBrightness(newBrightness, lightVals, utcTimestamp_uS, _softChangeWindow_S);
+    _interpClass->newBrightnessVal_window(utcTimestamp_uS, _softChangeWindow_S*secondsToMicros, _minOnBrightness, newBrightness);
     updateLightVals(utcTimestamp_uS, lightVals);
     return false;
   }
@@ -264,13 +225,13 @@ public:
    */
   void getTargetVals(duty_t vals[nChannels+1], uint64_t utcTimestamp_uS, LightStateStruct& lightVals){
     updateLightVals(utcTimestamp_uS, lightVals);
-    _interpClass->getFinalValues(vals);
+    memcpy(vals, _interpClass->targetVals, nChannels+1);
   }
 
-  duty_t getTargetBrightness() override {return _interpClass->getFinalBrightness();}
+  duty_t getTargetBrightness() override {return _interpClass->targetVals[0];}
 
   void timeAdjust(int64_t adjustment_uS) override {
-    _interpClass->timeAdjust(adjustment_uS);
+    _interpClass->adjustTime(adjustment_uS);
   }
 
   void changeSoftChangeWindow(uint8_t newWindow_S, uint64_t utcTimestamp_uS, LightStateStruct& lightVals) override {

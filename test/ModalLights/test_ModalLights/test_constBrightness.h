@@ -468,7 +468,7 @@ void testSetBrightness(){
     const duty_t expectedBrightness1 = round((oldBrightness + newBrightness)/2.);
 
     duty_t expColourChannels[nChannels];
-    interpolateColourRatios(expColourChannels, defaultConstantBrightness.endColourRatios.RGB, modeData.endColourRatios.RGB, 0.5);
+    interpolateArrays(expColourChannels, defaultConstantBrightness.endColourRatios.RGB, modeData.endColourRatios.RGB, 0.5, nChannels);
     fillChannelBrightness(expColourChannels, expColourChannels, expectedBrightness1);
     
     
@@ -1004,7 +1004,7 @@ void testActiveBehaviour(){
 
       TEST_ASSERT_EQUAL(brightness, testClass->getBrightnessLevel());
       duty_t expectedColourRatios[nChannels];
-      interpolateColourRatios(expectedColourRatios, defaultConstantBrightness.endColourRatios.RGB, activeColours, K/10.);
+      interpolateArrays(expectedColourRatios, defaultConstantBrightness.endColourRatios.RGB, activeColours, K/10., nChannels);
       duty_t expectedChannelValues[nChannels];
       fillChannelBrightness(expectedChannelValues, expectedColourRatios, brightness);
       TEST_ASSERT_EQUAL_UINT8_ARRAY_MESSAGE(expectedChannelValues, currentChannelValues, nChannels, message.c_str());
@@ -1038,7 +1038,7 @@ void testActiveBehaviour(){
 
       TEST_ASSERT_EQUAL(brightness, testClass->getBrightnessLevel());
       duty_t expectedColourRatios[nChannels];
-      interpolateColourRatios(expectedColourRatios, activeColours, defaultConstantBrightness.endColourRatios.RGB, K/10.);
+      interpolateArrays(expectedColourRatios, activeColours, defaultConstantBrightness.endColourRatios.RGB, K/10., nChannels);
       duty_t expectedChannelValues[nChannels];
       fillChannelBrightness(expectedChannelValues, expectedColourRatios, brightness);
       TEST_ASSERT_EQUAL_UINT8_ARRAY_MESSAGE(expectedChannelValues, currentChannelValues, nChannels, message.c_str());
@@ -1074,7 +1074,7 @@ void testActiveBehaviour(){
 
       TEST_ASSERT_EQUAL(brightness, testClass->getBrightnessLevel());
       duty_t expectedColourRatios[nChannels];
-      interpolateColourRatios(expectedColourRatios, defaultConstantBrightness.endColourRatios.RGB, activeColours, K/10.);
+      interpolateArrays(expectedColourRatios, defaultConstantBrightness.endColourRatios.RGB, activeColours, K/10., nChannels);
       duty_t expectedChannelValues[nChannels];
       fillChannelBrightness(expectedChannelValues, expectedColourRatios, brightness);
       TEST_ASSERT_EQUAL_UINT8_ARRAY_MESSAGE(expectedChannelValues, currentChannelValues, nChannels, message.c_str());
@@ -1157,9 +1157,7 @@ void testActiveBehaviour(){
     TEST_ASSERT_EQUAL(activeMode.ID, testClass->getCurrentModes().activeMode);
     TEST_ASSERT_EQUAL(1, testClass->getCurrentModes().backgroundMode);
 
-    currentTestTime += halfSoftChangeWindow_S;
-    testObjects.timestamp->setTimestamp_S(currentTestTime);
-    testClass->updateLights();
+    incrementTimeAndUpdate_S(halfSoftChangeWindow_S, testObjects);
     TEST_ASSERT_EQUAL_UINT8_ARRAY(startChannelValues, currentChannelValues, nChannels);
 
     const CurrentModeStruct currentModes = testClass->getCurrentModes();
@@ -1286,7 +1284,7 @@ void testActiveBehaviour(){
       incrementTimeAndUpdate_uS(dT_uS, testObjects);
 
       duty_t expectedRatios[nChannels];
-      interpolateColourRatios(expectedRatios, startRatios, endRatios, K/10.);
+      interpolateArrays(expectedRatios, startRatios, endRatios, K/10., nChannels);
       duty_t expectedChannelValues[nChannels];
       fillChannelBrightness(expectedChannelValues, expectedRatios, brightness);
       TEST_ASSERT_EQUAL_UINT8_ARRAY_MESSAGE(expectedChannelValues, currentChannelValues, nChannels, message.c_str());
@@ -1367,7 +1365,7 @@ void testChangeover(){
       testClass->updateLights();
 
       duty_t expectedColours[nChannels];
-      interpolateColourRatios(expectedColours, defaultConstantBrightness.endColourRatios.RGB, newBackgroundMode.endColourRatios.RGB, K/10.);
+      interpolateArrays(expectedColours, defaultConstantBrightness.endColourRatios.RGB, newBackgroundMode.endColourRatios.RGB, K/10., nChannels);
       
       TEST_ASSERT_EQUAL_UINT8_ARRAY_MESSAGE(expectedColours, currentChannelValues, nChannels, message.c_str());
     }
@@ -1475,7 +1473,7 @@ void testChangeover(){
     incrementTimeAndUpdate_S(1, testObjects);
     {
       duty_t expectedColours[nChannels];
-      interpolateColourRatios(expectedColours, defaultConstantBrightness.endColourRatios.RGB, newBackgroundMode.endColourRatios.RGB, 1./(2*halfWindow_S));
+      interpolateArrays(expectedColours, defaultConstantBrightness.endColourRatios.RGB, newBackgroundMode.endColourRatios.RGB, 1./(2*halfWindow_S), nChannels);
       TEST_ASSERT_EQUAL_UINT8_ARRAY(expectedColours, currentChannelValues, nChannels);
       // TODO: test only colour change is on-going
     }
@@ -1489,7 +1487,7 @@ void testChangeover(){
       TEST_ASSERT_EQUAL(100, testClass->getSetBrightness());
 
       duty_t expectedColours[nChannels];
-      interpolateColourRatios(expectedColours, defaultConstantBrightness.endColourRatios.RGB, newBackgroundMode.endColourRatios.RGB, (1. + halfWindow_S)/(2*halfWindow_S));
+      interpolateArrays(expectedColours, defaultConstantBrightness.endColourRatios.RGB, newBackgroundMode.endColourRatios.RGB, (1. + halfWindow_S)/(2*halfWindow_S), nChannels);
       fillChannelBrightness(expectedColours, expectedColours, expectedBrightness);
       TEST_ASSERT_EQUAL_UINT8_ARRAY(expectedColours, currentChannelValues, nChannels);
       // TODO: test both interpolations are on-going
@@ -1547,7 +1545,7 @@ void testChangeover(){
     incrementTimeAndUpdate_S(halfWindow_S, testObjects);
     {
       duty_t expectedColours[nChannels];
-      interpolateColourRatios(expectedColours, initialColourRatios, endColourRatios, 0.5);
+      interpolateArrays(expectedColours, initialColourRatios, endColourRatios, 0.5, nChannels);
       TEST_ASSERT_EQUAL_UINT8_ARRAY(expectedColours, currentChannelValues, nChannels);
       // TODO: test only colour change is on-going
     }
@@ -1559,7 +1557,7 @@ void testChangeover(){
       duty_t expectedBrightness = 100;
       TEST_ASSERT_EQUAL(expectedBrightness, testClass->getSetBrightness());
       duty_t expectedColours[nChannels];
-      interpolateColourRatios(expectedColours, initialColourRatios, endColourRatios, 0.5);
+      interpolateArrays(expectedColours, initialColourRatios, endColourRatios, 0.5, nChannels);
       fillChannelBrightness(expectedColours, expectedColours, expectedBrightness);
       TEST_ASSERT_EQUAL_UINT8_ARRAY(expectedColours, currentChannelValues, nChannels);
       // TODO: test only colour change is on-going
@@ -1631,7 +1629,7 @@ void testChangeover(){
     incrementTimeAndUpdate_S(halfWindow_S*2, testObjects);
     TEST_ASSERT_EQUAL(activeMinB, testClass->getBrightnessLevel());
     duty_t expColours2[nChannels];
-    interpolateColourRatios(expColours2, activeMode.endColourRatios.RGB, backgroundMode.endColourRatios.RGB, ((float)halfWindow_S)/halfWindow_S);
+    interpolateArrays(expColours2, activeMode.endColourRatios.RGB, backgroundMode.endColourRatios.RGB, ((float)halfWindow_S)/halfWindow_S, nChannels);
     fillChannelBrightness(expColours2, expColours2, activeMinB);
   }
 

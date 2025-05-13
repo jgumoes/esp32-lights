@@ -103,7 +103,7 @@ private:
   std::shared_ptr<ConfigManagerClass> _configsClass;
   ModalConfigsStruct _configs;
   
-  std::shared_ptr<InterpolationClass> _interpClass = std::make_shared<InterpolationClass>();
+  std::shared_ptr<InterpolationClass<nChannels>> _interpClass = std::make_shared<InterpolationClass<nChannels>>();
 
   modeUUID _activeMode = 0;
   modeUUID _backgroundMode = 0;

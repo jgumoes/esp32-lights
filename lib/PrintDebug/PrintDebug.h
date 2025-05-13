@@ -38,7 +38,16 @@ static unsigned int _printDebugLevel = 0;
 
 #define PrintDebug_UINT8(name, value) _PrintDebug_whitespace; std::cout << "- " << name << " = " << static_cast<unsigned int>(value) << std::endl;
 
-#define PrintDebug_array(name, array, size) _PrintDebug_whitespace; std::cout << "- " << name << ":" << std::endl; for(unsigned int i = 0; i < size; i++){_PrintDebug_whitespace; std::cout << "-- " << i << ":\t\t" << array[i] << std::endl;}
+#define PrintDebug_array(name, array, size) _PrintDebug_whitespace; std::cout << "- " << name << ":" << std::endl; for(unsigned int i = 0; i < size; i++){\
+  _PrintDebug_whitespace; std::cout << "-- " << i << ":\t\t";\
+  if(sizeof(array[i])){\
+    std::cout << static_cast<int>(array[i]);\
+  }\
+  else{\
+    std::cout << array[i];\
+  }\
+  std::cout << std::endl;\
+}
 
 #define PrintDebug_UINT8_array(name, array, size) _PrintDebug_whitespace; std::cout << "- " << name << ":" << std::endl; for(unsigned int i = 0; i < size; i++){_PrintDebug_whitespace; std::cout << "-- " << i << ":\t\t" << static_cast<unsigned int>(array[i]) << std::endl;}
 
@@ -46,7 +55,8 @@ static unsigned int _printDebugLevel = 0;
 
 #define PrintDebug_reset _printDebugLevel = 0; std::cout<<"########################### print debug reset ###########################" << std::endl
 
-void static PrintDebug_timeInDay_from_UTS(UsefulTimeStruct UTS){\
+// TODO: fix the macro
+void static PrintDebug_timeInDay_from_UTS(UsefulTimeStruct UTS){
   uint16_t timeInDay = UTS.timeInDay;
   const uint16_t hours = UTS.timeInDay / uint16_t(60*60);
   timeInDay -= hours*60*60;
