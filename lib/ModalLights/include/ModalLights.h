@@ -8,6 +8,7 @@
 #include "modes.h"
 #include "lightDefines.h"
 #include "DataStorageClass.h"
+#include "PrintDebug.h"
 
 class VirtualLightsClass{
   public:
@@ -105,8 +106,9 @@ private:
   
   std::shared_ptr<InterpolationClass<nChannels>> _interpClass = std::make_shared<InterpolationClass<nChannels>>();
 
+  // TODO: replace with structs and pass constant references to the modes
   modeUUID _activeMode = 0;
-  modeUUID _backgroundMode = 0;
+  modeUUID _backgroundMode = 1;
   
   uint64_t _activeModeTriggerTimeUTC_uS = 0;
   uint64_t _backgroundModeTriggerTimeUTC_uS = 0;
@@ -119,6 +121,8 @@ private:
   
   ModeDataStruct _activeModeData = ModeDataStruct{};
   ModeDataStruct _backgroundModeData = ModeDataStruct{};
+
+  bool _isSetupComplete = false;
 
   /**
    * @brief change the current mode. _activeMode and _backgroundMode values must already be set, and the data already loaded from storage. if _activeMode is unset, it'll load initialise _backgroundMode
@@ -166,9 +170,14 @@ private:
           isActive,
           _configs
         );
-        return;
+        break;
       default:
-        return;
+        break;
+    }
+
+    if(!_isSetupComplete){
+      _isSetupComplete = true;
+      _mode->setState(true, _lightVals, currentTimeUTC_uS);
     }
   }
 
@@ -224,6 +233,7 @@ private:
 
     _changeMode();
   }
+
 public:
   /**
    * @brief Construct an instance. doesn't load or set mode, as event manager will decide which modes should be first. update() will set background mode to the default constant brightness mode if none have been set.
@@ -241,25 +251,10 @@ public:
   ) : _lights(std::move(lightsClass)), _deviceTime(deviceTime), _dataStorage(dataStorage), _configsClass(configs), _configs(configs->getModalConfigs()) {
     _nextBackgroundTriggerTimeUTC_uS = _deviceTime->getUTCTimestampMicros();  // incase EventManager doesn't set any modes before update is called
 
-    // _changeMode() uses the previous mode, so default constant brightness needs to be set
-    fillDefaultConstantBrightnessStruct(&_backgroundModeData, nChannels);
-    _backgroundMode = 1;
+    _nextBackgroundMode = 1;
 
-    _lightVals.values[0] = 0;
-    _lightVals.state = false;
-    for(uint8_t i = 1; i < nChannels+1; i++){
-      _lightVals.values[i] = 255;
-    }
-    
-    _mode = std::make_unique<ConstantBrightnessMode>(
-      _nextBackgroundTriggerTimeUTC_uS,
-      _nextBackgroundTriggerTimeUTC_uS,
-      &_backgroundModeData,
-      _interpClass,
-      _lightVals,
-      false,
-      _configs
-    );
+    _interpClass->targetVals[0] = _configs.minOnBrightness;
+    _lightVals.state = true;
 
     // register adjustment callback with deviceTime
     _deviceTime->add_observer(*this);
@@ -290,7 +285,7 @@ public:
    */
   void updateLights() override {
     // check if a new mode is pending
-    if((_nextActiveMode != 0) || (_nextBackgroundMode != 0)){_loadMode();}
+    if(_nextActiveMode != 0 || _nextBackgroundMode != 0){_loadMode();}
     
     // update
     uint64_t utcTime_uS = _deviceTime->getUTCTimestampMicros();
@@ -305,13 +300,17 @@ public:
    * @return duty_t the new brightness after soft change
    */
   duty_t setBrightnessLevel(duty_t brightness) override {
-    if(_nextActiveMode > 0 || _nextBackgroundMode > 0){_loadMode();}
+    if(_nextActiveMode != 0 || _nextBackgroundMode != 0){_loadMode();}
     _mode->setBrightness(_deviceTime->getUTCTimestampMicros(), _lightVals, brightness, true);
     _lights->setChannelValues(_lightVals.getLightValues());
     return getSetBrightness();
   };
   
   bool setState(bool newState) override {
+    if(!_isSetupComplete){
+      updateLights();
+      return true;
+    }
     if(_mode->setState(_deviceTime->getUTCTimestampMicros(), _lightVals, newState)){
       cancelActiveMode();
     };
@@ -327,6 +326,7 @@ public:
    */
   duty_t adjustBrightness(duty_t amount, bool increasing) override {
     // return early if lights are off and amount is decreasing
+    if(_nextActiveMode != 0 || _nextBackgroundMode != 0){_loadMode();}
     if(
       amount == 0
       || (!_lightVals.state && !increasing)
@@ -361,7 +361,8 @@ public:
    */
   duty_t getSetBrightness() override {
     duty_t minB = _configs.minOnBrightness;
-    duty_t currentB = _mode->getTargetBrightness();
+    // duty_t currentB = _mode->getTargetBrightness();
+    duty_t currentB = _interpClass->targetVals[0];
     duty_t setB = currentB >= minB ? currentB : 0;
     return setB;
   };

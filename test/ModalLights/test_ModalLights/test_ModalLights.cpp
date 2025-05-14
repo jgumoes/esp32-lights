@@ -74,6 +74,8 @@ void SerializeAndDeserializeModeData(){
   }
 
   // TODO: test the other modes
+
+  TEST_IGNORE_MESSAGE("need to do the other modes; constant brightness mode passed");
 }
 
 void testConfigGuards(){
@@ -94,15 +96,19 @@ void testConfigGuards(){
     .minOnBrightness = 0,
     .softChangeWindow = 16
   };
-
-  TEST_ASSERT_EQUAL(0, testClass->getBrightnessLevel());
-  TEST_ASSERT_EQUAL(0, testClass->getSetBrightness());
-  TEST_ASSERT_EQUAL(false, testClass->getState());
+  testClass->updateLights();
+  TEST_ASSERT_EQUAL(goodConfigs.minOnBrightness, testClass->getBrightnessLevel());
+  TEST_ASSERT_EQUAL(goodConfigs.minOnBrightness, testClass->getSetBrightness());
+  TEST_ASSERT_EQUAL(true, testClass->getState());
 
   // test that minOnBrightness = 0 gets rejected
   {
     TEST_ASSERT_FALSE(testClass->changeMinOnBrightness(badConfigs.minOnBrightness));
 
+    // testClass->setState(false);
+    testClass->adjustBrightness(255, false);
+    TEST_ASSERT_EQUAL(0, testClass->getBrightnessLevel());
+    TEST_ASSERT_EQUAL(0, testClass->getSetBrightness());
     testClass->setState(true);
     TEST_ASSERT_EQUAL(goodConfigs.minOnBrightness, testClass->getBrightnessLevel());
     TEST_ASSERT_EQUAL(goodConfigs.minOnBrightness, testClass->getSetBrightness());
@@ -139,8 +145,12 @@ void testConfigGuards(){
   TEST_FAIL_MESSAGE("need to test that configs are written to config manager");
 }
 
-void testRepeatBackgroundModesAreIgnored(){
-  // if the set background is already the current background mode, it gets ignored (unless trigger time is important, and also different)
+void testRepeatModeIgnoring(){
+  /*
+  setting a mode that is current should be ignored, unless trigger time is important. this includes all background modes (except if changing is trigger-time dependant)
+
+  setting a mode that is current, with the same trigger time, should always be ignored
+  */
   // this is the behaviour expected by EventManager
   TEST_FAIL_MESSAGE("very important TODO, EventManager expects this behaviour");
 }
@@ -151,10 +161,155 @@ void test_convertToDataPackets_helper(){
 }
 
 void testInitialisation(){
-  // test initialisation
-  // TODO: construction without any modes should default to constant brightness on update
-  // TODO: passing a mode after construction but before update should change that mode
-  TEST_IGNORE_MESSAGE("not implemented");
+  /*
+  at time of initialisation, lights should be off, but turn on next time update is called. in other words and from the user perspective, when the device boots the brightness should be minOnBrightness, set to whatever mode EventManager thinks should be current (or defaultConstantBrightness if none)
+
+  TODO: when modes are functional, it probably won't matter
+  the device shouldn't be booting that often, so colour changeovers should be pretty rare. if they aren't, there's bigger problems to deal with
+  */
+
+  // construction without any modes should default to constant brightness on update
+  {
+    // TODO: repeat this test with a single channel
+    // mangle currentChannelValues because they should be zeroed on construction
+    for(int i = 0; i < nChannels; i++){
+      currentChannelValues[i] = 69;
+    }
+    ModalConfigsStruct testConfigs;
+    TestObjectsStruct testObjects = modalLightsFactoryAllModes(
+      TestChannels::RGB,
+      mondayAtMidnight,
+      testConfigs
+    );
+    auto modalLights = testObjects.modalLights;
+    // constant brightness should the current mode
+    const CurrentModeStruct initialModes = modalLights->getCurrentModes();
+    TEST_ASSERT_EQUAL(0, initialModes.activeMode);
+    TEST_ASSERT_EQUAL(1, initialModes.backgroundMode);
+
+    // light values should be 0 before update is called
+    TEST_ASSERT_EACH_EQUAL_UINT8(0, currentChannelValues, nChannels);
+
+    // light values should be minOnBrightness after update is called
+    modalLights->updateLights();
+    TEST_ASSERT_EACH_EQUAL_UINT8(testConfigs.minOnBrightness, currentChannelValues, nChannels);
+  }
+
+  // when a mode is set after construction but before update is first called, light should start at minOnBrightness with no colour changeover (test with a constant brightness mode)
+  {
+    // TODO: repeat this test with a single channel
+    // mangle currentChannelValues because they should be zeroed on construction
+    for(int i = 0; i < nChannels; i++){
+      currentChannelValues[i] = 69;
+    }
+    ModalConfigsStruct testConfigs{
+      .minOnBrightness = 50
+    };
+    TestObjectsStruct testObjects = modalLightsFactoryAllModes(
+      TestChannels::RGB,
+      mondayAtMidnight,
+      testConfigs
+    );
+    auto modalLights = testObjects.modalLights;
+    // constant brightness should the current mode
+    const CurrentModeStruct initialModes = modalLights->getCurrentModes();
+    TEST_ASSERT_EQUAL(0, initialModes.activeMode);
+    TEST_ASSERT_EQUAL(1, initialModes.backgroundMode);
+
+    auto testMode = testOnlyModes.at("purpleConstBrightness");
+    modalLights->setModeByUUID(testMode.ID, mondayAtMidnight, false);
+
+    // light values should be 0 before update is called
+    TEST_ASSERT_EACH_EQUAL_UINT8(0, currentChannelValues, nChannels);
+
+    duty_t expChannelVals[nChannels];
+    fillChannelBrightness(expChannelVals, testMode.endColourRatios.RGB, testConfigs.minOnBrightness);
+    // light values should be minOnBrightness after update is called
+    modalLights->updateLights();
+    TEST_ASSERT_EQUAL_UINT8_ARRAY(expChannelVals, currentChannelValues, nChannels);
+  }
+
+  // if state is set to off before update is called, lights still turn on (this will probably happen because the device is rebooting and the lights are off, and someones trying to turn it on)
+  {
+    // mangle currentChannelValues because they should be zeroed on construction
+    for(int i = 0; i < nChannels; i++){
+      currentChannelValues[i] = 69;
+    }
+    ModalConfigsStruct testConfigs;
+    TestObjectsStruct testObjects = modalLightsFactoryAllModes(
+      TestChannels::RGB,
+      mondayAtMidnight,
+      testConfigs
+    );
+    auto modalLights = testObjects.modalLights;
+    // constant brightness should the current mode
+    const CurrentModeStruct initialModes = modalLights->getCurrentModes();
+    TEST_ASSERT_EQUAL(0, initialModes.activeMode);
+    TEST_ASSERT_EQUAL(1, initialModes.backgroundMode);
+
+    // light values should be 0 before update is called
+    TEST_ASSERT_EACH_EQUAL_UINT8(0, currentChannelValues, nChannels);
+
+    // light values should be minOnBrightness after update is called
+    modalLights->setState(false);
+    TEST_ASSERT_EACH_EQUAL_UINT8(testConfigs.minOnBrightness, currentChannelValues, nChannels);
+  }
+
+  // set state to true before update
+  {
+    // mangle currentChannelValues because they should be zeroed on construction
+    for(int i = 0; i < nChannels; i++){
+      currentChannelValues[i] = 69;
+    }
+    ModalConfigsStruct testConfigs;
+    TestObjectsStruct testObjects = modalLightsFactoryAllModes(
+      TestChannels::RGB,
+      mondayAtMidnight,
+      testConfigs
+    );
+    auto modalLights = testObjects.modalLights;
+    // constant brightness should the current mode
+    const CurrentModeStruct initialModes = modalLights->getCurrentModes();
+    TEST_ASSERT_EQUAL(0, initialModes.activeMode);
+    TEST_ASSERT_EQUAL(1, initialModes.backgroundMode);
+
+    // light values should be 0 before update is called
+    TEST_ASSERT_EACH_EQUAL_UINT8(0, currentChannelValues, nChannels);
+
+    // light values should be minOnBrightness after update is called
+    modalLights->setState(true);
+    TEST_ASSERT_EACH_EQUAL_UINT8(testConfigs.minOnBrightness, currentChannelValues, nChannels);
+  }
+
+  // adjusting brightness up before first update call should work like normal
+  {
+    // mangle currentChannelValues because they should be zeroed on construction
+    for(int i = 0; i < nChannels; i++){
+      currentChannelValues[i] = 69;
+    }
+    ModalConfigsStruct testConfigs;
+    TestObjectsStruct testObjects = modalLightsFactoryAllModes(
+      TestChannels::RGB,
+      mondayAtMidnight,
+      testConfigs
+    );
+    auto modalLights = testObjects.modalLights;
+    // constant brightness should the current mode
+    const CurrentModeStruct initialModes = modalLights->getCurrentModes();
+    TEST_ASSERT_EQUAL(0, initialModes.activeMode);
+    TEST_ASSERT_EQUAL(1, initialModes.backgroundMode);
+
+    // light values should be 0 before update is called
+    TEST_ASSERT_EACH_EQUAL_UINT8(0, currentChannelValues, nChannels);
+
+    const duty_t adj = 100;
+    // light values should be minOnBrightness after update is called
+    modalLights->adjustBrightness(adj, true);
+    TEST_ASSERT_EACH_EQUAL_UINT8(adj + testConfigs.minOnBrightness, currentChannelValues, nChannels);
+  }
+  
+  // TODO: when a mode is set after construction but before update is first called, light should start at minOnBrightness with no colour changeover (test with changing mode)
+  TEST_IGNORE_MESSAGE("needs more tests");
 }
 
 void validateModePacketTest(){
@@ -164,6 +319,16 @@ void validateModePacketTest(){
 
   // for min ratios, at least one channel should have a brightness of 255 or all channels should be 0 to start with the previous mode's colours
   TEST_IGNORE_MESSAGE("not implemented");
+}
+
+void testDeleteMode(){
+  // test behaviour when current mode is deleted
+  TEST_IGNORE_MESSAGE("TODO");
+}
+
+void testUpdateMode(){
+  // test behaviour when current mode is updated
+  TEST_IGNORE_MESSAGE("TODO");
 }
 
 void testModeSwitching(){
@@ -467,8 +632,10 @@ void RUN_UNITY_TESTS(){
   RUN_TEST(testRoundingDivide);
   RUN_TEST(testInitialisation);
   RUN_TEST(validateModePacketTest);
+  RUN_TEST(testDeleteMode);
+  RUN_TEST(testUpdateMode);
   RUN_TEST(testModeSwitching);
-  RUN_TEST(testRepeatBackgroundModesAreIgnored);
+  RUN_TEST(testRepeatModeIgnoring);
   
   ConstantBrightnessModeTests::constBrightness_tests();
   UNITY_END();

@@ -12,7 +12,6 @@
 #ifndef __LIGHT_DEFINES_H__
 #define __LIGHT_DEFINES_H__
 
-// #include <stdint.h>
 #include <Arduino.h>
 
 #ifndef interpDivide
@@ -53,6 +52,16 @@ public:
       channelValues[i] = roundingDivide(this->values[i+1] * brightness, LED_LIGHTS_MAX_DUTY);
     };
     return channelValues;
+  }
+
+  /**
+   * @brief initialise with values set to 0
+   * 
+   */
+  LightStateStruct(){
+    for(uint8_t i = 0; i < nChannels+1; i++){
+      values[i] = 0;
+    }
   }
 };
 

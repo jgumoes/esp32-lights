@@ -78,9 +78,11 @@ void testBrightnessAdjustment(){
   };
   const TestObjectsStruct testObjects = modalLightsFactoryAllModes(channel, testStartTime, testConfigs);
   const std::shared_ptr<ModalLightsController> testClass = testObjects.modalLights;
+  testClass->updateLights();
 
   TEST_ASSERT_EQUAL(0, testClass->getCurrentModes().activeMode);
   TEST_ASSERT_EQUAL(1, testClass->getCurrentModes().backgroundMode);
+  testClass->adjustBrightness(255, false);
 
   // adjust up and down within bounds
   {
@@ -354,7 +356,9 @@ void testSetBrightness(){
   };
   const TestObjectsStruct testObjects = modalLightsFactoryAllModes(channel, testStartTime, testConfigs);
   const std::shared_ptr<ModalLightsController> testClass = testObjects.modalLights;
+  testClass->updateLights();
 
+  testClass->adjustBrightness(255, false);
   testObjects.timestamp->setTimestamp_S(currentTestTime);
   testClass->updateLights();
   
