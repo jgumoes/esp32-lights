@@ -36,6 +36,9 @@ struct TestObjectsStruct {
   std::unique_ptr<OnboardTimestamp> timestamp = std::make_unique<OnboardTimestamp>();
   std::shared_ptr<DeviceTimeClass> deviceTime;
 
+  // this is to test ModalLights getting a mode from storage
+  std::shared_ptr<MockStorageHAL> mockStorageHAL;
+
   const std::vector<ModeDataStruct> initialModes;
   std::shared_ptr<ModalLightsController> modalLights;
 };
@@ -52,8 +55,8 @@ TestObjectsStruct modalLightsFactory(TestChannels channel, const std::vector<Tes
   testObjects.deviceTime = std::make_shared<DeviceTimeClass>(configManager);
   testObjects.deviceTime->setLocalTimestamp2000(startTime_S, 0, 0);
 
-  auto storageHAL = std::make_shared<MockStorageHAL>(testObjects.initialModes, getAllTestEvents());
-  auto storage = std::make_shared<DataStorageClass>(storageHAL);
+  testObjects.mockStorageHAL = std::make_shared<MockStorageHAL>(testObjects.initialModes, getAllTestEvents());
+  auto storage = std::make_shared<DataStorageClass>(testObjects.mockStorageHAL);
   
   auto lightsClass = concreteLightsClassFactory<TestLEDClass>();
   testObjects.modalLights = std::make_shared<ModalLightsController>(
@@ -121,9 +124,9 @@ for(int i = 0; i < numberOfChannels; i++){\
     actualColours[i], current_i.c_str());\
 }
 
-#define TEST_ASSERT_CURRENT_MODES(expBackgroundID, expActiveID, actualStruct)\
-  TEST_ASSERT_EQUAL(expBackgroundID, actualStruct.backgroundMode); \
-  TEST_ASSERT_EQUAL(expActiveID, actualStruct.activeMode)
+#define TEST_ASSERT_CURRENT_MODES(expBackgroundID, expActiveID, modalLightsInstance)\
+  TEST_ASSERT_EQUAL(expBackgroundID, modalLightsInstance->getCurrentModes().backgroundMode); \
+  TEST_ASSERT_EQUAL(expActiveID, modalLightsInstance->getCurrentModes().activeMode)
 
 /**
  * @brief interpolate between two uint8_t values

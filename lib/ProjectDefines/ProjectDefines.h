@@ -11,6 +11,7 @@
 
 /* ModalLights*/
 #ifndef MAX_NUMBER_OF_MODES
+// the maximum number of stored modes, not including defaultConstantBrightness as that's baked into progmem
 #define MAX_NUMBER_OF_MODES (size_t)100
 #endif
 

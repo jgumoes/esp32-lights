@@ -38,7 +38,7 @@ auto EventManagerFactory(
 ){
   std::vector<ModeDataStruct> modeDataPackets = {};
   auto mockStorageHAL = std::make_shared<MockStorageHAL>(modeDataPackets, testEvents);
-  std::vector<TestModeDataStruct> testModes = {mvpModes["warmConstBrightness"]};
+  std::vector<TestModeDataStruct> testModes = {testModesMap["warmConstBrightness"]};
   auto dataStorage = std::make_shared<DataStorageClass>(std::move(mockStorageHAL));
   return EventManager(modalLights, configs,deviceTime, dataStorage->getAllEvents());
 }
@@ -209,6 +209,8 @@ void EventManagerFindsNextEventOnConstruction(void){
     TEST_ASSERT_EQUAL(0, modalLights->getModeCallCount(testEvent1.modeID));
     deviceTime->remove_observer(testClass4);
   }
+
+  TEST_FAIL_MESSAGE("important TODO: on construction, EventManager, must set all valid modes in order until the next modes are in the future. this will let ModalLights pick out only the modes that are valid");
 }
 
 void EventManagerSelectsCorrectBackgroundMode(void){
@@ -295,6 +297,8 @@ void EventManagerSelectsCorrectBackgroundMode(void){
     TEST_ASSERT_EQUAL(testEvent5.modeID, modalLights->getMostRecentMode());
     deviceTime->remove_observer(testClass);
   }
+
+  TEST_FAIL_MESSAGE("important TODO: on construction, EventManager, must set all valid modes in order until the next modes are in the future. this will let ModalLights pick out only the modes that are valid");
 }
 
 void onlyMostRecentActiveModeIsTriggered(void){
@@ -363,6 +367,8 @@ void onlyMostRecentActiveModeIsTriggered(void){
     }
     deviceTime->remove_observer(testClass);
   }
+
+  TEST_FAIL_MESSAGE("important TODO: on construction, EventManager, must set all valid modes in order until the next modes are in the future. this will let ModalLights pick out only the modes that are valid");
 }
 
 void activeAndBackgroundModesAreBothTriggered(void){
@@ -420,6 +426,8 @@ void activeAndBackgroundModesAreBothTriggered(void){
     TEST_ASSERT_EQUAL(testEvent3.modeID, modalLights->getBackgroundMode());
     deviceTime->remove_observer(testClass);
   }
+
+  TEST_FAIL_MESSAGE("important TODO: on construction, EventManager, must set all valid modes in order until the next modes are in the future. this will let ModalLights pick out only the modes that are valid");
 }
 
 void missedActiveEventsAreSkippedAfterTimeWindowClosses(void){
@@ -1304,9 +1312,6 @@ void testTimeUpdates(void){
     deviceTime->remove_observer(testClass);
   }
 
-  // TODO: small negative change followed by a small negative change should act like a big negative change if changes add to a big change
-
-  // TODO: a large positive then large negative time adjustment that adds to a small adjustment should act like large time adjustments
 }
 
 void testEventLimit(){

@@ -136,16 +136,15 @@ const TestModeDataStruct defaultConstantBrightness = {
   .brightness0 = 0
 };
 
-// these modes are intended to be used for the mvp, so have explicit IDs
-static etl::flat_map<std::string, TestModeDataStruct, 255> mvpModes = {
+static etl::flat_map<std::string, TestModeDataStruct, 255> testModesMap = {
+  // these modes are intended to be used for the mvp, so have explicit IDs
   {"warmConstBrightness", makeConstBrightnessTestStruct(ColourRatiosStruct{
     .white = {255},
     .whiteAndWarm = {0, 255},
     .RGB = {255, 192, 111}
   }, 100, 2)},
-};
 
-static etl::flat_map<std::string, TestModeDataStruct, 255> testOnlyModes = {
+  // These modes are for testing only, so have auto-generated IDs starting from 255 downwards
   {"purpleConstBrightness", makeConstBrightnessTestStruct(ColourRatiosStruct{
     .white = {255},
     .whiteAndWarm = {126, 255},
@@ -156,11 +155,7 @@ static etl::flat_map<std::string, TestModeDataStruct, 255> testOnlyModes = {
 // chuck all the mvp and test modes into a single vector array
 std::vector<TestModeDataStruct> getAllTestingModes(){
   std::vector<TestModeDataStruct> modeArray;
-  for(const auto& pair : mvpModes){
-    TestModeDataStruct mode = pair.second;
-    modeArray.push_back(mode);
-  }
-  for(const auto& pair : testOnlyModes){
+  for(const auto& pair : testModesMap){
     TestModeDataStruct mode = pair.second;
     modeArray.push_back(mode);
   }

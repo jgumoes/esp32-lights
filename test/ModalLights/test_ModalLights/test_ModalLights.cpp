@@ -142,16 +142,268 @@ void testConfigGuards(){
   TEST_ASSERT_EQUAL(goodConfigs.softChangeWindow, actualConfigs.softChangeWindow);
 
   // TODO: check valid configs are written to ConfigManager
-  TEST_FAIL_MESSAGE("need to test that configs are written to config manager");
+  TEST_IGNORE_MESSAGE("need to test that configs are written to config manager");
 }
 
-void testRepeatModeIgnoring(){
+void testSetModeIgnoring(){
   /*
+  this is the behaviour expected by EventManager
+
   setting a mode that is current should be ignored, unless trigger time is important. this includes all background modes (except if changing is trigger-time dependant)
 
   setting a mode that is current, with the same trigger time, should always be ignored
+
+  if the modeID doesn't exist, it gets discarded and isn't set to next
   */
-  // this is the behaviour expected by EventManager
+ const uint8_t halfWindow_S = 1;
+  const ModalConfigsStruct initialConfigs{
+    .softChangeWindow = 2*halfWindow_S
+  };
+  TestObjectsStruct testObjects = modalLightsFactoryAllModes(
+    TestChannels::RGB,
+    mondayAtMidnight,
+    initialConfigs
+  );
+
+  auto modalLights = testObjects.modalLights;
+  modalLights->updateLights();
+  auto mockStorageHAL = testObjects.mockStorageHAL;
+  // test that getModeCount isn't incremented with repeat calls
+  {
+    uint64_t currentTime = incrementTimeAndUpdate_S(60, testObjects);
+    TEST_ASSERT_CURRENT_MODES(1, 0, modalLights);
+    
+    // repeat mode 1
+    mockStorageHAL->getModeCount = 0;
+    modalLights->setModeByUUID(1, currentTime, false);
+    modalLights->updateLights();
+    currentTime = incrementTimeAndUpdate_S(1, testObjects);
+
+    TEST_ASSERT_EQUAL(0, mockStorageHAL->getModeCount);
+
+    // set a different background mode
+    modeUUID backgroundID = testModesMap["purpleConstBrightness"].ID;
+    modalLights->setModeByUUID(backgroundID, currentTime, false);
+    modalLights->updateLights();
+    TEST_ASSERT_CURRENT_MODES(backgroundID, 0, modalLights);
+    TEST_ASSERT_EQUAL(1, mockStorageHAL->getModeCount);
+
+    // repeat the same background mode
+    mockStorageHAL->getModeCount = 0;
+    currentTime = incrementTimeAndUpdate_S(1, testObjects);
+    modalLights->setModeByUUID(backgroundID, currentTime, false);
+    modalLights->updateLights();
+    TEST_ASSERT_CURRENT_MODES(backgroundID, 0, modalLights);
+    TEST_ASSERT_EQUAL(0, mockStorageHAL->getModeCount);
+
+    // set an active mode
+    modeUUID activeMode1 = testModesMap["warmConstBrightness"].ID;
+    currentTime = incrementTimeAndUpdate_S(1, testObjects);
+    modalLights->setModeByUUID(activeMode1, currentTime, true);
+    modalLights->updateLights();
+    TEST_ASSERT_CURRENT_MODES(backgroundID, activeMode1, modalLights);
+    TEST_ASSERT_EQUAL(1, mockStorageHAL->getModeCount);
+
+    // repeat the active mode
+    mockStorageHAL->getModeCount = 0;
+    currentTime = incrementTimeAndUpdate_S(1, testObjects);
+    modalLights->setModeByUUID(activeMode1, currentTime, true);
+    modalLights->updateLights();
+    TEST_ASSERT_CURRENT_MODES(backgroundID, activeMode1, modalLights);
+    TEST_ASSERT_EQUAL(0, mockStorageHAL->getModeCount);
+
+    // set the background mode to active
+    currentTime = incrementTimeAndUpdate_S(1, testObjects);
+    modalLights->setModeByUUID(backgroundID, currentTime, true);
+    modalLights->updateLights();
+    TEST_ASSERT_CURRENT_MODES(backgroundID, backgroundID, modalLights);
+    TEST_ASSERT_EQUAL(0, mockStorageHAL->getModeCount);
+  }
+
+  const modeUUID badID = 105;
+  for(const auto& pair : testModesMap){
+    TEST_ASSERT_NOT_EQUAL_MESSAGE(badID, pair.second.ID, "need to choose a different badID because this one actually exists");
+  }
+
+  const duty_t minB = initialConfigs.minOnBrightness;
+
+  // set a background mode that doesn't exist. nothing should happen
+  {
+    // prepare modal lights for a changeover
+    uint64_t currentTime = incrementTimeAndUpdate_S(60, testObjects);
+    modalLights->cancelActiveMode();
+    modalLights->setModeByUUID(1, currentTime, false);
+    modalLights->setBrightnessLevel(255);
+    currentTime = incrementTimeAndUpdate_S(60, testObjects);
+
+    TEST_ASSERT_CURRENT_MODES(1, 0, modalLights);
+    TEST_ASSERT_EQUAL(255, modalLights->getBrightnessLevel());
+    TEST_ASSERT_EQUAL(255, modalLights->getSetBrightness());
+    TEST_ASSERT_EACH_EQUAL_UINT8(255, currentChannelValues, nChannels);
+
+    // start the changeover
+    const TestModeDataStruct goodMode = testModesMap["warmConstBrightness"];
+    modalLights->setModeByUUID(goodMode.ID, currentTime, false);
+    modalLights->updateLights();
+    TEST_ASSERT_CURRENT_MODES(goodMode.ID, 0, modalLights);
+    currentTime = incrementTimeAndUpdate_S(halfWindow_S, testObjects);
+
+    // set bad ID
+    modalLights->setModeByUUID(badID, currentTime, false);
+    modalLights->updateLights();
+    currentTime = incrementTimeAndUpdate_S(halfWindow_S, testObjects);
+
+    // good mode should have completed its changeover
+    TEST_ASSERT_CURRENT_MODES(goodMode.ID, 0, modalLights);
+    TEST_ASSERT_EQUAL_UINT8_ARRAY(goodMode.endColourRatios.RGB, currentChannelValues, nChannels);
+
+    // start a new changeover
+    modalLights->setModeByUUID(1, currentTime, false);
+    modalLights->updateLights();
+    TEST_ASSERT_CURRENT_MODES(1, 0, modalLights);
+    currentTime = incrementTimeAndUpdate_S(halfWindow_S, testObjects);
+
+    // set null ID
+    modalLights->setModeByUUID(0, currentTime, false);
+    modalLights->updateLights();
+    currentTime = incrementTimeAndUpdate_S(halfWindow_S, testObjects);
+
+    // changeover should have finished
+    TEST_ASSERT_CURRENT_MODES(1, 0, modalLights);
+    TEST_ASSERT_EQUAL_UINT8_ARRAY(defaultConstantBrightness.endColourRatios.RGB, currentChannelValues, nChannels);
+  }
+
+  // set an active mode that doesn't exist. nothing should happen
+  {
+    // prepare modal lights for a changeover
+    uint64_t currentTime = incrementTimeAndUpdate_S(60, testObjects);
+    modalLights->cancelActiveMode();
+    modalLights->setModeByUUID(1, currentTime, false);
+    modalLights->setBrightnessLevel(255);
+    currentTime = incrementTimeAndUpdate_S(60, testObjects);
+
+    TEST_ASSERT_CURRENT_MODES(1, 0, modalLights);
+    TEST_ASSERT_EQUAL(255, modalLights->getBrightnessLevel());
+    TEST_ASSERT_EQUAL(255, modalLights->getSetBrightness());
+    TEST_ASSERT_EACH_EQUAL_UINT8(255, currentChannelValues, nChannels);
+
+    // start the changeover
+    const TestModeDataStruct goodMode = testModesMap["warmConstBrightness"];
+    modalLights->setModeByUUID(goodMode.ID, currentTime, false);
+    modalLights->updateLights();
+    TEST_ASSERT_CURRENT_MODES(goodMode.ID, 0, modalLights);
+    currentTime = incrementTimeAndUpdate_S(halfWindow_S, testObjects);
+
+    // set bad ID
+    modalLights->setModeByUUID(badID, currentTime, true);
+    modalLights->updateLights();
+    currentTime = incrementTimeAndUpdate_S(halfWindow_S, testObjects);
+
+    // good mode should have completed its changeover
+    TEST_ASSERT_CURRENT_MODES(goodMode.ID, 0, modalLights);
+    TEST_ASSERT_EQUAL_UINT8_ARRAY(goodMode.endColourRatios.RGB, currentChannelValues, nChannels);
+
+    // start a new changeover
+    modalLights->setModeByUUID(1, currentTime, true);
+    modalLights->updateLights();
+    TEST_ASSERT_CURRENT_MODES(goodMode.ID, 1, modalLights);
+    currentTime = incrementTimeAndUpdate_S(halfWindow_S, testObjects);
+
+    // set null ID
+    modalLights->setModeByUUID(0, currentTime, true);
+    modalLights->updateLights();
+    currentTime = incrementTimeAndUpdate_S(halfWindow_S, testObjects);
+
+    // changeover should have finished
+    TEST_ASSERT_CURRENT_MODES(goodMode.ID, 1, modalLights);
+    TEST_ASSERT_EQUAL_UINT8_ARRAY(defaultConstantBrightness.endColourRatios.RGB, currentChannelValues, nChannels);
+  }
+  
+  // set a background mode that does exist, then a background mode that doesn't. the good mode should be loaded
+  {
+    // prepare modal lights for a changeover
+    uint64_t currentTime = incrementTimeAndUpdate_S(60, testObjects);
+    modalLights->cancelActiveMode();
+    modalLights->setModeByUUID(1, currentTime, false);
+    modalLights->setBrightnessLevel(255);
+    currentTime = incrementTimeAndUpdate_S(60, testObjects);
+
+    TEST_ASSERT_CURRENT_MODES(1, 0, modalLights);
+    TEST_ASSERT_EQUAL(255, modalLights->getBrightnessLevel());
+    TEST_ASSERT_EQUAL(255, modalLights->getSetBrightness());
+    TEST_ASSERT_EACH_EQUAL_UINT8(255, currentChannelValues, nChannels);
+
+    // null ID
+    const TestModeDataStruct goodMode = testModesMap["warmConstBrightness"];
+    modalLights->setModeByUUID(goodMode.ID, currentTime, false);
+    modalLights->setModeByUUID(0, currentTime, false);
+    modalLights->updateLights();
+    TEST_ASSERT_CURRENT_MODES(goodMode.ID, 0, modalLights);
+    currentTime = incrementTimeAndUpdate_S(60, testObjects);
+    TEST_ASSERT_EQUAL_UINT8_ARRAY(goodMode.endColourRatios.RGB, currentChannelValues, nChannels);
+
+    // bad ID
+    modalLights->setModeByUUID(1, currentTime, false);
+    modalLights->setModeByUUID(badID, currentTime, false);
+    modalLights->updateLights();
+    TEST_ASSERT_CURRENT_MODES(1, 0, modalLights);
+    currentTime = incrementTimeAndUpdate_S(60, testObjects);
+    TEST_ASSERT_EQUAL_UINT8_ARRAY(defaultConstantBrightness.endColourRatios.RGB, currentChannelValues, nChannels);
+  }
+
+  // set an active mode that does exist, then an active mode that doesn't. the good mode should be loaded
+  {
+    // prepare modal lights for a changeover
+    uint64_t currentTime = incrementTimeAndUpdate_S(60, testObjects);
+    modalLights->cancelActiveMode();
+    modalLights->setModeByUUID(1, currentTime, false);
+    modalLights->setBrightnessLevel(255);
+    currentTime = incrementTimeAndUpdate_S(60, testObjects);
+
+    TEST_ASSERT_CURRENT_MODES(1, 0, modalLights);
+    TEST_ASSERT_EQUAL(255, modalLights->getBrightnessLevel());
+    TEST_ASSERT_EQUAL(255, modalLights->getSetBrightness());
+    TEST_ASSERT_EACH_EQUAL_UINT8(255, currentChannelValues, nChannels);
+
+    // null ID
+    const TestModeDataStruct goodMode = testModesMap["warmConstBrightness"];
+    modalLights->setModeByUUID(goodMode.ID, currentTime, true);
+    modalLights->setModeByUUID(0, currentTime, true);
+    modalLights->updateLights();
+    TEST_ASSERT_CURRENT_MODES(1, goodMode.ID, modalLights);
+    currentTime = incrementTimeAndUpdate_S(60, testObjects);
+    TEST_ASSERT_EQUAL_UINT8_ARRAY(goodMode.endColourRatios.RGB, currentChannelValues, nChannels);
+
+    // bad ID
+    modalLights->setModeByUUID(1, currentTime, true);
+    modalLights->setModeByUUID(badID, currentTime, true);
+    modalLights->updateLights();
+    TEST_ASSERT_CURRENT_MODES(1, 1, modalLights);
+    currentTime = incrementTimeAndUpdate_S(60, testObjects);
+    TEST_ASSERT_EQUAL_UINT8_ARRAY(defaultConstantBrightness.endColourRatios.RGB, currentChannelValues, nChannels);
+  }
+
+  std::string ignoreMessage = "very important TODO, EventManager expects this behaviour; ";
+  // TODO: set a background mode, then set the same mode as active. active behaviour should be observed, but the mode shouldn't be loaded from storage (need to test for every mode type)
+
+  // TODO: test that corrupted modes aren't loaded
+
+  std::string constantBrightnessIgnoreMessage = ignoreMessage + "need to test for constantBrightness";
+  TEST_IGNORE_MESSAGE(constantBrightnessIgnoreMessage.c_str());
+  std::string sunriseIgnoreMessage = ignoreMessage + "need to test for sunrise";
+  TEST_IGNORE_MESSAGE(sunriseIgnoreMessage.c_str());
+  std::string sunsetIgnoreMessage = ignoreMessage + "need to test for sunset";
+  TEST_IGNORE_MESSAGE(sunsetIgnoreMessage.c_str());
+  std::string pulseIgnoreMessage = ignoreMessage + "need to test for pulse";
+  TEST_IGNORE_MESSAGE(pulseIgnoreMessage.c_str());
+  std::string chirpIgnoreMessage = ignoreMessage + "need to test for chirp";
+  TEST_IGNORE_MESSAGE(chirpIgnoreMessage.c_str());
+  std::string changingIgnoreMessage = ignoreMessage + "need to test for changing";
+  TEST_IGNORE_MESSAGE(changingIgnoreMessage.c_str());
+
+  std::string corruptedIgnoreMessage = ignoreMessage + "need to test for corrupted modes";
+  TEST_IGNORE_MESSAGE(corruptedIgnoreMessage.c_str());
+  
   TEST_FAIL_MESSAGE("very important TODO, EventManager expects this behaviour");
 }
 
@@ -163,6 +415,8 @@ void test_convertToDataPackets_helper(){
 void testInitialisation(){
   /*
   at time of initialisation, lights should be off, but turn on next time update is called. in other words and from the user perspective, when the device boots the brightness should be minOnBrightness, set to whatever mode EventManager thinks should be current (or defaultConstantBrightness if none)
+
+  To help reduce heap fragmentation, the stored ID maps should be built after all the classes are constructed. by deferring the loadMode() call until the first update (or setModeByID() call), it should ensure that event manager is constructed before the ModeIDs map is built
 
   TODO: when modes are functional, it probably won't matter
   the device shouldn't be booting that often, so colour changeovers should be pretty rare. if they aren't, there's bigger problems to deal with
@@ -185,7 +439,7 @@ void testInitialisation(){
     // constant brightness should the current mode
     const CurrentModeStruct initialModes = modalLights->getCurrentModes();
     TEST_ASSERT_EQUAL(0, initialModes.activeMode);
-    TEST_ASSERT_EQUAL(1, initialModes.backgroundMode);
+    TEST_ASSERT_EQUAL(0, initialModes.backgroundMode);
 
     // light values should be 0 before update is called
     TEST_ASSERT_EACH_EQUAL_UINT8(0, currentChannelValues, nChannels);
@@ -214,9 +468,9 @@ void testInitialisation(){
     // constant brightness should the current mode
     const CurrentModeStruct initialModes = modalLights->getCurrentModes();
     TEST_ASSERT_EQUAL(0, initialModes.activeMode);
-    TEST_ASSERT_EQUAL(1, initialModes.backgroundMode);
+    TEST_ASSERT_EQUAL(0, initialModes.backgroundMode);
 
-    auto testMode = testOnlyModes.at("purpleConstBrightness");
+    auto testMode = testModesMap.at("purpleConstBrightness");
     modalLights->setModeByUUID(testMode.ID, mondayAtMidnight, false);
 
     // light values should be 0 before update is called
@@ -245,7 +499,7 @@ void testInitialisation(){
     // constant brightness should the current mode
     const CurrentModeStruct initialModes = modalLights->getCurrentModes();
     TEST_ASSERT_EQUAL(0, initialModes.activeMode);
-    TEST_ASSERT_EQUAL(1, initialModes.backgroundMode);
+    TEST_ASSERT_EQUAL(0, initialModes.backgroundMode);
 
     // light values should be 0 before update is called
     TEST_ASSERT_EACH_EQUAL_UINT8(0, currentChannelValues, nChannels);
@@ -271,7 +525,7 @@ void testInitialisation(){
     // constant brightness should the current mode
     const CurrentModeStruct initialModes = modalLights->getCurrentModes();
     TEST_ASSERT_EQUAL(0, initialModes.activeMode);
-    TEST_ASSERT_EQUAL(1, initialModes.backgroundMode);
+    TEST_ASSERT_EQUAL(0, initialModes.backgroundMode);
 
     // light values should be 0 before update is called
     TEST_ASSERT_EACH_EQUAL_UINT8(0, currentChannelValues, nChannels);
@@ -297,7 +551,7 @@ void testInitialisation(){
     // constant brightness should the current mode
     const CurrentModeStruct initialModes = modalLights->getCurrentModes();
     TEST_ASSERT_EQUAL(0, initialModes.activeMode);
-    TEST_ASSERT_EQUAL(1, initialModes.backgroundMode);
+    TEST_ASSERT_EQUAL(0, initialModes.backgroundMode);
 
     // light values should be 0 before update is called
     TEST_ASSERT_EACH_EQUAL_UINT8(0, currentChannelValues, nChannels);
@@ -323,6 +577,9 @@ void validateModePacketTest(){
 
 void testDeleteMode(){
   // test behaviour when current mode is deleted
+
+  // TODO: mode cannot be deleted if it is used in an event
+
   TEST_IGNORE_MESSAGE("TODO");
 }
 
@@ -635,7 +892,7 @@ void RUN_UNITY_TESTS(){
   RUN_TEST(testDeleteMode);
   RUN_TEST(testUpdateMode);
   RUN_TEST(testModeSwitching);
-  RUN_TEST(testRepeatModeIgnoring);
+  RUN_TEST(testSetModeIgnoring);
   
   ConstantBrightnessModeTests::constBrightness_tests();
   UNITY_END();

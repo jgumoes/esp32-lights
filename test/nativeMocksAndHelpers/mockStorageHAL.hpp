@@ -54,12 +54,15 @@ class MockStorageHAL : public StorageHALInterface{
       }
     };
 
+    uint16_t getModeCount = 0;
+    
     bool getModeAt(nModes_t position, uint8_t buffer[modePacketSize]){
       if(position >= _storedModes.size() || position < 0){
         return false;
       }
       // memcpy(buffer, _storedModes.at(position), modePacketSize);
       serializeModeDataStruct(_storedModes.at(position), buffer);
+      getModeCount++;
       return true;
     }
 

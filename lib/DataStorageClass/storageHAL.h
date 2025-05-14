@@ -4,6 +4,13 @@
 #include <Arduino.h>
 #include "ProjectDefines.h"
 
+/*
+TODO: the Mode and Event ID Maps should be constructed after all the other classes have initialised. Every class should exist for the lifecycle of the program, but the maps can resize, and I want to reduce the amount of holes they leave in the heap. ModalController doesn't need to access storage until a specific mode is set from EventManager, so if EventManager can be the last class that constructs, this would defer the storage access
+
+if EventManager can request storage to pre-load a mode, the first request can trigger building the modeID map
+
+TODO: is there a way of seeing how much RAM is used, so that the maps can be reset if they're using more than expected (i.e. they've fragmented the heap)?
+*/
 class StorageHALInterface{
   protected:
     modeUUID _numberOfStoredModes;

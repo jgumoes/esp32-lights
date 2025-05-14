@@ -18,7 +18,7 @@ private:
   std::shared_ptr<StorageHALInterface> _storage;
 
   storedEventIDsMap_t _storedEventIDs;         // TODO: ID should map to an address in FRAM/EEPROM
-  storedModeIDsMap_t _storedModeIDs = {{1, 0}}; // default constant brightness should always be in progmem
+  storedModeIDsMap_t _storedModeIDs; // default constant brightness should always be in progmem
 
 public:
   DataStorageClass(std::shared_ptr<StorageHALInterface> storage) : _storage(std::move(storage)){
@@ -43,6 +43,10 @@ public:
   bool getMode(modeUUID modeID, uint8_t dataPacket[modePacketSize]);
 
   struct EventDataPacket getEvent(eventUUID eventID);
+
+  bool doesModeExist(modeUUID modeID){
+    return _storedModeIDs.contains(modeID) || (modeID == 1);
+  }
 };
 
 #endif

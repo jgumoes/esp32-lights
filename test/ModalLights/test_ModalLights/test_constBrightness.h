@@ -48,7 +48,7 @@ void testUpdateLights(){
     testObjects.timestamp->setTimestamp_S(testTime);
     const duty_t testBrightness = 125;
     testClass->setBrightnessLevel(testBrightness);
-    TestModeDataStruct testMode = mvpModes["warmConstBrightness"];
+    TestModeDataStruct testMode = testModesMap["warmConstBrightness"];
     testClass->setModeByUUID(testMode.ID, testTime, false);
     testClass->updateLights();
 
@@ -449,8 +449,8 @@ void testSetBrightness(){
   }
 
   // change mode to warm, then set to 140 from 100
-  const TestModeDataStruct modeData = mvpModes["warmConstBrightness"];
-  TEST_ASSERT_CURRENT_MODES(1, 0, testClass->getCurrentModes());
+  const TestModeDataStruct modeData = testModesMap["warmConstBrightness"];
+  TEST_ASSERT_CURRENT_MODES(1, 0, testClass);
   {
     const duty_t oldBrightness = 100;
     const duty_t newBrightness = 140;
@@ -458,7 +458,7 @@ void testSetBrightness(){
     // change the mode
     testClass->setModeByUUID(modeData.ID, currentTestTime, false);
     testClass->updateLights();
-    TEST_ASSERT_CURRENT_MODES(modeData.ID, 0, testClass->getCurrentModes());
+    TEST_ASSERT_CURRENT_MODES(modeData.ID, 0, testClass);
 
     TEST_ASSERT_EQUAL(oldBrightness, testClass->getSetBrightness());
     TEST_ASSERT_EQUAL(true, testClass->getState());
@@ -983,7 +983,7 @@ void testActiveBehaviour(){
   TEST_ASSERT_EQUAL(brightness, testClass->getSetBrightness());
 
   // load purple as active mode
-  const TestModeDataStruct activeMode = testOnlyModes["purpleConstBrightness"];
+  const TestModeDataStruct activeMode = testModesMap["purpleConstBrightness"];
   testClass->setModeByUUID(activeMode.ID, currentTestTime, true);
   testClass->updateLights();
   currentModes = testClass->getCurrentModes();
@@ -1096,7 +1096,7 @@ void testActiveBehaviour(){
   // brightness cannot be set or adjusted below active mode min
   {
     const uint64_t startTime = incrementTimeAndUpdate_S(1, testObjects);
-    TestModeDataStruct activeMode = mvpModes["warmConstBrightness"];
+    TestModeDataStruct activeMode = testModesMap["warmConstBrightness"];
     const duty_t minB = activeMode.brightness0;
     TEST_ASSERT_TRUE(minB > 0);  // just checking
     testClass->setModeByUUID(activeMode.ID, startTime, true);
@@ -1261,7 +1261,7 @@ void testActiveBehaviour(){
     const uint64_t triggerTime_S = incrementTimeAndUpdate_S(60, testObjects);
     
     // set new background mode
-    const TestModeDataStruct newBackgroundMode = mvpModes["warmConstBrightness"];
+    const TestModeDataStruct newBackgroundMode = testModesMap["warmConstBrightness"];
     testClass->setModeByUUID(newBackgroundMode.ID, triggerTime_S, false);
     incrementTimeAndUpdate_S(1, testObjects);
     testClass->updateLights();
@@ -1347,7 +1347,7 @@ void testChangeover(){
   TEST_ASSERT_EQUAL(true, testClass->getState());
 
   TEST_ASSERT_EQUAL(1, testClass->getCurrentModes().backgroundMode);
-  const TestModeDataStruct newBackgroundMode = mvpModes["warmConstBrightness"];
+  const TestModeDataStruct newBackgroundMode = testModesMap["warmConstBrightness"];
 
   // set a background mode, set a different background mode with different colours, they should interpolate over the window
   {
@@ -1597,8 +1597,8 @@ void testChangeover(){
     const uint64_t testStartTime = incrementTimeAndUpdate_S(1, testObjects);
     const duty_t minB = testConfigs.minOnBrightness;
     
-    const TestModeDataStruct backgroundMode = mvpModes["warmConstBrightness"];
-    const TestModeDataStruct activeMode = testOnlyModes["purpleConstBrightness"];
+    const TestModeDataStruct backgroundMode = testModesMap["warmConstBrightness"];
+    const TestModeDataStruct activeMode = testModesMap["purpleConstBrightness"];
     testClass->setModeByUUID(backgroundMode.ID, testStartTime, false);
     testClass->adjustBrightness(255, false);
     TEST_ASSERT_EQUAL(0, testClass->getSetBrightness());
@@ -1656,7 +1656,7 @@ void testChangeover(){
     const duty_t expB1 = interpolate(minBrightness, maxB, 0.5);
     TEST_ASSERT_EQUAL(expB1, testClass->getBrightnessLevel());
 
-    TestModeDataStruct activeMode = testOnlyModes["purpleConstBrightness"];
+    TestModeDataStruct activeMode = testModesMap["purpleConstBrightness"];
     testClass->setModeByUUID(activeMode.ID, startTime, false);
     testClass->updateLights();
     const duty_t *colours1 = defaultConstantBrightness.endColourRatios.RGB;
@@ -1692,8 +1692,8 @@ void testChangeover(){
     const uint64_t testStartTime = incrementTimeAndUpdate_S(1, testObjects);
     const duty_t minB = testConfigs.minOnBrightness;
 
-    const TestModeDataStruct backgroundMode = mvpModes["warmConstBrightness"];
-    const TestModeDataStruct activeMode = testOnlyModes["purpleConstBrightness"];
+    const TestModeDataStruct backgroundMode = testModesMap["warmConstBrightness"];
+    const TestModeDataStruct activeMode = testModesMap["purpleConstBrightness"];
     testClass->setModeByUUID(backgroundMode.ID, testStartTime, false);
     testClass->adjustBrightness(255, true);
     TEST_ASSERT_EQUAL(255, testClass->getSetBrightness());
@@ -1715,8 +1715,8 @@ void testChangeover(){
   // changing the background mode and turning the lights off and on within soft change window, should immediately change the colours to the new brightness (i.e. turning lights off mid change should end the colour interpolation)
   {
     const uint64_t startTime_S = incrementTimeAndUpdate_S(1, testObjects);
-    TestModeDataStruct mode1 = testOnlyModes["purpleConstBrightness"];
-    TestModeDataStruct mode2 = mvpModes["warmConstBrightness"];
+    TestModeDataStruct mode1 = testModesMap["purpleConstBrightness"];
+    TestModeDataStruct mode2 = testModesMap["warmConstBrightness"];
 
     const duty_t *ratios1 = mode1.endColourRatios.RGB;
     const duty_t *ratios2 = mode2.endColourRatios.RGB;
@@ -1822,6 +1822,7 @@ void testTimeChanges(void){
   const TestObjectsStruct testObjects = modalLightsFactoryAllModes(channel, testStartTime, testConfigs);
 
   const std::shared_ptr<ModalLightsController> testClass = testObjects.modalLights;
+  testClass->updateLights();
 
   const auto deviceTime = testObjects.deviceTime;
 
@@ -1864,7 +1865,7 @@ void testTimeChanges(void){
     testClass->setBrightnessLevel(minB);
     const uint64_t time = incrementTimeAndUpdate_S(60, testObjects);
     TEST_ASSERT_EQUAL(minB, testClass->getBrightnessLevel());
-    TestModeDataStruct newMode = mvpModes["warmConstBrightness"];
+    TestModeDataStruct newMode = testModesMap["warmConstBrightness"];
     const duty_t *ratios1 = defaultConstantBrightness.endColourRatios.RGB;
     const duty_t *ratios2 = newMode.endColourRatios.RGB;
 

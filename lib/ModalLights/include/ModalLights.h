@@ -8,7 +8,6 @@
 #include "modes.h"
 #include "lightDefines.h"
 #include "DataStorageClass.h"
-#include "PrintDebug.h"
 
 class VirtualLightsClass{
   public:
@@ -88,6 +87,17 @@ class ModalLightsInterface{
     }
 };
 
+static bool modeUsesTriggerTime(ModeTypes modeType){
+  switch (modeType)
+  {
+  case ModeTypes::constantBrightness:
+    return true;
+  
+  default:
+    return true;
+  }
+}
+
 /**
  * LightsClass must have method setDutyCycle(duty_t)
 */
@@ -106,22 +116,21 @@ private:
   
   std::shared_ptr<InterpolationClass<nChannels>> _interpClass = std::make_shared<InterpolationClass<nChannels>>();
 
-  // TODO: replace with structs and pass constant references to the modes
+  // TODO: remove mode IDs; they duplicate from the data packets
   modeUUID _activeMode = 0;
-  modeUUID _backgroundMode = 1;
-  
+  ModeDataStruct _activeModeData = ModeDataStruct{};
   uint64_t _activeModeTriggerTimeUTC_uS = 0;
+  
+  modeUUID _backgroundMode = 0;
+  ModeDataStruct _backgroundModeData = ModeDataStruct{};
   uint64_t _backgroundModeTriggerTimeUTC_uS = 0;
 
   modeUUID _nextActiveMode = 0;
-  modeUUID _nextBackgroundMode = 1; // default mode incase event manager doesn't request any modes
-  
   uint64_t _nextActiveTriggerTimeUTC_uS = 0;
+  
+  modeUUID _nextBackgroundMode = 1; // default mode incase event manager doesn't request any modes
   uint64_t _nextBackgroundTriggerTimeUTC_uS = 0;
   
-  ModeDataStruct _activeModeData = ModeDataStruct{};
-  ModeDataStruct _backgroundModeData = ModeDataStruct{};
-
   bool _isSetupComplete = false;
 
   /**
@@ -154,7 +163,7 @@ private:
     // ModeTypes modeType = static_cast<ModeTypes>(dataPacket[1]);
     ModeTypes modeType = dataPacket->type;
     uint64_t currentTimeUTC_uS = _deviceTime->getUTCTimestampMicros();
-    // NOTE: these will be useful when interpolation class is disassembled
+    // NOTE: these might be useful when interpolation class is disassembled
     // duty_t previousValues[nChannels+1];
     // _mode->getTargetVals(previousValues, currentTimeUTC_uS, _lightVals);
 
@@ -181,57 +190,90 @@ private:
     }
   }
 
+  bool _loadNextActiveMode(){
+    if(_nextActiveMode == 0){
+      return false;
+    }
+
+    // set the mode data packet
+    bool success;
+    if(_nextActiveMode == _activeMode){
+      // only re-trigger if the trigger times are different and the mode type cares about trigger times
+      success = 
+        (_nextActiveTriggerTimeUTC_uS != _activeModeTriggerTimeUTC_uS)
+        && modeUsesTriggerTime(_activeModeData.type);
+    }
+    else if(_nextActiveMode == _backgroundMode){
+      _activeModeData = _backgroundModeData;
+      success = true;
+    }
+    else{
+      // TODO: dataStorage should fill a ModeDataStruct instead of an array
+      uint8_t dataArray[modePacketSize];
+      success = _dataStorage->getMode(_nextActiveMode, dataArray);
+      if(success){
+        deserializeModeData(dataArray, &_activeModeData);
+      }
+    }
+
+    // switch mode if mode data packet was set
+    if(success){
+      _activeMode = _nextActiveMode;
+      _activeModeTriggerTimeUTC_uS = _nextActiveTriggerTimeUTC_uS;
+      _changeMode();
+    }
+
+    // reset _next_X_Mode variables
+    _nextActiveMode = 0;
+    _nextActiveTriggerTimeUTC_uS = 0;
+    return success;
+  }
+
+  bool _loadNextBackgroundMode(){
+    if(_nextBackgroundMode == 0){
+      return false;
+    }
+
+    // set the mode data packet
+    bool success;
+    if(_nextBackgroundMode == _backgroundMode){
+      success = true;
+    }
+    else if(_nextBackgroundMode == _activeMode){
+      _backgroundModeData = _activeModeData;
+      success = true;
+    }
+    else{
+      // TODO: dataStorage should fill a ModeDataStruct instead of an array
+      uint8_t dataArray[modePacketSize];
+      success = _dataStorage->getMode(_nextBackgroundMode, dataArray);
+      if(success){
+        deserializeModeData(dataArray, &_backgroundModeData);
+      }
+    }
+
+    // switch mode if mode data packet was set
+    if(success){
+      _backgroundMode = _nextBackgroundMode;
+      _backgroundModeTriggerTimeUTC_uS = _nextBackgroundTriggerTimeUTC_uS;
+      if(_activeMode == 0){
+        _changeMode();
+      }
+    }
+
+    // reset _next_X_Mode variables
+    _nextBackgroundMode = 0;
+    _nextBackgroundTriggerTimeUTC_uS = 0;
+    return success;
+  }
+
   /**
    * @brief loads _nextMode from storage, and calls _changeMode if applicable. sets current values to _nextMode if _nextMode is valid, resets _next values if not. if _nextMode is background but current mode is active, it'll load the data from storage but not force a change. _nextMode values must already be set.
    * 
    */
   void _loadMode(){
-    ModeDataStruct* dataPacket;
-    bool isActive;
-    uint64_t* triggerTimeUTC_uS;
-    modeUUID* modeID;
-    { // set the mode variables
-      if(_nextActiveMode != 0){
-        isActive = true;
-        dataPacket = &_activeModeData;
-        modeID = &_nextActiveMode;
-        triggerTimeUTC_uS = &_nextActiveTriggerTimeUTC_uS;
-      }
-      else{
-        isActive = false;
-        dataPacket = &_backgroundModeData;
-        modeID = &_nextBackgroundMode;
-        triggerTimeUTC_uS = &_nextBackgroundTriggerTimeUTC_uS;
-      }
-    }
-    
-    // if mode can't be loaded, reset _next variables and bail
-    uint8_t dataArray[modePacketSize];
-    if(!_dataStorage->getMode(*modeID, dataArray)){
-      *modeID = 0;
-      triggerTimeUTC_uS = 0;
-      return;
-    }
-    deserializeModeData(dataArray, dataPacket);
-    
-    // set current class varibles to _next, and reset _next variables
-    if(isActive){
-      _activeMode = *modeID;
-      *modeID = 0;
-      _activeModeTriggerTimeUTC_uS = *triggerTimeUTC_uS;
-      *triggerTimeUTC_uS = 0;
-    }
-    else{
-      _backgroundMode = *modeID;
-      *modeID = 0;
-      _backgroundModeTriggerTimeUTC_uS = *triggerTimeUTC_uS;
-      *triggerTimeUTC_uS = 0;
-    }
-    
-    // don't load a background mode if active mode is running
-    if(!isActive && _activeMode != 0){return;}
-
-    _changeMode();
+    _loadNextActiveMode();
+    _loadNextBackgroundMode();
   }
 
 public:
@@ -268,12 +310,16 @@ public:
    * @param isActive 
    */
   void setModeByUUID(modeUUID modeID, uint64_t triggerTimeLocal_S, bool isActive) override{
+    // TODO: check with storage if modeID is valid
+    if(!_dataStorage->doesModeExist(modeID)){
+      return;
+    }
     if(isActive){
       _nextActiveMode = modeID;
       _nextActiveTriggerTimeUTC_uS = _deviceTime->convertLocalToUTCMicros(triggerTimeLocal_S * secondsToMicros);
+      return;
     }
-    else{
-      // TODO: reject if modeID == currentBackgroundMode, unless the mode is dependant on trigger time
+    if(modeID != _backgroundMode){
       _nextBackgroundMode = modeID;
       _nextBackgroundTriggerTimeUTC_uS = _deviceTime->convertLocalToUTCMicros(triggerTimeLocal_S * secondsToMicros);
     }
