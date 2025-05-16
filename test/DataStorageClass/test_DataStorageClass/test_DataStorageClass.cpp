@@ -14,8 +14,9 @@ std::shared_ptr<DataStorageClass> DataStorageFactory(
   // auto mockStorageHAL = std::make_shared<MockStorageHAL>(modeDataPackets, eventDataPackets);
   // auto testModes = makeModeDataStructArray(testModeDataStructs, channel);
   auto mockStorageHAL = std::make_shared<MockStorageHAL>(testModes, eventDataPackets);
-  auto mockDataClass = std::make_shared<DataStorageClass>(std::move(mockStorageHAL));
-  return mockDataClass;
+  auto dataStorageClass = std::make_shared<DataStorageClass>(std::move(mockStorageHAL));
+  dataStorageClass->loadIDs();
+  return dataStorageClass;
 }
 
 #define ASSERT_EQUAL_EVENT_STRUCTS(expectedEvent, actualEvent)\

@@ -57,6 +57,7 @@ TestObjectsStruct modalLightsFactory(TestChannels channel, const std::vector<Tes
 
   testObjects.mockStorageHAL = std::make_shared<MockStorageHAL>(testObjects.initialModes, getAllTestEvents());
   auto storage = std::make_shared<DataStorageClass>(testObjects.mockStorageHAL);
+  storage->loadIDs();
   
   auto lightsClass = concreteLightsClassFactory<TestLEDClass>();
   testObjects.modalLights = std::make_shared<ModalLightsController>(

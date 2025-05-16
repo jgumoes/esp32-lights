@@ -21,11 +21,16 @@ private:
   storedModeIDsMap_t _storedModeIDs; // default constant brightness should always be in progmem
 
 public:
-  DataStorageClass(std::shared_ptr<StorageHALInterface> storage) : _storage(std::move(storage)){
-    // TODO: defer until all classes are constructed
+  DataStorageClass(std::shared_ptr<StorageHALInterface> storage) : _storage(std::move(storage)){};
+
+  /**
+   * @brief load the IDs from storage
+   * 
+   */
+  void loadIDs(){
     _storage->getModeIDs(_storedModeIDs);
     _storage->getEventIDs(_storedEventIDs);
-  };
+  }
   
   /**
    * @brief returns an iterator to get all of the stored modes
