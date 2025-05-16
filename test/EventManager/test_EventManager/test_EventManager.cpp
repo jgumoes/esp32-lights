@@ -40,7 +40,7 @@ auto EventManagerFactory(
   auto mockStorageHAL = std::make_shared<MockStorageHAL>(modeDataPackets, testEvents);
   std::vector<TestModeDataStruct> testModes = {testModesMap["warmConstBrightness"]};
   auto dataStorage = std::make_shared<DataStorageClass>(std::move(mockStorageHAL));
-  return EventManager(modalLights, configs,deviceTime, dataStorage->getAllEvents());
+  return EventManager(modalLights, configs,deviceTime, dataStorage);
 }
 
 auto makeTestConfigManager(EventManagerConfigsStruct initialConfigs){

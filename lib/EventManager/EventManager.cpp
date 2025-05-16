@@ -1,11 +1,13 @@
 #include "EventManager.h"
 
-EventManager::EventManager(std::shared_ptr<ModalLightsInterface> modalLights, std::shared_ptr<ConfigManagerClass> configManager, std::shared_ptr<DeviceTimeClass> deviceTime, EventStorageIterator events)
+EventManager::EventManager(std::shared_ptr<ModalLightsInterface> modalLights, std::shared_ptr<ConfigManagerClass> configManager, std::shared_ptr<DeviceTimeClass> deviceTime, std::shared_ptr<DataStorageClass> storage)
   : _modalLights(modalLights), _configManager(configManager), _configs(configManager->getEventManagerConfigs()),
     _active(std::make_unique<ActiveEventSupervisor>(_configs)),
-    _background(std::make_unique<BackgroundEventSupervisor>(_configs)), _deviceTime(deviceTime)
+    _background(std::make_unique<BackgroundEventSupervisor>(_configs)), _deviceTime(deviceTime),
+    _storage(storage)
 {
   const uint64_t timestamp_S = _deviceTime->getLocalTimestampSeconds();
+  EventStorageIterator events = _storage->getAllEvents(); 
   while(events.hasMore()){
     EventDataPacket event = events.getNext();
     eventError_t error = isEventDataPacketValid(event, false);

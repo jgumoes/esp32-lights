@@ -17,6 +17,7 @@ class EventManager : public TimeObserver
 private:
   std::shared_ptr<ModalLightsInterface> _modalLights;
   std::shared_ptr<DeviceTimeClass> _deviceTime;
+  std::shared_ptr<DataStorageClass> _storage;
   
   std::shared_ptr<ConfigManagerClass> _configManager;
   EventManagerConfigsStruct _configs;
@@ -32,7 +33,7 @@ public:
     std::shared_ptr<ModalLightsInterface> modalLights,
     std::shared_ptr<ConfigManagerClass> configManager,
     std::shared_ptr<DeviceTimeClass> deviceTime,
-    EventStorageIterator events
+    std::shared_ptr<DataStorageClass> storage
   );
   ~EventManager(){};
 

@@ -22,6 +22,7 @@ private:
 
 public:
   DataStorageClass(std::shared_ptr<StorageHALInterface> storage) : _storage(std::move(storage)){
+    // TODO: defer until all classes are constructed
     _storage->getModeIDs(_storedModeIDs);
     _storage->getEventIDs(_storedEventIDs);
   };
