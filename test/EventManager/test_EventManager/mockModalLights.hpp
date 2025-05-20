@@ -81,18 +81,29 @@ class MockModalLights : public ModalLightsInterface{
 
     duty_t getSetBrightness() override {return _lightVals.values[0];}
 
+    int16_t previousAdjustment = 0;
     duty_t adjustBrightness(duty_t amount, bool increasing) override {
-      duty_t newBrightness;
-      if(increasing){
-        newBrightness = amount + _lightVals.values[0] > 255
-                      ? 255
-                      : _lightVals.values[0] + amount;
+      previousAdjustment = increasing
+                          ? amount
+                          : -amount;
+      
+      // if adjusting up from off
+      if(
+        !_lightVals.state
+        && increasing
+        && (amount > 0)
+      ){
+        _lightVals.state = true;
+        _lightVals.values[0] = 0;
       }
-      else{
-        newBrightness = amount > _lightVals.values[0]
-                      ? 0
-                      : _lightVals.values[0] - amount;
-      }
+
+      int16_t bigB = increasing
+                    ? _lightVals.values[0] + amount
+                    : _lightVals.values[0] - amount;
+      if(bigB > 255){bigB = 255;}
+      if(bigB < 0){bigB = 0;}
+
+      duty_t newBrightness = static_cast<duty_t>(bigB);
       _lightVals.values[0] = newBrightness;
       return newBrightness;
     }

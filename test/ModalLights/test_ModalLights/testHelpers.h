@@ -170,4 +170,34 @@ void interpAndFillColourRatios(duty_t expectedArr[nChannels], duty_t expectedBri
   fillChannelBrightness(expectedArr, expectedRatios, expectedBrightness);
 }
 
+/**
+ * @brief find the time difference to get to the desiredValue. returns the time diff in the same units as window
+ * 
+ * @param desiredValue 
+ * @param initialValue 
+ * @param finalValue 
+ * @param window 
+ * @return uint64_t 
+ */
+uint64_t getTimeDiffToInterpValue(const duty_t desiredValue, const duty_t initialValue, const duty_t finalValue, const uint64_t window){
+  if(window == 0 || initialValue == finalValue){
+    return 0;
+  }
+
+  const bool isIncreasing = (finalValue > initialValue);
+
+  if(
+    (isIncreasing && (desiredValue < initialValue || desiredValue > finalValue))
+    || (!isIncreasing && (desiredValue > initialValue || desiredValue < finalValue))
+  ){
+    throw("you done goofed: desired value is out of bounds");
+  }
+
+  const duty_t top = isIncreasing ? (desiredValue - initialValue) : (initialValue - desiredValue);
+  const duty_t bottom = isIncreasing ? (finalValue - initialValue) : (initialValue - finalValue);
+  const duty_t round = bottom/2;
+  
+  return ((window * top) + round)/bottom;
+}
+
 #endif

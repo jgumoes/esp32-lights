@@ -44,20 +44,6 @@ auto EventManagerFactory(
   return EventManager(modalLights, configs,deviceTime, dataStorage);
 }
 
-auto makeTestConfigManager(EventManagerConfigsStruct initialConfigs){
-  ConfigsStruct configs;
-  configs.eventConfigs = initialConfigs;
-  auto mockConfigHal = std::make_unique<MockConfigHal>();
-  mockConfigHal->setConfigs(configs);
-  std::shared_ptr<ConfigManagerClass> configsManager = std::make_shared<ConfigManagerClass>(std::move(mockConfigHal));
-  return configsManager;
-};
-
-auto makeTestConfigManager(){
-  EventManagerConfigsStruct defaultConfigs;
-  return makeTestConfigManager(defaultConfigs);
-}
-
 void EventDataPacketShouldInitialiseEmpty(void){
   EventDataPacket emptyEvent;
 
