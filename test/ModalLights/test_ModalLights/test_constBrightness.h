@@ -119,11 +119,13 @@ void testBrightnessAdjustment(){
     testObjects.timestamp->setTimestamp_S(currentTestTime);
     testClass->updateLights();
     TEST_ASSERT_EQUAL(0, testClass->getBrightnessLevel());
+    TEST_ASSERT_EQUAL(0, testClass->getSetBrightness());
   }
 
   // adjust up and down out of bounds
   {
     // adjust down from 0
+    TEST_ASSERT_EQUAL(0, testClass->getBrightnessLevel());
     TEST_ASSERT_EQUAL(0, testClass->getSetBrightness());
     TEST_ASSERT_EQUAL(false, testClass->getState());
     TEST_ASSERT_EQUAL(0, testClass->adjustBrightness(55, false));

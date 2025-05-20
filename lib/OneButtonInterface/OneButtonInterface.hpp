@@ -44,13 +44,13 @@ namespace {
 
   struct LongPressParams{
     private:
-    InterpolationClass<1> _interp;  // TODO: refactor interpolation class to get a 1D interpolator
+    Interpolator<1> _interp;  // TODO: refactor interpolation class to get a 1D interpolator
     public:
     bool direction = false;
     duty_t cumAdj;
 
     void initInterp(uint64_t startTimeUTC_uS, OneButtonConfigs& configs){
-      _interp.newBrightnessVal_window(
+      _interp.newWindowInterpolation(
         startTimeUTC_uS, configs.longPressWindow_mS*1000,
         1, 255
       );
@@ -69,8 +69,8 @@ namespace {
      * 
      */
     void reset(){
-      _interp.t0_uS[0] = 0;
-      _interp.t1_uS[0] = 0;
+      _interp.t0_uS = 0;
+      _interp.t1_uS = 0;
       _interp.initialVals[0] = 0;
       _interp.targetVals[0] = 0;
       cumAdj = 0;

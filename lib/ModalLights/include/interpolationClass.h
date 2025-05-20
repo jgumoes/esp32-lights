@@ -14,9 +14,194 @@ namespace IsDoneBitFlags{
   constexpr isDone_t both = 3;
 };
 
+template <uint8_t nDimensions>
+class Interpolator{
+private:
+  bool _isDone = true;
+public:
+  // set values
+  uint64_t t0_uS = 0;        // start times
+  duty_t initialVals[nDimensions];
+  duty_t targetVals[nDimensions];
+  
+  // calculated values
+  uint64_t t1_uS = 0;        // end times, window_uS + t0, or (r_uS * max(abs(dB))) + t0
+  int16_t top[nDimensions];  // for window: b1 - b0; for rate: +/- 1 or 0
+  uint64_t bottom;       // window_uS or rate_us
+  uint64_t k[nDimensions];   // rounding constant = b0*bottom + (bottom/2)
+
+  Interpolator(){
+    for(uint8_t d = 0; d < nDimensions; d++){
+      initialVals[d] = 0;
+      targetVals[d] = 0;
+    }
+  };
+
+  isDone_t isDone(){
+    return _isDone;
+  };
+
+  void adjustTime(const int64_t& utcTimeChange_uS){
+    t0_uS += utcTimeChange_uS;
+    t1_uS += utcTimeChange_uS;
+  };
+
+  duty_t interpolateValue(const uint64_t& utcTimestamp_uS, const uint8_t index){
+    if(
+      (utcTimestamp_uS >= t1_uS)
+      || (bottom == 0)
+      || (initialVals[index] == targetVals[index])
+    ){
+      // bottom == 0 when window or rate == 0 (i.e. change is instant or infinite)
+      return targetVals[index];
+    }
+    if(
+      (utcTimestamp_uS <= t0_uS)
+      || (top[index] == 0)
+    ){
+      // top == 0 when b1 == b0
+      return initialVals[index];
+    }
+    // for uint8_t rate, max newValue should be 511. for window, guards should have caught values outside of duty_t range
+    int16_t newValue = (k[index] + ((utcTimestamp_uS - t0_uS) * top[index])) / bottom;
+
+    /*
+    should be equivalent to:
+      (increasing && newVal > target)
+      || (!increasing && newVal < target)
+    */
+    if(
+      (top[index] > 0) == (newValue > targetVals[index])
+    ){
+      return targetVals[index];
+    }
+    return static_cast<duty_t>(newValue);
+  };
+
+  isDone_t findNextValues(duty_t currentVals[nDimensions], const uint64_t& utcTimestamp_uS){
+    _isDone = 1;
+    for(uint8_t d = 0; d < nDimensions; d++){
+      currentVals[d] = interpolateValue(utcTimestamp_uS, d);
+      _isDone &= (currentVals[d] == targetVals[d]);
+    }
+    return _isDone;
+  };
+
+  /**
+   * @brief set the brightness interpolation constants for a new window interpolation.
+   * 
+   * @param startTimeUTC_uS start time of the interpolation
+   * @param window_uS 
+   * @param initial array of initial values
+   * @param target array of target values
+   * @return isDone_t 
+   */
+  isDone_t newWindowInterpolation(const uint64_t& startTimeUTC_uS, const uint64_t window_uS, const duty_t initial[nDimensions], const duty_t target[nDimensions]){
+    t0_uS = startTimeUTC_uS;
+    t1_uS = startTimeUTC_uS + window_uS;
+    bottom = window_uS;
+    _isDone = 1;
+    for(uint8_t d = 0; d < nDimensions; d++){
+      initialVals[d] = initial[d];
+      targetVals[d] = target[d];
+      top[d] = targetVals[d] - initialVals[d];
+      _isDone &= top[d] == 0;
+      k[d] = (initialVals[d] * window_uS) + (window_uS/2);
+    }
+    return _isDone;
+  };
+
+  /**
+   * @brief set the brightness interpolation constants for a new window interpolation. sets all initialVals to initial, and all targetVals to target. basically a convenience method for 1-D interpolations
+   * 
+   * @param startTimeUTC_uS start time of the interpolation
+   * @param window_uS 
+   * @param initial initial value
+   * @param target target value
+   * @return isDone_t 
+   */
+  isDone_t newWindowInterpolation(const uint64_t& startTimeUTC_uS, const uint64_t window_uS, const duty_t initial, const duty_t target){
+    t0_uS = startTimeUTC_uS;
+    t1_uS = startTimeUTC_uS + window_uS;
+    bottom = window_uS;
+    const int16_t topVal = target - initial;
+    _isDone = (topVal == 0);
+    for(uint8_t d = 0; d < nDimensions; d++){
+      initialVals[d] = initial;
+      targetVals[d] = target;
+      top[d] = topVal;
+      k[d] = (initial * window_uS) + (window_uS/2);
+    }
+    return _isDone;
+  };
+
+  /**
+   * @brief starts a new window interpolation with the same initialVals and targetVals, unless they've been changed in which case it just starts a new interpolation
+   * 
+   * @param initialTimeUTC_uS 
+   * @param window_uS 
+   * @return isDone_t 
+   */
+  isDone_t restartWindowInterpolation(const uint64_t& initialTimeUTC_uS, const uint64_t window_uS){
+    t0_uS = initialTimeUTC_uS;
+    t1_uS = initialTimeUTC_uS + window_uS;
+    bottom = window_uS;
+    _isDone = 1;
+    for(uint8_t d = 0; d < nDimensions; d++){
+      top[d] = targetVals[d] - initialVals[d];
+      _isDone &= top[d] == 0;
+      k[d] = (initialVals[d] * window_uS) + (window_uS/2);
+    }
+    return _isDone;
+  }
+
+  /**
+   * @brief set the brightness interpolation constants for a new rate interpolation. initialVals and targetVals must already be set
+   * 
+   * @param utcTimestamp_us 
+   * @param rate_uS 
+   * @return isDone_t 
+   */
+  isDone_t newRateInterpolation(const uint64_t& utcTimestamp_us, const uint64_t rate_uS){
+    t0_uS = utcTimestamp_us;
+    bottom = rate_uS;
+    
+    _isDone = 1;
+    uint8_t max_dV = 0;
+    for(uint8_t d = 0; d < nDimensions; d++){
+      int16_t dV = targetVals[d] - initialVals[d];
+      top[d] = dV < 0 ? -1 : dV > 0;
+      const duty_t abs_dV = abs(dV);
+      if(abs_dV > max_dV){max_dV == abs_dV;}
+      _isDone &= dV == 0;
+      k[d] = (initialVals[d] * rate_uS) + (rate_uS/2);
+    }
+    t1_uS = utcTimestamp_us + (max_dV * rate_uS);
+
+    return _isDone;
+  };
+
+  /**
+   * @brief handles a time update notification
+   * 
+   * @param timeUpdates 
+   */
+  void notification(const TimeUpdateStruct& timeUpdates){
+    t0_uS += timeUpdates.utcTimeChange_uS;
+    t1_uS += timeUpdates.utcTimeChange_uS;
+  };
+};
+
+
+
+
+
+
+
 /*
 handles interpolation, both window and rate. calculates constants when interpolation is initiated. everything is out in the open and pretty exposed, so don't go abusing trust.
 TODO: resizeWindow method
+TODO: break into two sub-classes, so that single-value interpolator can be used elsewhere without the extra over-head
 
 mathematically,
   b(t) = b(0) + (top/bottom)*(t - t0)
@@ -26,7 +211,7 @@ with rounding,
        = (k + top*(t-t0))/bottom
 */
 template <uint8_t nColours>
-class InterpolationClass{
+class ModeInterpolationClass{
 private:
   isDone_t _isDone = IsDoneBitFlags::both;
 
@@ -36,26 +221,40 @@ private:
   }
 
 public:
-  // static const uint8_t nColours = 3;  // intellisense struggles picking up errors for templated classes, so this is here to making writing and modifying easier
 
-  // set values
-  uint64_t t0_uS[2] = {0, 0};        // start times, [0] = brightness start time, [1] = colours start time
-  duty_t initialVals[nColours+1];  // [0] = brightness, [1:] = colours
-  duty_t targetVals[nColours+1];   // [0] = brightness, [1:] = colours
+  Interpolator<1> brightness;
+  Interpolator<nColours> colours;
   
-  // calculated values
-  uint64_t t1_uS[2] = {0, 0};        // end times, window_uS + t0, or (r_uS * max(abs(dB))) + t0
-  int16_t top[nColours+1];  // for window: b1 - b0; for rate: +/- 1 or 0
-  uint64_t bottom[2];       // window_uS or rate_us. [0] = brightness, [1] = colours start time
-  uint64_t k[nColours+1];   // rounding constant = b0*bottom + (bottom/2)
+  ModeInterpolationClass(){};
 
-  InterpolationClass(){
-    for(uint8_t i = 0; i < nColours + 1; i++){
-      initialVals[i] = 0;
-      targetVals[i] = 0;
-    }
-  };
+  void setInitialVals(const duty_t vals[nColours+1]){
+    brightness.initialVals[0] = vals[0];
+    memcpy(colours.initialVals, &vals[1], nColours);
+  }
 
+  void getInitialVals(duty_t out[nColours+1]){
+    out[0] = brightness.initialVals[0];
+    memccpy(&out[1], colours.initialVals, nColours);
+  }
+  
+  void setTargetVals(const duty_t vals[nColours+1]){
+    brightness.targetVals[0] = vals[0];
+    memcpy(colours.targetVals, &vals[1], nColours);
+  }
+
+  void getTargetVals(duty_t out[nColours+1]){
+    out[0] = brightness.targetVals[0];
+    memcpy(&out[1], colours.targetVals, nColours);
+  }
+
+  void setTargetBrightness(const duty_t targetB){
+    brightness.targetVals[0] = targetB;
+  }
+
+  duty_t getTargetBrightness(){
+    return brightness.targetVals[0];
+  }
+  
   /**
    * @brief returns the bitflags for if the interpolation was finished in the last mutating method call.
    * 
@@ -70,11 +269,9 @@ public:
    * 
    * @param utcTimeChange_uS 
    */
-  void adjustTime(const int64_t& utcTimeChange_uS){
-    t0_uS[0] += utcTimeChange_uS;
-    t0_uS[1] += utcTimeChange_uS;
-    t1_uS[0] += utcTimeChange_uS;
-    t1_uS[1] += utcTimeChange_uS;
+  void notification(const TimeUpdateStruct& timeUpdates){
+    brightness.notification(timeUpdates);
+    colours.notification(timeUpdates);
   }
 
   /**
@@ -86,16 +283,7 @@ public:
   isDone_t endInterpolation(duty_t lightValues[nColours+1]);
 
   /**
-   * @brief calculates the brightness value at a given time, for a specified index. guards against time and value overflows. doesn't mutate any values
-   * 
-   * @param utcTimestamp_uS utc timestamp in microseconds
-   * @param index 0 == brightness, >0 is a colour
-   * @return duty_t the new value
-   */
-  duty_t interpolateValue(const uint64_t& utcTimestamp_uS, const uint8_t index);
-
-  /**
-   * @brief interpolates the values at a given timestamp, and sets currentVals. currentVals is a reference to a c style array, so you could write the target vals of another InterpolationClass instance
+   * @brief interpolates the values at a given timestamp, and sets currentVals. currentVals is a reference to a c style array, so you could write the target vals of another ModeInterpolationClass instance
    * 
    * @param currentVals array of values to mutate
    * @param utcTimestamp_uS 
@@ -157,152 +345,65 @@ public:
 };
 
 template <uint8_t nColours>
-inline duty_t InterpolationClass<nColours>::interpolateValue(const uint64_t& utcTimestamp_uS, const uint8_t index){
-  const bool isC = (index != 0);
-  const uint64_t t0 = t0_uS[isC];
-  
-  if(
-    (utcTimestamp_uS >= t1_uS[isC])
-    || (bottom[isC] == 0)
-    || (initialVals[index] == targetVals[index])
-  ){
-    // bottom == 0 when window or rate == 0 (i.e. change is instant or infinite)
-    return targetVals[index];
-  }
-  if(
-    (utcTimestamp_uS <= t0)
-    || (top[index] == 0)
-  ){
-    // top == 0 when b1 == b0
-    return initialVals[index];
-  }
-  // for uint8_t rate, max newValue should be 511. for window, guards should have caught values outside of duty_t range
-  int16_t newValue = (k[index] + ((utcTimestamp_uS - t0) * top[index])) / bottom[isC];
-
-  /*
-  should be equivalent to:
-    (increasing && newVal > target)
-    || (!increasing && newVal < target)
-  */
-  if(
-    (top[index] > 0) == (newValue > targetVals[index])
-  ){
-    return targetVals[index];
-  }
-  return static_cast<duty_t>(newValue);
-}
-
-template <uint8_t nColours>
-inline isDone_t InterpolationClass<nColours>::findNextValues(duty_t currentVals[nColours+1], const uint64_t& utcTimestamp_uS){
-  _isDone = 1;
-
-  for(uint8_t c = 1; c < nColours + 1; c++){
-    currentVals[c] = interpolateValue(utcTimestamp_uS, c);
-    _isDone &= (currentVals[c] == targetVals[c]);
-  }
-  
-  _isDone = (_isDone << 1);
-  
-  currentVals[0] = interpolateValue(utcTimestamp_uS, 0);
-  _isDone |= (currentVals[0] == targetVals[0]);
+inline isDone_t ModeInterpolationClass<nColours>::findNextValues(duty_t currentVals[nColours+1], const uint64_t& utcTimestamp_uS){
+  _isDone = (colours.findNextValues(&currentVals[1], utcTimestamp_uS) << 1);
+  _isDone |= brightness.findNextValues(currentVals, utcTimestamp_uS);
   return _isDone;
 }
 
 template <uint8_t nColours>
-inline isDone_t InterpolationClass<nColours>::newBrightnessInterp_window(const uint64_t& utcTimestamp_us, const uint64_t window_uS){
-  t0_uS[0] = utcTimestamp_us;
-  t1_uS[0] = utcTimestamp_us + window_uS;
-  top[0] = targetVals[0] - initialVals[0];
-  bottom[0] = window_uS;
-  k[0] = (initialVals[0] * window_uS) + (window_uS/2);
-  return _setBrightnessDoneFlag(top[0] == 0);
+inline isDone_t ModeInterpolationClass<nColours>::newBrightnessInterp_window(const uint64_t& initialTimeUTC_uS, const uint64_t window_uS){
+  bool finished = brightness.restartWindowInterpolation(initialTimeUTC_uS, window_uS);
+  return _setBrightnessDoneFlag(finished);
 }
 
 
 template <uint8_t nColours>
-inline isDone_t InterpolationClass<nColours>::newBrightnessVal_window(const uint64_t& utcTimestamp_us, const uint64_t window_uS, const duty_t currentVal, const duty_t newVal){
-  initialVals[0] = currentVal;
-  targetVals[0] = newVal;
-  return newBrightnessInterp_window(utcTimestamp_us, window_uS);
+inline isDone_t ModeInterpolationClass<nColours>::newBrightnessVal_window(const uint64_t& initialTimeUTC_uS, const uint64_t window_uS, const duty_t currentVal, const duty_t newVal){
+  bool finished = brightness.newWindowInterpolation(initialTimeUTC_uS, window_uS, currentVal, newVal);
+  return _setBrightnessDoneFlag(finished);
 }
 
 template <uint8_t nColours>
-inline isDone_t InterpolationClass<nColours>::endInterpolation(duty_t lightValues[nColours + 1])
+inline isDone_t ModeInterpolationClass<nColours>::endInterpolation(duty_t lightValues[nColours + 1])
 {
-  for(uint8_t i = 0; i < nColours+1; i++){
-    lightValues[i] = targetVals[i];
-    initialVals[i] = targetVals[i];
-    top[i] = 0;
+  lightValues[0] = brightness.targetVals[0];
+  brightness.initialVals[0] = brightness.targetVals[0];
+  brightness.top[0] = 0;
+  for(uint8_t c = 0; c < nColours; c++){
+    lightValues[c+1] = colours.targetVals[c];
+    colours.initialVals[c] = colours.targetVals[c];
+    colours.top[c] = 0;
   }
   _isDone = IsDoneBitFlags::both;
   return _isDone;
 }
 
 template <uint8_t nColours>
-inline isDone_t InterpolationClass<nColours>::rebuildInterpConstants_window(const uint64_t& utcTimestamp_us, const uint64_t window_uS){
-  t0_uS[1] = utcTimestamp_us;
-  t1_uS[1] = utcTimestamp_us + window_uS;
-  bottom[1] = window_uS;
-
-  _isDone = 1;
-  for(uint8_t c = 1; c < nColours + 1; c++){
-    top[c] = targetVals[c] - initialVals[c];
-    _isDone &= top[c] == 0;
-    k[c] = (initialVals[c] * window_uS) + (window_uS/2);
-  }
-  _isDone = (_isDone << 1);
-  return newBrightnessInterp_window(utcTimestamp_us, window_uS);
-}
-
-template <uint8_t nColours>
-inline isDone_t InterpolationClass<nColours>::newInterp_window(const uint64_t& utcTimestamp_us, const uint64_t window_uS, const duty_t initial[nColours+1], const duty_t target[nColours+1]){
-  t0_uS[1] = utcTimestamp_us;
-  t1_uS[1] = utcTimestamp_us + window_uS;
-  bottom[1] = window_uS;
-  _isDone = 1;
-  for(uint8_t c = 1; c < nColours + 1; c++){
-    initialVals[c] = initial[c];
-    targetVals[c] = target[c];
-    top[c] = targetVals[c] - initialVals[c];
-    _isDone &= top[c] == 0;
-    k[c] = (initialVals[c] * window_uS) + (window_uS/2);
-  }
-  _isDone = (_isDone << 1);
-  
-  newBrightnessVal_window(utcTimestamp_us, window_uS, initial[0], target[0]);
+inline isDone_t ModeInterpolationClass<nColours>::rebuildInterpConstants_window(const uint64_t& utcTimestamp_us, const uint64_t window_uS){
+  _isDone = (colours.restartWindowInterpolation(utcTimestamp_us, window_uS) << 1);
+  _isDone |= brightness.restartWindowInterpolation(utcTimestamp_us, window_uS);
   return _isDone;
 }
 
 template <uint8_t nColours>
-inline isDone_t InterpolationClass<nColours>::newBrightnessInterp_rate(const uint64_t& utcTimestamp_us, const uint64_t rate_uS){
-  t0_uS[0] = utcTimestamp_us;
-  const int16_t dB = targetVals[0] - initialVals[0];
-  t1_uS[0] = utcTimestamp_us + (abs(dB) * rate_uS);
-  top[0] = dB < 0 ? -1 : dB > 0;
-  bottom[0] = rate_uS;
-  k[0] = (initialVals[0] * rate_uS) + (rate_uS/2);
-  return _setBrightnessDoneFlag(dB == 0);
+inline isDone_t ModeInterpolationClass<nColours>::newInterp_window(const uint64_t& utcTimestamp_us, const uint64_t window_uS, const duty_t initial[nColours+1], const duty_t target[nColours+1]){
+  _isDone = (colours.newWindowInterpolation(utcTimestamp_us, window_uS, &initial[1], &target[1]) << 1);
+  _isDone |= brightness.newWindowInterpolation(utcTimestamp_us, window_uS, initial, target);
+  return _isDone;
 }
 
 template <uint8_t nColours>
-inline isDone_t InterpolationClass<nColours>::rebuildInterpConstants_rate(const uint64_t& utcTimestamp_us, const uint64_t rate_uS){
-  t0_uS[1] = utcTimestamp_us;
-  bottom[1] = rate_uS;
-  
-  _isDone = 1;
-  uint8_t max_dC = 0;
-  for(uint8_t c = 1; c < nColours + 1; c++){
-    int16_t dC = targetVals[c] - initialVals[c];
-    top[c] = dC < 0 ? -1 : dC > 0;
-    const duty_t abs_dC = abs(dC);
-    if(abs_dC > max_dC){max_dC == abs_dC;}
-    _isDone &= dC == 0;
-    k[c] = (initialVals[c] * rate_uS) + (rate_uS/2);
-  }
-  t1_uS[1] = utcTimestamp_us + (max_dC * rate_uS);
-
-  _isDone = (_isDone << 1);
-  return newBrightnessInterp_rate(utcTimestamp_us, rate_uS);
+inline isDone_t ModeInterpolationClass<nColours>::newBrightnessInterp_rate(const uint64_t& utcTimestamp_us, const uint64_t rate_uS){
+  bool finished = brightness.newRateInterpolation(utcTimestamp_us, rate_uS);
+  return _setBrightnessDoneFlag(finished);
 }
+
+template <uint8_t nColours>
+inline isDone_t ModeInterpolationClass<nColours>::rebuildInterpConstants_rate(const uint64_t& utcTimestamp_us, const uint64_t rate_uS){
+  _isDone = (colours.newRateInterpolation(utcTimestamp_us, rate_uS) << 1);
+  _isDone |= brightness.newRateInterpolation(utcTimestamp_us, rate_uS);
+  return _isDone;
+};
 
 #endif

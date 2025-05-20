@@ -599,9 +599,18 @@ void testModeSwitching(){
   TEST_IGNORE_MESSAGE("TODO");
 }
 
+#define TEST_interpolateValue(expectedVals, interpClass, currentTimestamp, stringMessage) {\
+  std::string _brightnessMessage_T_iV = stringMessage + "; b";\
+  TEST_ASSERT_EQUAL_MESSAGE(expectedVals[0], interpClass.brightness.interpolateValue(currentTimestamp, 0), _brightnessMessage_T_iV.c_str());\
+  for(int c = 0; c < numberOfColours; c++){\
+    std::string _colourMessage_T_iV = message + "; c = " + std::to_string(c);\
+    TEST_ASSERT_EQUAL_MESSAGE(expectedVals[c+1], interpClass.colours.interpolateValue(currentTimestamp, c), _colourMessage_T_iV.c_str());\
+  }\
+}
+
 void testInterpolationClass(){
   const uint8_t numberOfColours = 3;
-  InterpolationClass<numberOfColours> interp;
+  ModeInterpolationClass<numberOfColours> interp;
 
 
   // increasing window interpolation
@@ -620,11 +629,9 @@ void testInterpolationClass(){
       interpolateArrays(expectedVals, initialVals, targetVals, k/10., numberOfColours+1);
       duty_t actualVals[numberOfColours+1];
       const uint64_t currentTimestamp = timestamp_uS + (k*dT_uS);
+      TEST_interpolateValue(expectedVals, interp, currentTimestamp, message);
+
       interp.findNextValues(actualVals, currentTimestamp);
-      for(int v = 0; v < numberOfColours+1; v++){
-        std::string message2 = message + "; v = " + std::to_string(v);
-        TEST_ASSERT_EQUAL_MESSAGE(expectedVals[v], interp.interpolateValue(currentTimestamp, v), message2.c_str());
-      }
       TEST_ASSERT_EQUAL_UINT8_ARRAY_MESSAGE(expectedVals, actualVals, numberOfColours+1, message.c_str());
       TEST_ASSERT_EQUAL_MESSAGE(0, interp.isDone(), message.c_str());
     }
@@ -637,10 +644,7 @@ void testInterpolationClass(){
       interp.findNextValues(actualVals, currentTimestamp);
       TEST_ASSERT_EQUAL_UINT8_ARRAY_MESSAGE(targetVals, actualVals, numberOfColours+1, message.c_str());
       TEST_ASSERT_EQUAL_MESSAGE(IsDoneBitFlags::both, interp.isDone(), message.c_str());
-      for(int v = 0; v < numberOfColours+1; v++){
-        std::string message2 = message + "; v = " + std::to_string(v);
-        TEST_ASSERT_EQUAL_MESSAGE(targetVals[v], interp.interpolateValue(currentTimestamp, v), message2.c_str());
-      }
+      TEST_interpolateValue(targetVals, interp, currentTimestamp, message);
     }
   }
 
@@ -664,10 +668,7 @@ void testInterpolationClass(){
       interp.findNextValues(actualVals, currentTimestamp);
       TEST_ASSERT_EQUAL_UINT8_ARRAY_MESSAGE(expectedVals, actualVals, numberOfColours+1, message.c_str());
       TEST_ASSERT_EQUAL_MESSAGE(0, interp.isDone(), message.c_str());
-      for(int v = 0; v < numberOfColours+1; v++){
-        std::string message2 = message + "; v = " + std::to_string(v);
-        TEST_ASSERT_EQUAL_MESSAGE(expectedVals[v], interp.interpolateValue(currentTimestamp, v), message2.c_str());
-      }
+      TEST_interpolateValue(expectedVals, interp, currentTimestamp, message);
     }
 
     // at and after window
@@ -678,10 +679,7 @@ void testInterpolationClass(){
       interp.findNextValues(actualVals, currentTimestamp);
       TEST_ASSERT_EQUAL_UINT8_ARRAY_MESSAGE(targetVals, actualVals, numberOfColours+1, message.c_str());
       TEST_ASSERT_EQUAL_MESSAGE(IsDoneBitFlags::both, interp.isDone(), message.c_str());
-      for(int v = 0; v < numberOfColours+1; v++){
-        std::string message2 = message + "; v = " + std::to_string(v);
-        TEST_ASSERT_EQUAL_MESSAGE(targetVals[v], interp.interpolateValue(currentTimestamp, v), message2.c_str());
-      }
+      TEST_interpolateValue(targetVals, interp, currentTimestamp, message);
     }
   }
 
@@ -704,10 +702,7 @@ void testInterpolationClass(){
       interp.findNextValues(actualVals, currentTimestamp);
       TEST_ASSERT_EQUAL_UINT8_ARRAY_MESSAGE(expectedVals, actualVals, numberOfColours+1, message.c_str());
       TEST_ASSERT_EQUAL_MESSAGE(0, interp.isDone(), message.c_str());
-      for(int v = 0; v < numberOfColours+1; v++){
-        std::string message2 = message + "; v = " + std::to_string(v);
-        TEST_ASSERT_EQUAL_MESSAGE(expectedVals[v], interp.interpolateValue(currentTimestamp, v), message2.c_str());
-      }
+      TEST_interpolateValue(expectedVals, interp, currentTimestamp, message);
     }
 
     // at and after window
@@ -718,10 +713,7 @@ void testInterpolationClass(){
       interp.findNextValues(actualVals, currentTimestamp);
       TEST_ASSERT_EQUAL_UINT8_ARRAY_MESSAGE(targetVals1, actualVals, numberOfColours+1, message.c_str());
       TEST_ASSERT_EQUAL_MESSAGE(IsDoneBitFlags::both, interp.isDone(), message.c_str());
-      for(int v = 0; v < numberOfColours+1; v++){
-        std::string message2 = message + "; v = " + std::to_string(v);
-        TEST_ASSERT_EQUAL_MESSAGE(targetVals1[v], interp.interpolateValue(currentTimestamp, v), message2.c_str());
-      }
+      TEST_interpolateValue(targetVals1, interp, currentTimestamp, message);
     }
   }
 
@@ -747,11 +739,8 @@ void testInterpolationClass(){
       
       TEST_ASSERT_EQUAL_UINT8_ARRAY_MESSAGE(expectedVals, actualVals, numberOfColours+1, message.c_str());
 
-      for(int v = 0; v < numberOfColours+1; v++){
-        std::string message2 = message + "; v = " + std::to_string(v);
-        TEST_ASSERT_EQUAL_MESSAGE(expectedVals[v], interp.interpolateValue(currentTimestamp, v), message2.c_str());
-      }
       TEST_ASSERT_EQUAL_MESSAGE(IsDoneBitFlags::brightness, interp.isDone(), message.c_str());
+      TEST_interpolateValue(expectedVals, interp, currentTimestamp, message);
     }
 
     // at and after window
@@ -762,10 +751,7 @@ void testInterpolationClass(){
       interp.findNextValues(actualVals, currentTimestamp);
       TEST_ASSERT_EQUAL_UINT8_ARRAY_MESSAGE(targetVals, actualVals, numberOfColours+1, message.c_str());
       TEST_ASSERT_EQUAL_MESSAGE(IsDoneBitFlags::both, interp.isDone(), message.c_str());
-      for(int v = 0; v < numberOfColours+1; v++){
-        std::string message2 = message + "; v = " + std::to_string(v);
-        TEST_ASSERT_EQUAL_MESSAGE(targetVals[v], interp.interpolateValue(currentTimestamp, v), message2.c_str());
-      }
+      TEST_interpolateValue(targetVals, interp, currentTimestamp, message);
     }
   }
 
@@ -788,10 +774,7 @@ void testInterpolationClass(){
       interp.findNextValues(actualVals, currentTimestamp);
       TEST_ASSERT_EQUAL_UINT8_ARRAY_MESSAGE(expectedVals, actualVals, numberOfColours+1, message.c_str());
       TEST_ASSERT_EQUAL_MESSAGE(0, interp.isDone(), message.c_str());
-      for(int v = 0; v < numberOfColours+1; v++){
-        std::string message2 = message + "; v = " + std::to_string(v);
-        TEST_ASSERT_EQUAL_MESSAGE(expectedVals[v], interp.interpolateValue(currentTimestamp, v), message2.c_str());
-      }
+      TEST_interpolateValue(expectedVals, interp, currentTimestamp, message);
     }
 
     uint64_t testTimestamp1 = initialTime_uS + (5*dT_uS);
@@ -817,10 +800,7 @@ void testInterpolationClass(){
 
       TEST_ASSERT_EQUAL_UINT8_ARRAY_MESSAGE(expectedVals, actualVals, numberOfColours+1, message.c_str());
       TEST_ASSERT_EQUAL_MESSAGE(0, interp.isDone(), message.c_str());
-      for(int v = 0; v < numberOfColours+1; v++){
-        std::string message2 = message + "; v = " + std::to_string(v);
-        TEST_ASSERT_EQUAL_MESSAGE(expectedVals[v], interp.interpolateValue(currentTimestamp, v), message2.c_str());
-      }
+      TEST_interpolateValue(expectedVals, interp, currentTimestamp, message);
     }
 
     // after colour window
@@ -835,10 +815,7 @@ void testInterpolationClass(){
       interp.findNextValues(actualVals, currentTimestamp);
       TEST_ASSERT_EQUAL_UINT8_ARRAY_MESSAGE(expectedVals, actualVals, numberOfColours+1, message.c_str());
       TEST_ASSERT_EQUAL_MESSAGE(IsDoneBitFlags::colours, interp.isDone(), message.c_str());
-      for(int v = 0; v < numberOfColours+1; v++){
-        std::string message2 = message + "; v = " + std::to_string(v);
-        TEST_ASSERT_EQUAL_MESSAGE(expectedVals[v], interp.interpolateValue(currentTimestamp, v), message2.c_str());
-      }
+      TEST_interpolateValue(expectedVals, interp, currentTimestamp, message);
     }
 
     duty_t targetVals2[numberOfColours+1] = {targetBrightness};
@@ -852,10 +829,7 @@ void testInterpolationClass(){
 
       TEST_ASSERT_EQUAL_UINT8_ARRAY_MESSAGE(targetVals2, actualVals, numberOfColours+1, message.c_str());
       TEST_ASSERT_EQUAL_MESSAGE(IsDoneBitFlags::both, interp.isDone(), message.c_str());
-      for(int v = 0; v < numberOfColours+1; v++){
-        std::string message2 = message + "; v = " + std::to_string(v);
-        TEST_ASSERT_EQUAL_MESSAGE(targetVals2[v], interp.interpolateValue(currentTimestamp, v), message2.c_str());
-      }
+      TEST_interpolateValue(targetVals2, interp, currentTimestamp, message);
     }
   }
 

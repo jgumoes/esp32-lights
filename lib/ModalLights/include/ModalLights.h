@@ -114,7 +114,7 @@ private:
   std::shared_ptr<ConfigManagerClass> _configsClass;
   ModalConfigsStruct _configs;
   
-  std::shared_ptr<InterpolationClass<nChannels>> _interpClass = std::make_shared<InterpolationClass<nChannels>>();
+  std::shared_ptr<ModeInterpolationClass<nChannels>> _interpClass = std::make_shared<ModeInterpolationClass<nChannels>>();
 
   // TODO: remove mode IDs; they duplicate from the data packets
   modeUUID _activeMode = 0;
@@ -295,7 +295,7 @@ public:
 
     _nextBackgroundMode = 1;
 
-    _interpClass->targetVals[0] = _configs.minOnBrightness;
+    _interpClass->setTargetBrightness(_configs.minOnBrightness);
     _lightVals.state = true;
 
     // register adjustment callback with deviceTime
@@ -408,7 +408,7 @@ public:
   duty_t getSetBrightness() override {
     duty_t minB = _configs.minOnBrightness;
     // duty_t currentB = _mode->getTargetBrightness();
-    duty_t currentB = _interpClass->targetVals[0];
+    duty_t currentB = _interpClass->getTargetBrightness();
     duty_t setB = currentB >= minB ? currentB : 0;
     return setB;
   };
@@ -477,7 +477,7 @@ public:
 
   void notification(const TimeUpdateStruct& timeUpdates){
     if(timeUpdates.utcTimeChange_uS != 0){
-      _mode->timeAdjust(timeUpdates.utcTimeChange_uS);
+      _mode->timeAdjust(timeUpdates);
     }
   }
 };
