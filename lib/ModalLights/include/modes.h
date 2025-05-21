@@ -73,16 +73,27 @@ public:
    * @param newMinBrightness 
    */
   virtual void changeMinOnBrightness(duty_t newMinBrightness, uint64_t utcTimestamp_uS, LightStateStruct& lightVals) = 0;
+
+  /**
+   * @brief change the defaultOnBrightness config setting. there shouldn't be any logic.
+   * 
+   * @param newDefaultOnBrightness 
+   */
+  virtual void changeDefaultOnBrightness(duty_t newDefaultOnBrightness) = 0;
 };
 
 class ConstantBrightnessMode : public ModalStrategyInterface
 {
 private:
   std::shared_ptr<ModeInterpolationClass<nChannels>> _interpClass;
+
+  // TODO: replace with reference to configs struct
   duty_t _softChangeWindow_S;
   duty_t _minOnBrightness;
+  duty_t _defaultOnBrightness;
+  
   duty_t _minSettableBrightness;  // either active min or _minOnBrightness
-
+  
 public:
   const bool isActive;
   const ModeTypes type = ModeTypes::constantBrightness;
@@ -113,7 +124,8 @@ public:
       _interpClass(interpClass),
       isActive(isActive),
       _softChangeWindow_S(configs.softChangeWindow),
-      _minOnBrightness(configs.minOnBrightness)
+      _minOnBrightness(configs.minOnBrightness),
+      _defaultOnBrightness(configs.defaultOnBrightness)
   {
     uint64_t utcStartTime_uS = currentTime_uS;
     _minSettableBrightness = _minOnBrightness;
@@ -138,6 +150,9 @@ public:
       *targetB = currentVals.values[0] <= _minSettableBrightness
                         ? _minSettableBrightness
                         : currentVals.values[0];
+      if(*targetB < _defaultOnBrightness){
+        *targetB = _defaultOnBrightness;
+      }
     }
     uint64_t window = _softChangeWindow_S * secondsToMicros;
     _interpClass->setInitialVals(currentVals.values);
@@ -206,11 +221,10 @@ public:
 
     // if turning on:
 
-    
-    // previous brightness or minimum, whichever's bigger
-    duty_t newBrightness = lightVals.values[0] < _minOnBrightness
-                          ? _minOnBrightness
-                          : lightVals.values[0];
+    // set to defaultOnBrightness, but only if it's valid
+    duty_t newBrightness = _defaultOnBrightness <= _minOnBrightness
+                          ? max(lightVals.values[0], _minOnBrightness)
+                          : _defaultOnBrightness;
 
     _interpClass->newBrightnessVal_window(utcTimestamp_uS, _softChangeWindow_S*secondsToMicros, _minOnBrightness, newBrightness);
     updateLightVals(utcTimestamp_uS, lightVals);
@@ -245,6 +259,10 @@ public:
     duty_t activeMin = isActive && modeData->minBrightness > _minOnBrightness;
     _minSettableBrightness = activeMin ? modeData->minBrightness : _minOnBrightness;
     updateLightVals(utcTimestamp_uS, lightVals);
+  }
+
+  void changeDefaultOnBrightness(duty_t newDefaultOnBrightness){
+    _defaultOnBrightness = newDefaultOnBrightness;
   }
 };
 

@@ -6,7 +6,7 @@
 
 #include "../DeviceTime/include/DeviceTime.h"
 #include "modes.h"
-#include "lightDefines.h"
+#include "ProjectDefines.h"
 #include "DataStorageClass.h"
 
 class VirtualLightsClass{
@@ -467,6 +467,13 @@ public:
     _lights->setChannelValues(_lightVals.getLightValues());
 
     _configs.minOnBrightness = newMinBrightness;
+    _configsClass->setModalConfigs(_configs);
+    return true;
+  }
+
+  bool changeDefaultOnBrightness(duty_t newDefaultOnBrightness){
+    _configs.defaultOnBrightness = newDefaultOnBrightness;
+    _mode->changeDefaultOnBrightness(newDefaultOnBrightness);
     _configsClass->setModalConfigs(_configs);
     return true;
   }

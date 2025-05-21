@@ -5,9 +5,10 @@
 #ifndef __PROJECT_DEFINES_H__
 #define __PROJECT_DEFINES_H__
 
-
 #include <Arduino.h>
 #include <etl/flat_map.h>
+
+#define max(v1, v2) ((v1) >= (v2) ? (v1) : (v2))
 
 /* ModalLights*/
 #ifndef MAX_NUMBER_OF_MODES

@@ -1914,6 +1914,163 @@ void testTimeChanges(void){
   }
 }
 
+void testDefaultOnBrightness(){
+  const TestChannels channel = TestChannels::RGB; // TODO: iterate over all channels
+
+  const uint64_t testStartTime = mondayAtMidnight;
+  uint64_t currentTestTime = testStartTime;
+  
+  const duty_t minB1 = 1;
+  const duty_t defB1 = 200;
+  const ModalConfigsStruct testConfigs1 = {
+    .minOnBrightness = minB1,
+    .softChangeWindow = 6,
+    .defaultOnBrightness = defB1
+  };
+
+  const TestObjectsStruct testObjects = modalLightsFactoryAllModes(channel, testStartTime, testConfigs1);
+
+  const std::shared_ptr<ModalLightsController> testClass = testObjects.modalLights;
+  testClass->updateLights();
+  
+  // lights should turn on to defaultOnBrightness, from setBrightness == 0
+  {
+    testClass->adjustBrightness(255, false);
+    TEST_ASSERT_EQUAL(0, testClass->getBrightnessLevel());
+    TEST_ASSERT_EQUAL(0, testClass->getSetBrightness());
+    TEST_ASSERT_EQUAL(false, testClass->getState());
+
+    testClass->setState(true);
+    incrementTimeAndUpdate_S(60, testObjects);
+    TEST_ASSERT_EQUAL(defB1, testClass->getBrightnessLevel());
+  }
+
+  // lights should turn on to defaultOnBrightness, from setBrightness < defaultOn
+  {
+    testClass->adjustBrightness(255, false);
+    testClass->adjustBrightness(defB1 - 1, true);
+    testClass->setState(false);
+    TEST_ASSERT_EQUAL(0, testClass->getBrightnessLevel());
+    TEST_ASSERT_EQUAL(defB1 - 1, testClass->getSetBrightness());
+    TEST_ASSERT_EQUAL(false, testClass->getState());
+
+    testClass->setState(true);
+    incrementTimeAndUpdate_S(60, testObjects);
+    TEST_ASSERT_EQUAL(defB1, testClass->getBrightnessLevel());
+  }
+
+  // lights should turn on to defaultOnBrightness, from setBrightness > defaultOn
+  {
+    testClass->adjustBrightness(255, true);
+    testClass->setState(false);
+    TEST_ASSERT_EQUAL(0, testClass->getBrightnessLevel());
+    TEST_ASSERT_EQUAL(255, testClass->getSetBrightness());
+    TEST_ASSERT_EQUAL(false, testClass->getState());
+
+    testClass->setState(true);
+    incrementTimeAndUpdate_S(60, testObjects);
+    TEST_ASSERT_EQUAL(defB1, testClass->getBrightnessLevel());
+  }
+
+  // defaultOnBrightness is ignored when adjusting up from off
+  {
+    testClass->adjustBrightness(255, false);
+    TEST_ASSERT_EQUAL(0, testClass->getBrightnessLevel());
+    TEST_ASSERT_EQUAL(0, testClass->getSetBrightness());
+    TEST_ASSERT_EQUAL(false, testClass->getState());
+
+    testClass->adjustBrightness(1, true);
+    TEST_ASSERT_EQUAL(minB1, testClass->getBrightnessLevel());
+  }
+
+  // defaultOnBrightness is ignored when setting up from off
+  {
+    testClass->adjustBrightness(255, false);
+    TEST_ASSERT_EQUAL(0, testClass->getBrightnessLevel());
+    TEST_ASSERT_EQUAL(0, testClass->getSetBrightness());
+    TEST_ASSERT_EQUAL(false, testClass->getState());
+    
+    TEST_ASSERT_TRUE(minB1 < defB1);
+    testClass->setBrightnessLevel(minB1);
+    incrementTimeAndUpdate_S(60, testObjects);
+    TEST_ASSERT_EQUAL(minB1, testClass->getBrightnessLevel());
+  }
+
+  // defaultOnBrightness is ignored when below minOnBrightness
+  const duty_t minB2 = 100;
+  const duty_t defB2 = 50;
+  TEST_ASSERT_TRUE(testClass->changeMinOnBrightness(minB2));
+  TEST_ASSERT_TRUE(testClass->changeDefaultOnBrightness(defB2));
+  TEST_ASSERT_EQUAL(minB2, testClass->getConfigs().minOnBrightness);
+  TEST_ASSERT_EQUAL(defB2, testClass->getConfigs().defaultOnBrightness);
+  {
+    testClass->adjustBrightness(255, false);
+    TEST_ASSERT_EQUAL(0, testClass->getBrightnessLevel());
+    TEST_ASSERT_EQUAL(0, testClass->getSetBrightness());
+    TEST_ASSERT_EQUAL(false, testClass->getState());
+
+    testClass->setState(true);
+    incrementTimeAndUpdate_S(60, testObjects);
+    TEST_ASSERT_EQUAL(minB2, testClass->getBrightnessLevel());
+  }
+
+  // active mode turns on to defaultOn when over mode minimum
+  const duty_t minB3 = 1;
+  const duty_t defB3 = 200;
+  TEST_ASSERT_TRUE(testClass->changeMinOnBrightness(minB3));
+  TEST_ASSERT_TRUE(testClass->changeDefaultOnBrightness(defB3));
+  TEST_ASSERT_EQUAL(minB3, testClass->getConfigs().minOnBrightness);
+  TEST_ASSERT_EQUAL(defB3, testClass->getConfigs().defaultOnBrightness);
+  {
+    const TestModeDataStruct activeMode = testModesMap["purpleConstBrightness"];
+    TEST_ASSERT_TRUE(activeMode.brightness0 < defB3);
+
+    testClass->cancelActiveMode();
+    testClass->adjustBrightness(255, false);
+    const uint64_t timestamp = incrementTimeAndUpdate_S(60, testObjects);
+    TEST_ASSERT_EQUAL(0, testClass->getBrightnessLevel());
+    TEST_ASSERT_EQUAL(0, testClass->getSetBrightness());
+    TEST_ASSERT_EQUAL(false, testClass->getState());
+    TEST_ASSERT_EQUAL(0, testClass->getCurrentModes().activeMode);
+
+    testClass->setModeByUUID(activeMode.ID, timestamp, true);
+    testClass->updateLights();
+    incrementTimeAndUpdate_S(60, testObjects);
+    
+    TEST_ASSERT_EQUAL(activeMode.ID, testClass->getCurrentModes().activeMode);
+    TEST_ASSERT_EQUAL(defB3, testClass->getBrightnessLevel());
+    TEST_ASSERT_EQUAL(defB3, testClass->getSetBrightness());
+    TEST_ASSERT_EQUAL(true, testClass->getState());
+  }
+
+  // active mode turns on to mode minimum when over defaultOn
+  const duty_t defB4 = 50;
+  TEST_ASSERT_TRUE(testClass->changeDefaultOnBrightness(defB4));
+  TEST_ASSERT_EQUAL(defB4, testClass->getConfigs().defaultOnBrightness);
+  {
+    const TestModeDataStruct activeMode = testModesMap["purpleConstBrightness"];
+    const duty_t modeMin = activeMode.brightness0;
+    TEST_ASSERT_TRUE(modeMin > defB4);
+
+    testClass->cancelActiveMode();
+    testClass->adjustBrightness(255, false);
+    const uint64_t timestamp = incrementTimeAndUpdate_S(60, testObjects);
+    TEST_ASSERT_EQUAL(0, testClass->getBrightnessLevel());
+    TEST_ASSERT_EQUAL(0, testClass->getSetBrightness());
+    TEST_ASSERT_EQUAL(false, testClass->getState());
+    TEST_ASSERT_EQUAL(0, testClass->getCurrentModes().activeMode);
+
+    testClass->setModeByUUID(activeMode.ID, timestamp, true);
+    testClass->updateLights();
+    incrementTimeAndUpdate_S(60, testObjects);
+    
+    TEST_ASSERT_EQUAL(activeMode.ID, testClass->getCurrentModes().activeMode);
+    TEST_ASSERT_EQUAL(modeMin, testClass->getBrightnessLevel());
+    TEST_ASSERT_EQUAL(modeMin, testClass->getSetBrightness());
+    TEST_ASSERT_EQUAL(true, testClass->getState());
+  }
+}
+
 void testConfigChanges(){
   // TODO: changes in minOnBrightness should be instant. if brightnesss is constant, change should be instant. if brightness is changing, adjust interpolation window so that interpolation ends at the same time. colour interpolation shouldn't be affected
 
@@ -1932,6 +2089,7 @@ void testConfigChanges(){
   
   // TODO: changes in changeover: if brightness and colours are constant, nothing happens. if brightness or colours is changing, rearrange interpolation to end at the time it would've, with the same initialVals but different window 
 
+  // TODO: defaultOnBrightness only applies to turning on the lights. changing when lights are on should do nothing, when light are off should do nothing. When lights were off but are now interpolating to previous brightness but defaultOnBrightness gets changed mid-way to a higher or lower brightness, believe or not, nothing.
   TEST_IGNORE_MESSAGE("TODO");
 }
 
@@ -1944,6 +2102,7 @@ void constBrightness_tests(){
   RUN_TEST(testActiveBehaviour);
   RUN_TEST(testChangeover);
   RUN_TEST(testTimeChanges);
+  RUN_TEST(testDefaultOnBrightness);
   RUN_TEST(testConfigChanges);
   UNITY_END();
 }

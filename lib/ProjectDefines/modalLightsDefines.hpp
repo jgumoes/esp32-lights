@@ -15,6 +15,7 @@ struct CurrentModeStruct {
 struct ModalConfigsStruct {
   duty_t minOnBrightness = 1;       // the absolute minimum brightness when state == on
   uint8_t softChangeWindow = 1;   // 1 second change for sudden brightness changes
+  duty_t defaultOnBrightness = 0; // for decorative lights, you might want them to always switch on to max. will get ignored by some modes
 };
 
 enum class ModeTypes : uint8_t {
