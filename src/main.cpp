@@ -1,87 +1,151 @@
 // third-party libraries
 #include <Arduino.h>
-// #include "driver/touch_sensor.h"
-#include <Wire.h>
+#include <driver/touch_pad.h>
 
-// my libraries
-// #include "DeviceTimeService.h"
-#include "timestamp.h"
-#include "ModalLights.h"
+#include "DeviceTime.h"
+#include <touchSwitch.hpp>
+#include <ModalLights.h>
 
-// source files
-#ifdef XIAO_ESP32S3
-  #include "touch_switch.h"
-#endif
-#include "lights_pwm.h"
-#include <configManager.h>
-#include "timestamp.h"
+const uint8_t pollPin = D6;
 
-ConfigManagerClass ConfigManager;
-RTCInterfaceClass<TwoWire, ConfigManagerClass> RTC = RTCInterfaceClass<TwoWire, ConfigManagerClass>(Wire, ConfigManager);
+// static bool activeInterrupt = false;
 
-void setup() {
-  Serial.begin(9600);
-  Serial.println("setting up...");
+// static void active_handler(void *args){
+//   activeInterrupt = true;
+// }
+
+class HardcodedConfigs : public ConfigAbstractHAL{
+  private:
+    ConfigsStruct _configs;
   
-#ifdef XIAO_ESP32S3
-  setup_PWM(D9, 18500, 0);
-  setupTouch(TOUCH_PAD_NUM7);
-#elif DEVKIT
-  setup_PWM(23, 18500, 0);
-  // setupTouch(TOUCH_PAD_NUM2); // GPIO2
-  // touch_pad_init();
-  // touch_pad_io_init(TOUCH_PAD_NUM2);
-  // touchAttachInterrupt(T4, toggle_Lights_State, 90);
-  // touchInterruptSetThresholdDirection(true);
-#endif
-  setTimestamp_uS(RTC.getLocalTimestamp() * 1000000);
-}
-uint8_t led_brightness = 0;
-uint8_t led_brightness_increment = 100/4;
-
-void cycle_led_brightness(){
-  led_brightness = (led_brightness + led_brightness_increment) % 101;
-  setPowerLevel(led_brightness);
-  Serial.print("led brightness:"); Serial.println(led_brightness);
-}
-
-volatile bool touchToggle = true;
-uint8_t cumDelay = 0;
-#define LOOP_DELAY 50
-
-void loop() {
-  // toggle_Lights_State();
-  // Serial.print("power level: "); Serial.println(getPowerLevel());
-  // Serial.print("lights state: "); Serial.println(areLightsOn());
-  // cycle_led_brightness();
-  // if(cumDelay >= 1000){
-  //   uint64_t time1;
-  //   double time2;
-  //   // timer_get_counter_value(TIMER_GROUP, TIMER_NUM, &time1);
-  //   // timer_get_counter_time_sec(TIMER_GROUP, TIMER_NUM, &time2);
-  //   Serial.print(time1); Serial.print("; ");
-  //   Serial.println(time2);
-  //   cumDelay = 0;
-  // }
-  // else{
-  //   cumDelay += LOOP_DELAY;
-  // }
-
-  uint64_t timeNow;
-  getTimestamp_uS(timeNow);
-  updateLights(timeNow);
-
-
-#ifdef DEVKIT
-  if(touchRead(T4) < 90){
-    if(touchToggle){
-      toggle_Lights_State();
-      touchToggle = false;
+  public:
+    ConfigsStruct getAllConfigs(){
+      return _configs;
     }
+
+    bool setConfigs(ConfigsStruct configs){
+      return false;
+    }
+
+    bool reloadConfigs(){
+      return true;
+    }
+};
+
+class SingleLED : public VirtualLightsClass{
+  private:
+    const uint8_t _pin = D0;
+  public:
+    SingleLED(){
+      // pinMode(_pin, OUTPUT);
+      analogWriteResolution(8);
+    }
+
+    void setChannelValues(duty_t newValues[nChannels]){
+      analogWrite(_pin, newValues[0]);
+    }
+};
+
+class HardcodedStorage : public StorageHALInterface{
+  public:
+    // TODO: accept array of modes and events
+    HardcodedStorage(){};
+
+    void getModeIDs(storedModeIDsMap_t& storedIDs){
+      storedIDs.clear();
+    };
+
+    void getEventIDs(storedEventIDsMap_t& storedIDs){
+      storedIDs.clear();
+    };
+
+    bool getModeAt(nModes_t position, uint8_t buffer[modePacketSize]){
+      return false;
+    };
+
+    nModes_t getNumberOfStoredModes(){
+      return 0;
+    };
+
+    EventDataPacket getEventAt(nEvents_t position){
+      EventDataPacket emptyEvent;
+      return emptyEvent;
+    };
+
+    nEvents_t getNumberOfStoredEvents(){
+      return 0;
+    };
+
+    nEvents_t fillChunk(EventDataPacket (&buffer)[DataPreloadChunkSize], nEvents_t eventNumber){
+      for(uint8_t i = 0; i < DataPreloadChunkSize; i++){
+        EventDataPacket emptyEvent;
+        buffer[i] = emptyEvent;
+      }
+      return 0;
+    };
+};
+
+void setup(){
+  // Serial.begin(115200);
+  delay(1000);
+  // Serial.println("Setting up...");
+
+  pinMode(pollPin, OUTPUT);
+  digitalWrite(pollPin, false);
+
+  // Serial.println("constructing config manager");
+  auto configHAL = makeConcreteConfigHal<HardcodedConfigs>();
+  std::shared_ptr<ConfigManagerClass> configManager = std::make_shared<ConfigManagerClass>(std::move(configHAL));
+
+  OnboardTimestamp onboardTime;
+  RTCConfigsStruct configsStruct = {0, 0};
+  configManager->setRTCConfigs(configsStruct);
+
+  // Serial.println("constructing device time");
+  auto deviceTime = std::make_shared<DeviceTimeClass>(configManager);
+
+  // Serial.println("constructing data storage");
+  auto storageHAL = std::make_shared<HardcodedStorage>();
+  auto dataStorage = std::make_shared<DataStorageClass>(storageHAL);
+  
+  ModalConfigsStruct modalConfigs = {
+    .defaultOnBrightness = 255
+  };
+  configManager->setModalConfigs(modalConfigs);
+  
+  // Serial.println("constructing modal lights");
+  auto modalLights = std::make_shared<ModalLightsController>(
+    concreteLightsClassFactory<SingleLED>(),
+    deviceTime,
+    dataStorage, 
+    configManager
+  );
+
+  modalLights->setBrightnessLevel(255);
+  
+  // Serial.println("constructing touch button");
+  S3TouchButton touchSwitch(deviceTime, modalLights);
+  
+  // Serial.println("Setup complete");
+
+  while(true){
+    digitalWrite(pollPin, HIGH);
+    touchSwitch.update();
+    modalLights->updateLights();
+    digitalWrite(pollPin, LOW);
+    
+    // touchSwitch.printValues();
+    // // Serial.println();
+    // // Serial.print("touch_pad_get_status(): "); // Serial.println(((touch_pad_get_status() & BIT(TOUCH_PIN)) !=0));
+    delay(50);
   }
-  else{
-    touchToggle = true;
-  }
-  delay(LOOP_DELAY);
-#endif
-}
+};
+
+bool pinState = true;
+
+void loop(){
+  // TODO: reboot because this should be innaccessible
+  // Serial.println("loop...");
+  delay(200);
+};
+
