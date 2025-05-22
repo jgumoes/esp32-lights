@@ -5,14 +5,9 @@
 #include "DeviceTime.h"
 #include <touchSwitch.hpp>
 #include <ModalLights.h>
+#include <complimentaryPWM.hpp>
 
 const uint8_t pollPin = D6;
-
-// static bool activeInterrupt = false;
-
-// static void active_handler(void *args){
-//   activeInterrupt = true;
-// }
 
 class HardcodedConfigs : public ConfigAbstractHAL{
   private:
@@ -29,20 +24,6 @@ class HardcodedConfigs : public ConfigAbstractHAL{
 
     bool reloadConfigs(){
       return true;
-    }
-};
-
-class SingleLED : public VirtualLightsClass{
-  private:
-    const uint8_t _pin = D0;
-  public:
-    SingleLED(){
-      // pinMode(_pin, OUTPUT);
-      analogWriteResolution(8);
-    }
-
-    void setChannelValues(duty_t newValues[nChannels]){
-      analogWrite(_pin, newValues[0]);
     }
 };
 
@@ -87,7 +68,7 @@ class HardcodedStorage : public StorageHALInterface{
 
 void setup(){
   // Serial.begin(115200);
-  delay(1000);
+  // delay(1000);
   // Serial.println("Setting up...");
 
   pinMode(pollPin, OUTPUT);
@@ -115,7 +96,7 @@ void setup(){
   
   // Serial.println("constructing modal lights");
   auto modalLights = std::make_shared<ModalLightsController>(
-    concreteLightsClassFactory<SingleLED>(),
+    concreteLightsClassFactory<ComplimentaryPWM>(),
     deviceTime,
     dataStorage, 
     configManager
@@ -129,15 +110,15 @@ void setup(){
   // Serial.println("Setup complete");
 
   while(true){
-    digitalWrite(pollPin, HIGH);
+    // digitalWrite(pollPin, HIGH);
     touchSwitch.update();
     modalLights->updateLights();
-    digitalWrite(pollPin, LOW);
+    // digitalWrite(pollPin, LOW);
     
     // touchSwitch.printValues();
     // // Serial.println();
     // // Serial.print("touch_pad_get_status(): "); // Serial.println(((touch_pad_get_status() & BIT(TOUCH_PIN)) !=0));
-    delay(50);
+    delay(20);
   }
 };
 

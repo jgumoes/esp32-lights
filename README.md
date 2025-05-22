@@ -1,6 +1,47 @@
 # Smart Lights
 
-An esp32 project to create smart lights with different modes. The lights will function as alarms, help with timeblindness, and probably some cool stuff too! The end goal is to have smart lights with user-friendly phone/computer interface, but doesn't depend on an internet connection to function (they're smart enough to when to turn on with out having to be being told every single time).
+## About
+
+This is an esp32 project to create smart lights with different modes. The lights will function as alarms, help with time blindness, and probably some other cool stuff too! The end goal is to have smart lights with user-friendly phone/computer interface, but doesn't depend on an internet connection to function (they're smart enough to when to turn on with out having to be being told every single time).
+
+There's a few motivations and a constraint driving this project. The **motivations** are:
+
+- I want a sunrise alarm clock that's actually bright enough to mimic a sunrise. I have a dumb lamp that should be bright enough (*also the min brightness is too bright I want to reduce it*), but if it isn't, every single light in my room working at the exact same time should do it!
+- I want my lights to dim themselves off late at night. That way, I can't lose track of time and stay up till 4am playing piano!
+- I want a big RGB neopixel wall clock that turns itself off late at night when all other lights are off. If other lights are on, however, I want it to slowly flash red. I want it to start off dim, maybe like 0%-5% peak-to-peak, but slowly flash brighter until all other lights are turned off.
+- When I set an alarm for all the lights, I don't want to change each light individually. Computers can do that, they love doing that stuff. When I'm on holiday for a week, I want to pause all morning alarms for that week and for the alarms to unpause themselves ready to go back to work. That should be one operation in the phone app. Otherwise, I'm going to remember to turn the alarms back on every single day except the night before.
+- I have a few ideas for ADHD management tools, and this project will either: (1) be directly implemented in those tools with minor variations; (2) parts of this project can be seperated into libraries for those tools; or (3) this project will provide a learning experience and reference for creating those tools.
+- I want a big impressive project to show what I'm capable of. If you're a prospective employer reading this, hopefully this showcase of my skills will demonstrate the value I can bring to your business and please hire me i hate being poor
+
+The **constraint** is pretty frustrating. ISP WiFi routers tend to be underpowered. Sure, it can handle gigabyte through-put, but it's also a computer managing every device connected to it. When you live in shared accomodation, there are a lot of devices connected at the same time and our modem tends to get overwhelmed and kicks devices off the network. Even though I have no intention of exposing my smart light system to the outside world, and even though the only time it might access the internet is for time server apis, the mere act of connecting lots of smart devices to the WiFi will cause the same connection issues we've had in the past. This could probably be solved by buying a business router and using the ISP router just as a modem, but that requires money and I am poor.
+
+I need a way of only connecting one device to the WiFi, and connecting every other device to that one device. I need a mesh network. I've looked around, and the best solution seems to be ESP-WIFI-MESH.
+
+### Technical
+
+***Development is ongoing!**
+this README is more of a design document than a detailing of current functionality. As of writing, a slightly-less-than-barebones version is running in one of my lights, but an actually-barebones version is coming very soon. The main development branch is currently MVP*
+
+Currently, this project is targeting the Arduino platform as it's quick and easy and I like tackling learning cliffs one at a time. I eventually want to use ESP-WIFI-MESH for networking, which will require learning and porting over to esp-idf. When I implement hardware features such as PWM or capacitive touch, I use the esp-idf docs so that I won't need to port them (also, the espressif api is a lot more customizable and the only way to do some stuff like complimentary square waves).
+
+This project is unit tested! There are many tests! so many tests. Dependancy injection in c++ is not fun, but virtual classes don't seem to have any performance hit. Still, when everything is done, I'll try switching out the virtual classes and I'll be able to directly measure the performance hit (10 year old picoscope FTW).
+
+This project is mostly OOP, as it makes development and testing so much easier. For classes that exist for the entire lifecycle of the program, there isn't any performance difference compared to not-OOP, and you get to use dependancy inversion to support a wide range of physical implementations. However, constructing and destructing classes during run-time can lead to heap allocation which leads to heap fragmentation and stack overflow. The light modes currently use the oop strategy pattern, but once they are all implemented and fully tested I'll figure something out with structs and function pointers.
+
+AI did not write any of this codebase. In my experience, AI is ~~great~~ pretty good at c++ syntax, but Refactoring Guru's design pattern catalog is a way better source for problem solving and code design.
+
+### Project Milestones
+
+- **get the curtain lights working without events:** this light needs a +/- 5V square wave as the LEDs are wired alternating in parallel
+- **overhaul my white-and-warm bedside lamp:** fabricate the circuitry, design and print a project, rebuild the whole thing from scratch. Implement EventManager so that it's white during the day but warm at night
+- **rebuild the umbrella lamp:** higher powered LED lamp, and the encoder will either have to be buffered or read through an AtTiny85 via a long I2C cable
+- **implement EEPROM storage:** (*with* wear leveling, of course). This is required to change config values and CRUD events and modes
+- **basic WiFi connectivity:** mDNS API server and React Native app should be fine to start with. maybe have an internal switch to toggle connection mode.
+- **RTOS:** WiFi functionality should be always running on one core, and the light interpolations, event management, physical inputs, etc. running on the other core. The device should always be ready for connections, but the connections can't block the core functionality.
+- **device management server:** dockerised, running on my NAS, and database synchronisation with the React Native app
+- **ESP-WIFI-MESH:** mesh network.
+- **Make the UI nice:** at this point, the UI will probably be confusing garbage
+- **integrate environmental sensors:** i.e. mmWave presence detector, light level detector.
 
 ## The Modes
 
