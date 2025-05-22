@@ -32,7 +32,7 @@ AI did not write any of this codebase. In my experience, AI is ~~great~~ pretty 
 
 ### Project Milestones
 
-- **get the curtain lights working without events:** this light needs a +/- 5V square wave as the LEDs are wired alternating in parallel
+- ~~**get the curtain lights working without events:** this light needs a +/- 5V square wave as the LEDs are wired alternating in parallel~~
 - **overhaul my white-and-warm bedside lamp:** fabricate the circuitry, design and print a project, rebuild the whole thing from scratch. Implement EventManager so that it's white during the day but warm at night
 - **rebuild the umbrella lamp:** higher powered LED lamp, and the encoder will either have to be buffered or read through an AtTiny85 via a long I2C cable
 - **implement EEPROM storage:** (*with* wear leveling, of course). This is required to change config values and CRUD events and modes

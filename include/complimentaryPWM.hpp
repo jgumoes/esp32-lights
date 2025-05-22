@@ -1,9 +1,9 @@
 #ifndef __COMPLIMENTARY_PWM_HPP__
 #define __COMPLIMENTARY_PWM_HPP__
 
-#include "driver/ledc.h"
+#include <driver/ledc.h>
 
-#include <ModalLights.h>
+#include "ModalLights.h"
 
 constexpr uint16_t maxValue_9bits = (UINT16_MAX >> 7);
 
@@ -44,10 +44,10 @@ class ComplimentaryPWM : public VirtualLightsClass{
       .channel = LEDC_CHANNEL_1,
       .intr_type = LEDC_INTR_DISABLE,
       .timer_sel = LEDC_TIMER_0,
-      .duty = maxValue_9bits,
-      .hpoint = 0,
+      .duty = 0,
+      .hpoint = UINT8_MAX+1,
       .flags{
-        .output_invert = 1
+        .output_invert = 0
       }
     };
     esp_err_t channel_1_err = ledc_channel_config(&channel_config_1);
@@ -56,7 +56,7 @@ class ComplimentaryPWM : public VirtualLightsClass{
 
   void setChannelValues(duty_t newValues[nChannels]){
     ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, newValues[0]);
-    ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, maxValue_9bits - newValues[0]);
+    ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, newValues[0]);
     ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0);
     ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1);
   }
