@@ -24,7 +24,7 @@ The measurement offset is about 630 nS.
 
 First installation for the curtain lights, has no event manager and no modes. It polls the touch peripheral, and drives a complimentary square wave. the entire loop below, takes 13uS when idle and a maximum of 28uS at the moment the lights are turned on (sets up a new interpolation).
 
-The first loop takes 1.8mS, which is when constant brightness mode is actually constructed and initiated.
+The first loop takes 1.8mS, which is when constant brightness mode is actually constructed and initiated. I was hoping for a 50mS RTOS interval, so it's looking very promising!
 
 ```c++
 while(true){
@@ -35,4 +35,10 @@ while(true){
 
   delay(20);
 }
+```
+
+The ram and flash usage at build time is:
+```
+RAM:   [=         ]   5.6% (used 18356 bytes from 327680 bytes)
+Flash: [=         ]   7.9% (used 262601 bytes from 3342336 bytes)
 ```
