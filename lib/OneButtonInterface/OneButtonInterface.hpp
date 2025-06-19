@@ -7,14 +7,6 @@
 #include "DeviceTime.h"
 #include "ModalLights.h"
 
-/*
-TODO: how do I put this into config manager without hardcoding config manager?
-*/
-struct OneButtonConfigs {
-  uint16_t timeUntilLongPress_mS = 500; // milliseconds before a short press turn into a long press
-
-  uint16_t longPressWindow_mS = 2000; // milliseconds for a long press to dim the lights from 0 to 255 (or vice versa)
-};
 
 enum class PressStates : uint8_t {
   none = 0,
@@ -49,7 +41,7 @@ namespace {
     bool direction = false;
     duty_t cumAdj;
 
-    void initInterp(uint64_t startTimeUTC_uS, OneButtonConfigs& configs){
+    void initInterp(uint64_t startTimeUTC_uS, OneButtonConfigStruct& configs){
       _interp.newWindowInterpolation(
         startTimeUTC_uS, configs.longPressWindow_mS*1000,
         1, 255
@@ -91,7 +83,7 @@ class OneButtonInterface {
     ShortPressParams _shortPress;
     LongPressParams _longPress;
 
-    OneButtonConfigs _configs;
+    OneButtonConfigStruct _configs;
 
     std::shared_ptr<DeviceTimeClass> _deviceTime;
     std::shared_ptr<ModalLightsInterface> _modalLights;

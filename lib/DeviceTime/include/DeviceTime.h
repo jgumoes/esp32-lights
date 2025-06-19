@@ -35,7 +35,7 @@ typedef etl::observer<const TimeUpdateStruct&> TimeObserver;
  */
 class DeviceTimeClass : public etl::observable<TimeObserver, MAX_TIME_OBSERVERS>{
   private:
-    std::shared_ptr<ConfigManagerClass> _configManager;
+    std::shared_ptr<ConfigStorageClass> _configManager;
     std::unique_ptr<OnboardTimestamp> _onboardTimestamp = std::make_unique<OnboardTimestamp>();
 
     bool _timeFault = true;
@@ -43,7 +43,7 @@ class DeviceTimeClass : public etl::observable<TimeObserver, MAX_TIME_OBSERVERS>
     uint64_t _timeofLastSync_uS = 0; // UTC time of the last sync with an external source (i.e. network or RTC chip)
     uint64_t _timeOfNextSync_uS = 0; // UTC time in micros of the next automatic sync
 
-    RTCConfigsStruct _configs;
+    TimeConfigsStruct _configs;
     int64_t _offset = 0;  // local time = UTC + offset
 
     void _setOffset(){
@@ -219,7 +219,7 @@ class DeviceTimeClass : public etl::observable<TimeObserver, MAX_TIME_OBSERVERS>
      * 
      * @return RTCConfigsStruct 
      */
-    RTCConfigsStruct getConfigs(){return _configs;}
+    TimeConfigsStruct getConfigs(){return _configs;}
 
     /**
      * @brief checks the validity of the timezone, according to BLE-SIG specifications

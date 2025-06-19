@@ -10,6 +10,21 @@
 
 #define max(v1, v2) ((v1) >= (v2) ? (v1) : (v2))
 
+template <uint8_t size>
+struct EmptyArray{
+  byte array[size];
+
+  EmptyArray(){
+    for(uint16_t i = 0; i < size; i++){
+      array[i] = 0;
+    };
+  };
+};
+
+#include "errorCodes.h"
+#include "moduleIDs.h"
+#include "configStructs.hpp"
+
 /* ModalLights*/
 #ifndef MAX_NUMBER_OF_MODES
 // the maximum number of stored modes, not including defaultConstantBrightness as that's baked into progmem
@@ -46,14 +61,9 @@ struct TimeUpdateStruct{
 #endif
 
 typedef uint8_t eventUUID;
-// hardware default event window = 1 hour
-#define hardwareDefaultEventWindow 60*60
 // minimum event window = 1 minute
 #define hardwareMinimumEventWindow 60
 
-struct EventManagerConfigsStruct {
-  uint32_t defaultEventWindow_S = hardwareDefaultEventWindow;
-};
 
 // the data packet that gets recieved from the network and loaded from storage
 struct EventDataPacket {

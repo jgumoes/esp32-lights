@@ -56,17 +56,17 @@ static unsigned int _printDebugLevel = 0;
 #define PrintDebug_reset _printDebugLevel = 0; std::cout<<"########################### print debug reset ###########################" << std::endl
 
 // TODO: fix the macro
-void static PrintDebug_timeInDay_from_UTS(UsefulTimeStruct UTS){
-  uint16_t timeInDay = UTS.timeInDay;
-  const uint16_t hours = UTS.timeInDay / uint16_t(60*60);
-  timeInDay -= hours*60*60;
-  const uint16_t minutes = timeInDay/60;
-  timeInDay -= minutes*60;
-  std::string mPad = minutes < 10 ? "0" : "";
-  std::string sPad = timeInDay < 10 ? "0" : "";
-  std::string message = "time: " + std::to_string(hours) + ":" + mPad + std::to_string(minutes) + ":" + sPad + std::to_string(timeInDay);
-  PrintDebug_message(message);  // DO NOT DELETE!
-}
+// void static PrintDebug_timeInDay_from_UTS(UsefulTimeStruct UTS){
+//   uint16_t timeInDay = UTS.timeInDay;
+//   const uint16_t hours = UTS.timeInDay / uint16_t(60*60);
+//   timeInDay -= hours*60*60;
+//   const uint16_t minutes = timeInDay/60;
+//   timeInDay -= minutes*60;
+//   std::string mPad = minutes < 10 ? "0" : "";
+//   std::string sPad = timeInDay < 10 ? "0" : "";
+//   std::string message = "time: " + std::to_string(hours) + ":" + mPad + std::to_string(minutes) + ":" + sPad + std::to_string(timeInDay);
+//   PrintDebug_message(message);  // DO NOT DELETE!
+// }
 
 // #define PrintDebug_timeInDay_from_UTS(usefulTimeStruct) {\
 //   uint16_t timeInDay = usefulTimeStruct.timeInDay;\

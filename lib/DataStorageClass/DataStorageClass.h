@@ -12,6 +12,11 @@ typedef DataStorageIterator<nEvents_t, EventDataPacket> EventStorageIterator;
 
 // typedef DataStorageIterator<nModes_t, ModeDataPacket> ModeStorageIterator;
 
+/*
+TODO: when implementing FR, write the metadata before writing the data packet. if rebooted before the packet write, the invalid packet will be ignored, device will report to server and recieve a new packet that it will try to write at that location
+
+TODO: on startup, the packets pointed to by the metadata should be read and validated
+*/
 class DataStorageClass
 {
 private:
