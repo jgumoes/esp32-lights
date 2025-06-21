@@ -3,7 +3,7 @@
 #include "OneButtonInterface.hpp"
 
 #include "..\EventManager\test_EventManager\mockModalLights.hpp"
-#include "../nativeMocksAndHelpers/mockConfig.h"
+#include "../ConfigStorageClass/testObjects.hpp"
 #include "../ModalLights/test_ModalLights/testHelpers.h"
 
 #define MIN(x, y) ((x) < (y) ? (x) : (y))
@@ -12,8 +12,9 @@ class TestButton : public OneButtonInterface{
   public:
     TestButton(
       std::shared_ptr<DeviceTimeClass> deviceTime,
-      std::shared_ptr<ModalLightsInterface> modalLights
-    ) : OneButtonInterface(deviceTime, modalLights){};
+      std::shared_ptr<ModalLightsInterface> modalLights,
+      std::shared_ptr<ConfigStorageClass> configStorage
+    ) : OneButtonInterface(deviceTime, modalLights, configStorage){};
 
     bool isPressed;
 
@@ -45,6 +46,9 @@ namespace OneButtonInterfaceTests{
   struct TestObjects{
     std::shared_ptr<OnboardTimestamp> timestamp;
     std::shared_ptr<MockModalLights> modalLights;
+    std::shared_ptr<ConfigManagerTestObjects::FakeStorageAdapter> storageAdapter;
+    std::shared_ptr<ConfigStorageClass> configStorage;
+    
     std::shared_ptr<TestButton> button;
 
     /**
@@ -72,19 +76,21 @@ namespace OneButtonInterfaceTests{
 
   TestObjects testButtonFactory(uint64_t initialUTCTime_S = 794275200){
     TestObjects testObjects;
-    std::shared_ptr<ConfigManagerClass> configs = makeTestConfigManager();
+    testObjects.storageAdapter = std::make_shared<ConfigManagerTestObjects::FakeStorageAdapter>();
+    testObjects.configStorage = std::make_shared<ConfigStorageClass>(testObjects.storageAdapter);
     testObjects.timestamp = std::make_shared<OnboardTimestamp>();
-    std::shared_ptr<DeviceTimeClass> deviceTime = std::make_shared<DeviceTimeClass>(configs);
+    std::shared_ptr<DeviceTimeClass> deviceTime = std::make_shared<DeviceTimeClass>(testObjects.configStorage);
     deviceTime->setUTCTimestamp2000(initialUTCTime_S, 0, 0);
     testObjects.modalLights = std::make_shared<MockModalLights>();
-    testObjects.button = std::make_shared<TestButton>(deviceTime, testObjects.modalLights);
+    testObjects.button = std::make_shared<TestButton>(deviceTime, testObjects.modalLights, testObjects.configStorage);
 
+    testObjects.configStorage->loadAllConfigs();
     return testObjects;
   }
 
   bool releasePress_helper(
     TestObjects &testObjects,
-    const OneButtonConfigs &configs,
+    const OneButtonConfigStruct &configs,
     const std::string message
   ){
     auto button = testObjects.button;
@@ -102,7 +108,7 @@ namespace OneButtonInterfaceTests{
    */
   bool enterShortPress_helper(
     TestObjects &testObjects,
-    const OneButtonConfigs &configs,
+    const OneButtonConfigStruct &configs,
     const std::string message
   ){
     auto button = testObjects.button;
@@ -126,7 +132,7 @@ namespace OneButtonInterfaceTests{
    */
   uint64_t enterLongPress_helper(
     TestObjects &testObjects,
-    const OneButtonConfigs &configs,
+    const OneButtonConfigStruct &configs,
     const std::string message
   ){
     auto button = testObjects.button;
@@ -177,7 +183,7 @@ namespace OneButtonInterfaceTests{
     const bool expectedDirection,
     const uint64_t holdWindow_uS,
     TestObjects &testObjects,
-    const OneButtonConfigs &configs,
+    const OneButtonConfigStruct &configs,
     const std::string message
   ){
     const uint64_t testStartTime_uS = testObjects.timestamp->getTimestamp_uS();
@@ -261,7 +267,7 @@ namespace OneButtonInterfaceTests{
   uint64_t pressAndHoldThroughLongPress_helper(
     const bool expectedDirection,
     TestObjects &testObjects,
-    const OneButtonConfigs &configs,
+    const OneButtonConfigStruct &configs,
     const std::string message
   ){
     auto button = testObjects.button;
@@ -293,7 +299,7 @@ namespace OneButtonInterfaceTests{
 void testNoneState(){
   using namespace OneButtonInterfaceTests;
 
-  const OneButtonConfigs defaultConfigs;
+  const OneButtonConfigStruct defaultConfigs;
   // inactive tests
   {
     // should initialise into none state
@@ -392,7 +398,7 @@ void testNoneState(){
 void testShortPressState(){
   using namespace OneButtonInterfaceTests;
 
-  const OneButtonConfigs defaultConfigs;
+  const OneButtonConfigStruct defaultConfigs;
 
   // inactive tests (entering shortPress)
   {
@@ -652,7 +658,7 @@ void testShortPressState(){
 void testLongPressState(){
   using namespace OneButtonInterfaceTests;
 
-  const OneButtonConfigs defaultConfigs;
+  const OneButtonConfigStruct defaultConfigs;
 
   const uint16_t window_mS = defaultConfigs.longPressWindow_mS;
 
@@ -858,7 +864,7 @@ void testLongPressState(){
 void testButtonOperation(){
   using namespace OneButtonInterfaceTests;
 
-  const OneButtonConfigs defaultConfigs;
+  const OneButtonConfigStruct defaultConfigs;
   
   const uint16_t shortPressTime_mS = defaultConfigs.timeUntilLongPress_mS;
   const uint16_t window_mS = defaultConfigs.longPressWindow_mS;
@@ -989,6 +995,11 @@ void testTimeUpdates(){
   TEST_IGNORE_MESSAGE("important TODO, but build a working model first");
 }
 
+void testConfigChanges(){
+  // TODO: I don't care about the behaviour, just that nothing breaks
+  TEST_IGNORE_MESSAGE("TODO");
+}
+
 void noEmbeddedUnfriendlyLibraries(){
   #ifdef __PRINT_DEBUG_H__
     TEST_ASSERT_MESSAGE(false, "did you forget to remove the print debugs?");
@@ -1011,6 +1022,7 @@ void RUN_UNITY_TESTS(){
   RUN_TEST(testLongPressState);
   RUN_TEST(testButtonOperation);
   RUN_TEST(testTimeUpdates);
+  RUN_TEST(testConfigChanges);
   UNITY_END();
 }
 

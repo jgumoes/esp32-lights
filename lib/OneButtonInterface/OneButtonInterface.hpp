@@ -6,7 +6,8 @@
 
 #include "DeviceTime.h"
 #include "ModalLights.h"
-
+#include "ConfigStorageClass.hpp"
+#include "ProjectDefines.h"
 
 enum class PressStates : uint8_t {
   none = 0,
@@ -25,68 +26,63 @@ enum class ButtonStatus : uint8_t {
   active = 3
 };
 
-namespace {
-  struct ShortPressParams{
-    uint64_t endTimeUTC_uS;
-
-    void reset(){
-      endTimeUTC_uS = 0;
-    };
-  };
-
-  struct LongPressParams{
-    private:
-    Interpolator<1> _interp;  // TODO: refactor interpolation class to get a 1D interpolator
-    public:
-    bool direction = false;
-    duty_t cumAdj;
-
-    void initInterp(uint64_t startTimeUTC_uS, OneButtonConfigStruct& configs){
-      _interp.newWindowInterpolation(
-        startTimeUTC_uS, configs.longPressWindow_mS*1000,
-        1, 255
-      );
-    }
-
-    duty_t getAdjustment(const uint64_t& currentTime_uS){
-      // TODO: use single value interpolation instance
-      duty_t newCumAdj = _interp.interpolateValue(currentTime_uS, 0);
-      duty_t adj = newCumAdj - cumAdj;
-      cumAdj = newCumAdj;
-      return adj;
-    }
-
-    /**
-     * @brief sets the interpolation to always return 0, until it's reset
-     * 
-     */
-    void reset(){
-      _interp.t0_uS = 0;
-      _interp.t1_uS = 0;
-      _interp.initialVals[0] = 0;
-      _interp.targetVals[0] = 0;
-      cumAdj = 0;
-    }
-  };
-}
-
 /**
  * @brief A class for a single button physical interface. All it needs is a getCurrentStatus() and it'll be good to go!
  * Contains a state machine to distinguish between short and long presses. Releasing a short press will call modalLights->toggleState(). Holding a long press will adjust modal lights by {0, 255} interpolated across the window in the configs. The adjustment direction is up if brightness level == 0, down if brightness level == 255, or the oposite to the previous direction.
  * 
  */
-class OneButtonInterface {
+class OneButtonInterface : public ConfigUser {
   protected:
     bool _previousStatus = false;  // press state during previous update() call
     PressStates _buttonState = PressStates::none;
 
-    ShortPressParams _shortPress;
-    LongPressParams _longPress;
+    struct ShortPressParams {
+      uint64_t endTimeUTC_uS;
+
+      void reset(){
+        endTimeUTC_uS = 0;
+      };
+    } _shortPress;
+
+    struct LongPressParams {
+      private:
+      Interpolator<1> _interp;
+      public:
+      bool direction = false;
+      duty_t cumAdj;
+
+      void initInterp(uint64_t startTimeUTC_uS, OneButtonConfigStruct& configs){
+        _interp.newWindowInterpolation(
+          startTimeUTC_uS, configs.longPressWindow_mS*1000,
+          1, 255
+        );
+      }
+
+      duty_t getAdjustment(const uint64_t& currentTime_uS){
+        duty_t newCumAdj = _interp.interpolateValue(currentTime_uS, 0);
+        duty_t adj = newCumAdj - cumAdj;
+        cumAdj = newCumAdj;
+        return adj;
+      }
+
+      /**
+       * @brief sets the interpolation to always return 0, until it's reset
+       * 
+       */
+      void reset(){
+        _interp.t0_uS = 0;
+        _interp.t1_uS = 0;
+        _interp.initialVals[0] = 0;
+        _interp.targetVals[0] = 0;
+        cumAdj = 0;
+      }
+    } _longPress;
 
     OneButtonConfigStruct _configs;
 
     std::shared_ptr<DeviceTimeClass> _deviceTime;
     std::shared_ptr<ModalLightsInterface> _modalLights;
+    std::shared_ptr<ConfigStorageClass> _configStorage;
 
     void _enterState_none(){
       _previousStatus = false;
@@ -217,8 +213,11 @@ class OneButtonInterface {
 
     OneButtonInterface(
       std::shared_ptr<DeviceTimeClass> deviceTime,
-      std::shared_ptr<ModalLightsInterface> modalLights
-    ) : _deviceTime(deviceTime), _modalLights(modalLights) {};
+      std::shared_ptr<ModalLightsInterface> modalLights,
+      std::shared_ptr<ConfigStorageClass> configStorage
+    ) : _deviceTime(deviceTime), _modalLights(modalLights), _configStorage(configStorage), ConfigUser(ModuleID::oneButtonInterface) {
+      _configStorage->registerUser(this, _configs);
+    };
 
     /**
      * @brief Get the current status
@@ -254,6 +253,17 @@ class OneButtonInterface {
         break;
       };
     }
+  
+  // ConfigUser overrides
+
+  void newConfigs(const byte newConfig[maxConfigSize]) override {
+    // I don't care about the behaviour. nobody is adjusting configs while holding the button
+    ConfigStructFncs::deserialize(newConfig, _configs);
+  }
+
+  packetSize_t getConfigs(byte config[maxConfigSize]) override {
+    ConfigStructFncs::serialize(config, _configs);
+  }
 };
 
 
