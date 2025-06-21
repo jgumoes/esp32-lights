@@ -5,7 +5,7 @@
 #include "testModes.h"
 
 #include "../../EventManager/test_EventManager/testEvents.h"
-#include "../../nativeMocksAndHelpers/mockConfig.h"
+#include "../../ConfigStorageClass/testObjects.hpp"
 #include "../../nativeMocksAndHelpers/mockStorageHAL.hpp"
 
 const ModalConfigsStruct defaultConfigs;
@@ -36,23 +36,40 @@ struct TestObjectsStruct {
   std::unique_ptr<OnboardTimestamp> timestamp = std::make_unique<OnboardTimestamp>();
   std::shared_ptr<DeviceTimeClass> deviceTime;
 
+  std::shared_ptr<ConfigManagerTestObjects::FakeStorageAdapter> storageAdapter;
+  std::shared_ptr<ConfigStorageClass> configClass;
+  
   // this is to test ModalLights getting a mode from storage
-  std::shared_ptr<MockStorageHAL> mockStorageHAL;
+  std::shared_ptr<MockStorageHAL> mockStorageHAL; // TODO: delete
 
   const std::vector<ModeDataStruct> initialModes;
   std::shared_ptr<ModalLightsController> modalLights;
+
+  errorCode_t setConfigs(const ModalConfigsStruct newConfigs) const {
+    byte serialized[maxConfigSize];
+    ConfigStructFncs::serialize(serialized, newConfigs);
+    return configClass->setConfig(serialized);
+  }
 };
 
 TestObjectsStruct modalLightsFactory(TestChannels channel, const std::vector<TestModeDataStruct> modes, uint64_t startTime_S, ModalConfigsStruct initialConfigs){
   TestObjectsStruct testObjects = {.initialModes = makeModeDataStructArray(modes, channel)};
-  auto configHal = std::make_unique<MockConfigHal>();
-  // auto configHal = makeConcreteConfigHal<MockConfigHal>();
-  auto configManager = std::make_shared<ConfigManagerClass>(std::move(configHal));
+  
+  // set the configs
   if(initialConfigs.minOnBrightness == 0){throw("initialConfigs.minOnBrightness == 0");}
   if(initialConfigs.softChangeWindow > 15){throw("initialConfigs.softChangeWindow > 15");}
-  configManager->setModalConfigs(initialConfigs);
+
+  using namespace ConfigManagerTestObjects;
+  etl::map<ModuleID, GenericConfigStruct, 255> initialConfigMap = {
+    {ModuleID::modalLights, makeGenericConfigStruct(
+      initialConfigs
+    )}
+  };
+  testObjects.storageAdapter = std::make_shared<FakeStorageAdapter>(initialConfigMap, true, "modalLightsFactory");
+  testObjects.configClass = std::make_shared<ConfigStorageClass>(testObjects.storageAdapter);
   
-  testObjects.deviceTime = std::make_shared<DeviceTimeClass>(configManager);
+
+  testObjects.deviceTime = std::make_shared<DeviceTimeClass>(testObjects.configClass);
   testObjects.deviceTime->setLocalTimestamp2000(startTime_S, 0, 0);
 
   testObjects.mockStorageHAL = std::make_shared<MockStorageHAL>(testObjects.initialModes, getAllTestEvents());
@@ -64,8 +81,10 @@ TestObjectsStruct modalLightsFactory(TestChannels channel, const std::vector<Tes
     concreteLightsClassFactory<TestLEDClass>(),
     testObjects.deviceTime,
     storage,
-    configManager
+    testObjects.configClass
   );
+
+  testObjects.configClass->loadAllConfigs();
   return testObjects;
 }
 

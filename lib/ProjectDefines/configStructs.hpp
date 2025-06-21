@@ -44,7 +44,7 @@ namespace ConfigStructFncs{
         ){
           return errorCode_t::badID;
         }
-        return _validations[dataArray[0]-1](&dataArray[1]);
+        return _validations[dataArray[0]-1](dataArray);
       }
   };
 }
@@ -72,21 +72,25 @@ struct TimeConfigsStruct{
    * @brief checks the validity of the serialized data
    * 
    * @param dataArray 
-   * @return true if valid
-   * @return false if not valid
+   * @return errorCode_t
+   * @retval errorCode_t::success
+   * @retval errorCode_t::bad_time
    */
-  static errorCode_t isDataValid(const byte dataArray[rawDataSize]){
-    const int32_t vTimezone = *reinterpret_cast<const int32_t*>(dataArray);
+  static errorCode_t isDataValid(const byte dataArray[rawDataSize + 1]){
+    uint8_t index = 1;
+    const int32_t vTimezone = *reinterpret_cast<const int32_t*>(&dataArray[index]);
     if((vTimezone < -48*15*60) || (vTimezone > 56*15*60) || ((vTimezone % (15*60)) != 0)){
       return errorCode_t::bad_time;
     }
+    index += sizeof(timezone);
     
-    const uint16_t vDST = *reinterpret_cast<const uint16_t*>(&dataArray[sizeof(int32_t)]);
+    const uint16_t vDST = *reinterpret_cast<const uint16_t*>(&dataArray[index]);
     if(!((vDST == 0) || (vDST == 60*60) || (vDST == 30*60) || (vDST == 2*60*60))){
       return errorCode_t::bad_time;
     }
+    index += sizeof(DST);
 
-    const uint16_t vMaxTime = *reinterpret_cast<const uint16_t*>(&dataArray[sizeof(int32_t) + sizeof(uint16_t)]);
+    const uint16_t vMaxTime = *reinterpret_cast<const uint16_t*>(&dataArray[index]);
     if(vMaxTime == 0){return errorCode_t::bad_time;}
 
     return errorCode_t::success;
@@ -137,7 +141,7 @@ namespace ConfigStructFncs
 
 struct ModalConfigsStruct {
   public:
-  duty_t minOnBrightness = 1;       // the absolute minimum brightness when state == on
+  duty_t minOnBrightness = 1;     // the absolute minimum brightness when state == on
   uint8_t softChangeWindow = 1;   // seconds; change window for sudden brightness changes
   duty_t defaultOnBrightness = 0; // for decorative lights, you might want them to always switch on to max. will get ignored by some modes
 
@@ -153,14 +157,15 @@ struct ModalConfigsStruct {
    * @brief checks the validity of the serialized data
    * 
    * @param dataArray 
-   * @return true if valid
-   * @return false if not valid
+   * @return errorCode_t
+   * @retval errorCode_t::success
+   * @retval errorCode_t::badValue
    */
-  static errorCode_t isDataValid(const byte dataArray[rawDataSize]){
-    const duty_t vMinB = *reinterpret_cast<const duty_t*>(dataArray);
+  static errorCode_t isDataValid(const byte dataArray[rawDataSize + 1]){
+    const duty_t vMinB = *reinterpret_cast<const duty_t*>(&dataArray[1]);
     if(vMinB == 0){return errorCode_t::badValue;}
 
-    const uint8_t vSoftWindow = *reinterpret_cast<const byte*>(&dataArray[sizeof(minOnBrightness)]);
+    const uint8_t vSoftWindow = *reinterpret_cast<const byte*>(&dataArray[2]);
     if(vSoftWindow >= (1 << 4)){return errorCode_t::badValue;}
 
     // const duty_t vDefB = *reinterpret_cast<const duty_t*>(&dataArray[sizeof(minOnBrightness) + sizeof(softChangeWindow)]);
@@ -214,11 +219,12 @@ struct EventManagerConfigsStruct {
    * @brief checks the validity of the serialized data
    * 
    * @param dataArray 
-   * @return true if valid
-   * @return false if not valid
+   * @return errorCode_t
+   * @retval errorCode_t::success
+   * @retval errorCode_t::bad_time
    */
-  static errorCode_t isDataValid(const byte dataArray[rawDataSize]){
-    uint32_t vDefWindow = *reinterpret_cast<const uint32_t*>(dataArray);
+  static errorCode_t isDataValid(const byte dataArray[rawDataSize + 1]){
+    uint32_t vDefWindow = *reinterpret_cast<const uint32_t*>(&dataArray[1]);
     if(vDefWindow == 0){return errorCode_t::bad_time;}
     
     return errorCode_t::success;
@@ -271,12 +277,16 @@ struct OneButtonConfigStruct {
    * @param dataArray 
    * @return true if valid
    * @return false if not valid
+   * @retval errorCode_t::success
+   * @retval errorCode_t::bad_time
    */
-  static errorCode_t isDataValid(const byte dataArray[rawDataSize]){
-    const uint16_t vTimeLongPress = *reinterpret_cast<const uint16_t*>(dataArray);
+  static errorCode_t isDataValid(const byte dataArray[rawDataSize + 1]){
+    uint8_t index = 1;
+    const uint16_t vTimeLongPress = *reinterpret_cast<const uint16_t*>(&dataArray[index]);
     if(vTimeLongPress < 200){return errorCode_t::bad_time;}
+    index += sizeof(timeUntilLongPress_mS);
 
-    const uint16_t vLongPressWindow = *reinterpret_cast<const uint16_t*>(&dataArray[sizeof(timeUntilLongPress_mS)]);
+    const uint16_t vLongPressWindow = *reinterpret_cast<const uint16_t*>(&dataArray[index]);
     if((vLongPressWindow < 1000) || (vLongPressWindow > 10000)){
       return errorCode_t::bad_time;
     }

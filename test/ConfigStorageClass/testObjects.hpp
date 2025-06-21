@@ -23,7 +23,7 @@ When adding new configs or modules, ctrl+f the line below
     TEST_ASSERT_EQUAL_MESSAGE(\
       expectedError,\
       _private_error_code_pls_dont_use_this_name_anywhere_else_,\
-      addErrorToMessage(_private_error_code_pls_dont_use_this_name_anywhere_else_, message).c_str()\
+      ConfigManagerTestObjects::addErrorToMessage(_private_error_code_pls_dont_use_this_name_anywhere_else_, message).c_str()\
     );\
   }\
 )

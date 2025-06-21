@@ -3,7 +3,7 @@
 
 #include <vector>
 
-#include "../lib/EventManager/EventManager.h"
+#include "ProjectDefines.h"
 #include "DeviceTime.h"
 
 const uint32_t oneHour = 60*60;

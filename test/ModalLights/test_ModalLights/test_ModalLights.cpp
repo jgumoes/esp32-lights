@@ -80,11 +80,20 @@ void SerializeAndDeserializeModeData(){
 
 void testConfigGuards(){
   const TestChannels channel = TestChannels::RGB; // iterating over all channels is unnessesery here
+  const std::string testName = "test bad configs";
   
   const uint8_t halfSoftChangeWindow_S = 1;
   const ModalConfigsStruct goodConfigs = {
     .minOnBrightness = 50,
-    .softChangeWindow = halfSoftChangeWindow_S*2
+    .softChangeWindow = halfSoftChangeWindow_S*2,
+    .defaultOnBrightness = 0
+  };
+
+  // bad configs should use this struct for the good values, to make sure they don't get written
+  const ModalConfigsStruct differentGoodConfigs = {
+    .minOnBrightness = 20,
+    .softChangeWindow = halfSoftChangeWindow_S*4,
+    .defaultOnBrightness = 50
   };
 
   const uint64_t testStartTime = mondayAtMidnight;
@@ -92,7 +101,7 @@ void testConfigGuards(){
 
   const std::shared_ptr<ModalLightsController> testClass = testObjects.modalLights;
 
-  const ModalConfigsStruct badConfigs = {
+  const ModalConfigsStruct badConfigVals = {
     .minOnBrightness = 0,
     .softChangeWindow = 16
   };
@@ -103,7 +112,12 @@ void testConfigGuards(){
 
   // test that minOnBrightness = 0 gets rejected
   {
-    TEST_ASSERT_FALSE(testClass->changeMinOnBrightness(badConfigs.minOnBrightness));
+    ModalConfigsStruct badConfigs{
+      .minOnBrightness = 0,
+      .softChangeWindow = differentGoodConfigs.softChangeWindow,
+      .defaultOnBrightness = differentGoodConfigs.defaultOnBrightness
+    };
+    TEST_ASSERT_ERROR(errorCode_t::badValue, testObjects.setConfigs(badConfigs), testName.c_str());
 
     // testClass->setState(false);
     testClass->adjustBrightness(255, false);
@@ -116,7 +130,12 @@ void testConfigGuards(){
 
   // test that soft change window over 15 gets rejected
   {
-    TEST_ASSERT_FALSE(testClass->changeSoftChangeWindow(badConfigs.softChangeWindow));
+    ModalConfigsStruct badConfigs{
+      .minOnBrightness = differentGoodConfigs.minOnBrightness,
+      .softChangeWindow = 16,
+      .defaultOnBrightness = differentGoodConfigs.defaultOnBrightness
+    };
+    TEST_ASSERT_ERROR(errorCode_t::badValue, testObjects.setConfigs(badConfigs), testName.c_str());
 
     // soft change should match goood configs
     testClass->setBrightnessLevel(255);
@@ -140,9 +159,7 @@ void testConfigGuards(){
   const ModalConfigsStruct actualConfigs = testClass->getConfigs();
   TEST_ASSERT_EQUAL(goodConfigs.minOnBrightness, actualConfigs.minOnBrightness);
   TEST_ASSERT_EQUAL(goodConfigs.softChangeWindow, actualConfigs.softChangeWindow);
-
-  // TODO: check valid configs are written to ConfigManager
-  TEST_IGNORE_MESSAGE("need to test that configs are written to config manager");
+  TEST_ASSERT_EQUAL(goodConfigs.defaultOnBrightness, actualConfigs.defaultOnBrightness);
 }
 
 void testSetModeIgnoring(){

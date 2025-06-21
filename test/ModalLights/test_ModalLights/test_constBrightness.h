@@ -13,7 +13,8 @@ void testUpdateLights(){
   // no quick changes for this test
   const ModalConfigsStruct testConfigs = {
     .minOnBrightness = 1,
-    .softChangeWindow = 0
+    .softChangeWindow = 0,
+    .defaultOnBrightness = 0
   };
   const uint64_t testStartTime = mondayAtMidnight;
   const TestObjectsStruct testObjects = modalLightsFactoryAllModes(channel, testStartTime, testConfigs);
@@ -64,6 +65,7 @@ void testUpdateLights(){
 
 void testBrightnessAdjustment(){
   // test behaviour when the brightness is adjusted (change should be instant)
+  const std::string testName = "test brightness adjustment";
   const TestChannels channel = TestChannels::RGB; // TODO: iterate over all channels
 
   const uint64_t testStartTime = mondayAtMidnight;
@@ -175,8 +177,7 @@ void testBrightnessAdjustment(){
     .minOnBrightness = 5,
     .softChangeWindow = halfSoftChangeWindow_S * 2
   };
-  testClass->changeMinOnBrightness(testConfigs2.minOnBrightness);
-  testClass->changeSoftChangeWindow(testConfigs2.softChangeWindow);
+  TEST_ASSERT_SUCCESS(testObjects.setConfigs(testConfigs2), testName.c_str());
   const duty_t minOnBrightness2 = testConfigs2.minOnBrightness;
   {
     // adjust up to 200 first
@@ -346,6 +347,7 @@ void testBrightnessAdjustment(){
 
 void testSetBrightness(){
   // test behaviour when the brightness is set to a value (should be soft change)
+  const std::string testName = "test setBrightness";
   const TestChannels channel = TestChannels::RGB; // TODO: iterate over all channels
 
   const uint64_t testStartTime = mondayAtMidnight;
@@ -576,8 +578,7 @@ void testSetBrightness(){
     .minOnBrightness = 1,
     .softChangeWindow = 15
   };
-  testClass->changeMinOnBrightness(testConfigs2.minOnBrightness);
-  testClass->changeSoftChangeWindow(testConfigs2.softChangeWindow);
+  TEST_ASSERT_SUCCESS(testObjects.setConfigs(testConfigs2), testName.c_str());
   {
     const duty_t minBrightness = testConfigs2.minOnBrightness;
     const duty_t window_S = testConfigs2.softChangeWindow;
@@ -655,8 +656,7 @@ void testSetBrightness(){
     .minOnBrightness = 1,
     .softChangeWindow = 0
   };
-  testClass->changeMinOnBrightness(testConfigs3.minOnBrightness);
-  testClass->changeSoftChangeWindow(testConfigs3.softChangeWindow);
+  TEST_ASSERT_SUCCESS(testObjects.setConfigs(testConfigs3), testName.c_str());
   {
     {
       const duty_t newBrightness = 255;
@@ -708,8 +708,7 @@ void testSetBrightness(){
     .minOnBrightness = 5,
     .softChangeWindow = halfSoftChangeWindow_S * 2
   };
-  testClass->changeMinOnBrightness(testConfigs4.minOnBrightness);
-  testClass->changeSoftChangeWindow(testConfigs4.softChangeWindow);
+  TEST_ASSERT_SUCCESS(testObjects.setConfigs(testConfigs4), testName.c_str());
   {
     const duty_t minOnBrightness = testConfigs4.minOnBrightness;
     TEST_ASSERT_TRUE(minOnBrightness > 2);  // just making sure
@@ -1915,6 +1914,7 @@ void testTimeChanges(void){
 }
 
 void testDefaultOnBrightness(){
+  const std::string testName = "test defaultOnBrightness";
   const TestChannels channel = TestChannels::RGB; // TODO: iterate over all channels
 
   const uint64_t testStartTime = mondayAtMidnight;
@@ -1999,8 +1999,15 @@ void testDefaultOnBrightness(){
   // defaultOnBrightness is ignored when below minOnBrightness
   const duty_t minB2 = 100;
   const duty_t defB2 = 50;
-  TEST_ASSERT_TRUE(testClass->changeMinOnBrightness(minB2));
-  TEST_ASSERT_TRUE(testClass->changeDefaultOnBrightness(defB2));
+  const ModalConfigsStruct testConfigs2 = {
+    .minOnBrightness = minB2,
+    .softChangeWindow = testConfigs1.softChangeWindow,
+    .defaultOnBrightness = defB2,
+  };
+  TEST_ASSERT_SUCCESS(
+    testObjects.setConfigs(testConfigs2),
+    testName.c_str()
+  );
   TEST_ASSERT_EQUAL(minB2, testClass->getConfigs().minOnBrightness);
   TEST_ASSERT_EQUAL(defB2, testClass->getConfigs().defaultOnBrightness);
   {
@@ -2017,8 +2024,15 @@ void testDefaultOnBrightness(){
   // active mode turns on to defaultOn when over mode minimum
   const duty_t minB3 = 1;
   const duty_t defB3 = 200;
-  TEST_ASSERT_TRUE(testClass->changeMinOnBrightness(minB3));
-  TEST_ASSERT_TRUE(testClass->changeDefaultOnBrightness(defB3));
+  const ModalConfigsStruct testConfigs3 = {
+    .minOnBrightness = minB3,
+    .softChangeWindow = testConfigs2.softChangeWindow,
+    .defaultOnBrightness = defB3,
+  };
+  TEST_ASSERT_SUCCESS(
+    testObjects.setConfigs(testConfigs3),
+    testName.c_str()
+  );
   TEST_ASSERT_EQUAL(minB3, testClass->getConfigs().minOnBrightness);
   TEST_ASSERT_EQUAL(defB3, testClass->getConfigs().defaultOnBrightness);
   {
@@ -2045,7 +2059,15 @@ void testDefaultOnBrightness(){
 
   // active mode turns on to mode minimum when over defaultOn
   const duty_t defB4 = 50;
-  TEST_ASSERT_TRUE(testClass->changeDefaultOnBrightness(defB4));
+  const ModalConfigsStruct testConfigs4 = {
+    .minOnBrightness = testConfigs3.minOnBrightness,
+    .softChangeWindow = testConfigs3.softChangeWindow,
+    .defaultOnBrightness = defB4,
+  };
+  TEST_ASSERT_SUCCESS(
+    testObjects.setConfigs(testConfigs4),
+    testName.c_str()
+  );
   TEST_ASSERT_EQUAL(defB4, testClass->getConfigs().defaultOnBrightness);
   {
     const TestModeDataStruct activeMode = testModesMap["purpleConstBrightness"];
@@ -2090,7 +2112,7 @@ void testConfigChanges(){
   // TODO: changes in changeover: if brightness and colours are constant, nothing happens. if brightness or colours is changing, rearrange interpolation to end at the time it would've, with the same initialVals but different window 
 
   // TODO: defaultOnBrightness only applies to turning on the lights. changing when lights are on should do nothing, when light are off should do nothing. When lights were off but are now interpolating to previous brightness but defaultOnBrightness gets changed mid-way to a higher or lower brightness, believe or not, nothing.
-  TEST_IGNORE_MESSAGE("TODO");
+  TEST_IGNORE_MESSAGE("Important TODO");
 }
 
 void constBrightness_tests(){

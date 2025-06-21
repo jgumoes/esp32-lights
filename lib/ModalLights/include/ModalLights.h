@@ -8,6 +8,7 @@
 #include "modes.h"
 #include "ProjectDefines.h"
 #include "DataStorageClass.h"
+#include "ConfigStorageClass.hpp"
 
 class VirtualLightsClass{
   public:
@@ -102,7 +103,7 @@ static bool modeUsesTriggerTime(ModeTypes modeType){
  * LightsClass must have method setDutyCycle(duty_t)
 */
 // template<uint8_t nChannels>
-class ModalLightsController : public ModalLightsInterface, public TimeObserver
+class ModalLightsController : public ModalLightsInterface, public TimeObserver, public ConfigUser
 {
 private:
   /* data */
@@ -111,7 +112,7 @@ private:
   std::unique_ptr<VirtualLightsClass> _lights;
   std::shared_ptr<DeviceTimeClass> _deviceTime;
   std::shared_ptr<DataStorageClass> _dataStorage;
-  std::shared_ptr<ConfigManagerClass> _configsClass;
+  std::shared_ptr<ConfigStorageClass> _configsClass;
   ModalConfigsStruct _configs;
   
   std::shared_ptr<ModeInterpolationClass<nChannels>> _interpClass = std::make_shared<ModeInterpolationClass<nChannels>>();
@@ -283,14 +284,15 @@ public:
    * @param lightsClass 
    * @param deviceTime 
    * @param dataStorage 
-   * @param configs 
+   * @param configStorage 
    */
   ModalLightsController(
     std::unique_ptr<VirtualLightsClass>&& lightsClass,
     std::shared_ptr<DeviceTimeClass> deviceTime,
     std::shared_ptr<DataStorageClass> dataStorage,
-    std::shared_ptr<ConfigManagerClass> configs
-  ) : _lights(std::move(lightsClass)), _deviceTime(deviceTime), _dataStorage(dataStorage), _configsClass(configs), _configs(configs->getModalConfigs()) {
+    std::shared_ptr<ConfigStorageClass> configStorage
+  ) : _lights(std::move(lightsClass)), _deviceTime(deviceTime), _dataStorage(dataStorage), _configsClass(configStorage), ConfigUser(ModuleID::modalLights) {
+    _configsClass->registerUser(this, _configs);
     _nextBackgroundTriggerTimeUTC_uS = _deviceTime->getUTCTimestampMicros();  // incase EventManager doesn't set any modes before update is called
 
     _nextBackgroundMode = 1;
@@ -435,49 +437,6 @@ public:
     return currentModes;
   }
 
-  /**
-   * @brief change the softChangeWindow config value and update lights. sets the new value in config manager
-   * 
-   * @param newWindow_S 
-   * @return true 
-   * @return false if newWindow is larger than a nibble
-   */
-  bool changeSoftChangeWindow(uint8_t newWindow_S){
-    if(newWindow_S >= (1 << 4)){return false;}
-    uint64_t utcTimestamp_uS = _deviceTime->getUTCTimestampMicros();
-    _mode->changeSoftChangeWindow(newWindow_S, utcTimestamp_uS, _lightVals);
-    _lights->setChannelValues(_lightVals.getLightValues());
-
-    _configs.softChangeWindow = newWindow_S;
-    _configsClass->setModalConfigs(_configs);
-    return true;
-  }
-
-  /**
-   * @brief change the minimum on brightness config value and update the lights. set the new value in config manager
-   * 
-   * @param newMinBrightness 
-   * @return true 
-   * @return false if new min brightness == 0
-   */
-  bool changeMinOnBrightness(duty_t newMinBrightness){
-    if(newMinBrightness == 0){return false;}
-    uint64_t utcTimestamp_uS = _deviceTime->getUTCTimestampMicros();
-    _mode->changeMinOnBrightness(newMinBrightness, utcTimestamp_uS, _lightVals);
-    _lights->setChannelValues(_lightVals.getLightValues());
-
-    _configs.minOnBrightness = newMinBrightness;
-    _configsClass->setModalConfigs(_configs);
-    return true;
-  }
-
-  bool changeDefaultOnBrightness(duty_t newDefaultOnBrightness){
-    _configs.defaultOnBrightness = newDefaultOnBrightness;
-    _mode->changeDefaultOnBrightness(newDefaultOnBrightness);
-    _configsClass->setModalConfigs(_configs);
-    return true;
-  }
-
   ModalConfigsStruct getConfigs(){
     return _configs;
   }
@@ -486,6 +445,44 @@ public:
     if(timeUpdates.utcTimeChange_uS != 0){
       _mode->timeAdjust(timeUpdates);
     }
+  }
+
+// ConfigUser overrides
+
+  void newConfigs(const byte newConfig[maxConfigSize]) override {
+    ModalConfigsStruct newConfigStruct;
+    ConfigStructFncs::deserialize(newConfig, newConfigStruct);;
+    if(newConfigStruct.defaultOnBrightness != _configs.defaultOnBrightness){
+      _configs.defaultOnBrightness = newConfigStruct.defaultOnBrightness;
+      if((_activeMode != 0) || (_backgroundMode != 0)){
+        _mode->changeDefaultOnBrightness(_configs.defaultOnBrightness);
+      }
+    }
+
+    if(newConfigStruct.softChangeWindow != _configs.softChangeWindow){
+      uint64_t utcTimestamp_uS = _deviceTime->getUTCTimestampMicros();
+      if((_activeMode != 0) || (_backgroundMode != 0)){
+        _mode->changeSoftChangeWindow(newConfigStruct.softChangeWindow, utcTimestamp_uS, _lightVals);
+        _lights->setChannelValues(_lightVals.getLightValues());
+      }
+
+      _configs.softChangeWindow = newConfigStruct.softChangeWindow;
+    }
+
+    if(newConfigStruct.minOnBrightness != _configs.minOnBrightness){
+      uint64_t utcTimestamp_uS = _deviceTime->getUTCTimestampMicros();
+      if((_activeMode != 0) || (_backgroundMode != 0)){
+        _mode->changeMinOnBrightness(newConfigStruct.minOnBrightness, utcTimestamp_uS, _lightVals);
+        _lights->setChannelValues(_lightVals.getLightValues());
+      }
+
+      _configs.minOnBrightness = newConfigStruct.minOnBrightness;
+    }
+  };
+
+  packetSize_t getConfigs(byte config[maxConfigSize]) override {
+    ConfigStructFncs::serialize(config, _configs);
+    return getConfigPacketSize(ModuleID::deviceTime);
   }
 };
 

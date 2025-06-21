@@ -1,7 +1,6 @@
 #ifndef _LIGHT_MODES_H_
 #define _LIGHT_MODES_H_
 
-// #include "../DeviceTime/include/DeviceTime.h"
 #include "DeviceTime.h"
 #include "lightDefines.h"
 #include "interpolationClass.h"

@@ -30,11 +30,10 @@ void testDeviceTimeConfigs(){
   auto storageHal = std::make_shared<FakeStorageAdapter>();
   ConfigStorageClass configClass(storageHal);
   TEST_ASSERT_EQUAL(ModuleID::configManager, storageHal->getLock());
-  GenericUsersStruct genericUsers(configClass, testName);
+  GenericUser timeUser(configClass, makeGenericConfigStruct(TimeConfigsStruct{}), testName);
   configClass.loadAllConfigs();
   TEST_ASSERT_EQUAL(ModuleID::null, storageHal->getLock());
 
-  GenericUser timeUser(configClass, makeGenericConfigStruct(TimeConfigsStruct{}), testName);
   timeUser.resetCounts();
 
   etl::vector<ExpectedErrorStruct, UINT8_MAX> errors = {
@@ -94,6 +93,53 @@ void testDeviceTimeConfigs(){
 
 }
 
+void testModalLightsConfigs(){
+  using namespace ConfigManagerTestObjects;
+  const std::string testName = "Modal Lights configs";
+  auto storageHal = std::make_shared<FakeStorageAdapter>();
+  ConfigStorageClass configClass(storageHal);
+  TEST_ASSERT_EQUAL(ModuleID::configManager, storageHal->getLock());
+  GenericUser modalUser(configClass, makeGenericConfigStruct(ModalConfigsStruct{}), testName);
+  configClass.loadAllConfigs();
+  TEST_ASSERT_EQUAL(ModuleID::null, storageHal->getLock());
+
+  modalUser.resetCounts();
+
+  etl::vector<ExpectedErrorStruct, UINT8_MAX> errors = {
+    {
+      errorCode_t::badValue,
+      makeGenericConfigStruct(ModalConfigsStruct{.minOnBrightness = 0}),
+      "min on brightness == 0"
+    },
+    {
+      errorCode_t::badValue,
+      makeGenericConfigStruct(ModalConfigsStruct{.softChangeWindow = 16}),
+      "soft window is too large (== 16)"
+    },
+    {
+      errorCode_t::badValue,
+      makeGenericConfigStruct(ModalConfigsStruct{.softChangeWindow = 255}),
+      "soft window is way too large (== 255)"
+    },
+    {
+      errorCode_t::badValue,
+      makeGenericConfigStruct(ModalConfigsStruct{.softChangeWindow = static_cast<uint8_t>((int8_t)-10)}),
+      "soft window is too large (-10 which is 246)"
+    },
+  };
+
+  for(ExpectedErrorStruct errorStruct : errors)
+  {
+    errorCode_t expectedError = errorStruct.expectedError;
+    const byte *badConfig = errorStruct.genericStruct.data();
+    std::string message = errorStruct.message;
+
+    TEST_ASSERT_ERROR(expectedError, configClass.setConfig(badConfig), message.c_str());
+    TEST_ASSERT_ERROR(expectedError, ModalConfigsStruct::isDataValid(badConfig), message.c_str());
+    TEST_ASSERT_EQUAL_MESSAGE(0, modalUser.getNewConfigsCount(), message.c_str());
+  }
+}
+
 void noEmbeddedUnfriendlyLibraries(){
   #ifdef __PRINT_DEBUG_H__
     TEST_ASSERT_MESSAGE(false, "did you forget to remove the print debugs?");
@@ -112,7 +158,7 @@ void RUN_UNITY_TESTS(){
   UNITY_BEGIN();
   RUN_TEST(noEmbeddedUnfriendlyLibraries);
   RUN_TEST(testDeviceTimeConfigs);
-
+  RUN_TEST(testModalLightsConfigs);
   UNITY_END();
 }
 

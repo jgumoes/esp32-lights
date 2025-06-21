@@ -32,7 +32,7 @@ struct GenericConfigStruct{
     if(ID != static_cast<ModuleID>(packet[0])){
       return errorCode_t::badID;
     }
-    return validationFunction(&packet[1]);
+    return validationFunction(packet);
   }
 
   GenericConfigStruct(ModuleID id = ModuleID::null): ID(id), packetSize(0){
