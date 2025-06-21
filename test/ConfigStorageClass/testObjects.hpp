@@ -17,16 +17,29 @@ When adding new configs or modules, ctrl+f the line below
 "add new configs here"
 */
 
-#define TEST_ASSERT_SUCCESS(functionCall, message) (\
+#define TEST_ASSERT_ERROR(expectedError, functionCall, message) (\
   {\
     errorCode_t _private_error_code_pls_dont_use_this_name_anywhere_else_ = functionCall;\
     TEST_ASSERT_EQUAL_MESSAGE(\
-      errorCode_t::success,\
+      expectedError,\
       _private_error_code_pls_dont_use_this_name_anywhere_else_,\
       addErrorToMessage(_private_error_code_pls_dont_use_this_name_anywhere_else_, message).c_str()\
     );\
   }\
 )
+
+// #define TEST_ASSERT_SUCCESS(functionCall, message) (\
+//   {\
+//     errorCode_t _private_error_code_pls_dont_use_this_name_anywhere_else_ = functionCall;\
+//     TEST_ASSERT_EQUAL_MESSAGE(\
+//       errorCode_t::success,\
+//       _private_error_code_pls_dont_use_this_name_anywhere_else_,\
+//       addErrorToMessage(_private_error_code_pls_dont_use_this_name_anywhere_else_, message).c_str()\
+//     );\
+//   }\
+// )
+
+#define TEST_ASSERT_SUCCESS(functionCall, message) (TEST_ASSERT_ERROR(errorCode_t::success, functionCall, message))
 
 namespace ConfigManagerTestObjects
 {  
@@ -451,6 +464,11 @@ namespace ConfigManagerTestObjects
         configClass.registerUser(this, configStruct.data(), configStruct.packetSize, configStruct.validationFunction);
       };
       
+      /**
+       * @brief returns how many time newConfigs() has been called by ConfigManager
+       * 
+       * @return uint16_t 
+       */
       uint16_t getNewConfigsCount(){
         return newConfigsCount;
       }

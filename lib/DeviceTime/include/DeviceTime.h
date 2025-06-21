@@ -12,7 +12,7 @@
 
 #include "ProjectDefines.h"
 #include "onboardTimestamp.h"
-#include "ConfigManager.h"
+#include "ConfigStorageClass.hpp"
 #include "timeHelpers.h"
 
 uint64_t static roundMicrosToSeconds(uint64_t time){
@@ -33,9 +33,12 @@ typedef etl::observer<const TimeUpdateStruct&> TimeObserver;
  * @brief interface for DeviceTime. getUTCTimestampMicros() and setUTCTimestamp2000() need to be overriden by concrete implementation, but everything else should be RTC-agnostic so is non-virtual
  * 
  */
-class DeviceTimeClass : public etl::observable<TimeObserver, MAX_TIME_OBSERVERS>{
+class DeviceTimeClass :
+  public etl::observable<TimeObserver, MAX_TIME_OBSERVERS>,
+  public ConfigUser
+{
   private:
-    std::shared_ptr<ConfigStorageClass> _configManager;
+    std::shared_ptr<ConfigStorageClass> _configStorage;
     std::unique_ptr<OnboardTimestamp> _onboardTimestamp = std::make_unique<OnboardTimestamp>();
 
     bool _timeFault = true;
@@ -51,7 +54,9 @@ class DeviceTimeClass : public etl::observable<TimeObserver, MAX_TIME_OBSERVERS>
     }
 
   public:
-    DeviceTimeClass(std::shared_ptr<ConfigManagerClass> configManager) : _configManager(configManager), _configs(_configManager->getRTCConfigs()){};
+    DeviceTimeClass(std::shared_ptr<ConfigStorageClass> configStorage) : _configStorage(configStorage), ConfigUser(ModuleID::deviceTime){
+      _configStorage->registerUser(this, _configs);
+    };
 
     /**
      * @brief get the UTC timestamp in microseconds
@@ -258,6 +263,15 @@ class DeviceTimeClass : public etl::observable<TimeObserver, MAX_TIME_OBSERVERS>
      * @return uint64_t utc timestamp in microseconds
      */
     uint64_t convertLocalToUTCMicros(uint64_t localTimestamp_uS);
+
+// ConfigUser overrides
+
+    void newConfigs(const byte newConfig[maxConfigSize]) override;
+
+    packetSize_t getConfigs(byte config[maxConfigSize]) override {
+      ConfigStructFncs::serialize(config, _configs);
+      return getConfigPacketSize(ModuleID::deviceTime);
+    }
 };
 
 #endif

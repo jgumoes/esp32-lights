@@ -33,14 +33,14 @@ uint64_t utcTimeFromTestParams(TestTimeParamsStruct testParams){
 }
 
 #define testLocalGetters_helper(testParams, deviceTime){  \
-  TEST_ASSERT_EQUAL_MESSAGE(testParams.localTimestamp, deviceTime.getLocalTimestampSeconds(), ("testParams: " + testParams.testName + "; fail: getLocalTimestampSeconds").c_str());\
-  TEST_ASSERT_EQUAL_MESSAGE(utcTimeFromTestParams(testParams), deviceTime.getUTCTimestampSeconds(), ("testParams: " + testParams.testName + "; fail: getUTCTimestampSeconds").c_str());\
-  TEST_ASSERT_EQUAL_MESSAGE(testParams.dayOfWeek, deviceTime.getDay(), ("testParams: " + testParams.testName + "; fail: getDay").c_str());\
-  TEST_ASSERT_EQUAL_MESSAGE(testParams.month, deviceTime.getMonth(), ("testParams: " + testParams.testName + "; fail: getMonth").c_str());\
-  TEST_ASSERT_EQUAL_MESSAGE(testParams.years, deviceTime.getYear(), ("testParams: " + testParams.testName + "; fail: getYear").c_str());\
-  TEST_ASSERT_EQUAL_MESSAGE(testParams.date, deviceTime.getDate(), ("testParams: " + testParams.testName + "; fail: getDate").c_str());\
-  TEST_ASSERT_EQUAL_MESSAGE(findStartOfDay(testParams), deviceTime.getStartOfDay(), ("testParams: " + testParams.testName + "; fail: getStartOfDay").c_str());\
-  TEST_ASSERT_EQUAL_MESSAGE(findTimeInDay(testParams), deviceTime.getTimeInDay(), ("testParams: " + testParams.testName + "; fail: getTimeInDay").c_str());\
+  TEST_ASSERT_EQUAL_MESSAGE(testParams.localTimestamp, deviceTime->getLocalTimestampSeconds(), ("testParams: " + testParams.testName + "; fail: getLocalTimestampSeconds").c_str());\
+  TEST_ASSERT_EQUAL_MESSAGE(utcTimeFromTestParams(testParams), deviceTime->getUTCTimestampSeconds(), ("testParams: " + testParams.testName + "; fail: getUTCTimestampSeconds").c_str());\
+  TEST_ASSERT_EQUAL_MESSAGE(testParams.dayOfWeek, deviceTime->getDay(), ("testParams: " + testParams.testName + "; fail: getDay").c_str());\
+  TEST_ASSERT_EQUAL_MESSAGE(testParams.month, deviceTime->getMonth(), ("testParams: " + testParams.testName + "; fail: getMonth").c_str());\
+  TEST_ASSERT_EQUAL_MESSAGE(testParams.years, deviceTime->getYear(), ("testParams: " + testParams.testName + "; fail: getYear").c_str());\
+  TEST_ASSERT_EQUAL_MESSAGE(testParams.date, deviceTime->getDate(), ("testParams: " + testParams.testName + "; fail: getDate").c_str());\
+  TEST_ASSERT_EQUAL_MESSAGE(findStartOfDay(testParams), deviceTime->getStartOfDay(), ("testParams: " + testParams.testName + "; fail: getStartOfDay").c_str());\
+  TEST_ASSERT_EQUAL_MESSAGE(findTimeInDay(testParams), deviceTime->getTimeInDay(), ("testParams: " + testParams.testName + "; fail: getTimeInDay").c_str());\
 }
 
 class TestObserver : public TimeObserver{

@@ -278,6 +278,14 @@ class ConfigStorageClass {
     void _alertUser(const byte newConfig[maxConfigSize]){
       _alertUser(static_cast<ModuleID>(newConfig[0]), newConfig);
     }
+
+    /**
+     * @brief performs the write operations for the new config and its metadata
+     * 
+     * @param serializedStruct 
+     * @return errorCode_t 
+     */
+    errorCode_t _writeConfigToStorage(const byte *serializedStruct);
     
   public:
 
@@ -349,7 +357,7 @@ class ConfigStorageClass {
      * @return errorCode_t 
      */
     template <class ConfigStructType>
-    void registerUser(ConfigUser &thisRef, ConfigStructType &configStruct){
+    void registerUser(ConfigUser *thisRef, ConfigStructType &configStruct){
       ConfigStructType defaultConfig;
       packetSize_t size = defaultConfig.rawDataSize+sizeof(ModuleID);
       byte packet[maxConfigSize];
@@ -370,6 +378,15 @@ class ConfigStorageClass {
       }
       return bitflag;
     }
+
+    /**
+     * @brief This method is for DeviceTime only! DeviceTime WILL NOT be notified of changes! Time configs are a special case, as they can be set by DeviceTime (i.e. through DeviceTimeService) alongside a new timestamp. Since the user has already handled the changes, (a) it does not need to be notified, and (b) checking the new configs against device time will look like duplicates. This method lets DeviceTime handle the changes as fast as possible, and bypass the duplicity check as it should have already occured.
+     * 
+     * @param newConfigs 
+     * @return errorCode_t 
+     * @retval errorCode_t::illegalAddress if ConfigUser is not device time
+     */
+    errorCode_t setTimeConfigs(ConfigUser *deviceTime);
 };
 
 #endif

@@ -20,6 +20,12 @@ struct GenericConfigStruct{
   const ModuleID ID = ModuleID::null;
   const uint8_t packetSize = 0; // size of ModuleID + raw data
   const ConfigStructFncs::validationFunc validationFunction = ConfigStructFncs::defaultInvalid;
+
+  /**
+   * @brief returns a constant pointer to the serialized data
+   * 
+   * @return const byte* 
+   */
   const byte* data() const {return _data;}
 
   errorCode_t isValid(const byte* packet) const {

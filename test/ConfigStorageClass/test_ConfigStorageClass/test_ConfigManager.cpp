@@ -4,8 +4,8 @@
 #include <etl/map.h>
 
 #include "ConfigStorageClass.hpp"
-#include "testObjects.hpp"
-#include "MetadataFileReader.hpp"
+#include "../testObjects.hpp"
+#include "../MetadataFileReader.hpp"
 
 #define ETL_CHECK_PUSH_POP
 
@@ -1002,6 +1002,59 @@ void setConfigsTest(){
   TEST_IGNORE_MESSAGE("outstanding TODOs");
 }
 
+void testSetTimeConfigs(){
+  // DeviceTime is a special case that needs to set timezone and offset
+  using namespace ConfigManagerTestObjects;
+
+  const std::string testName = "setting time configs";
+  auto storageHal = std::make_shared<FakeStorageAdapter>();
+  ConfigStorageClass configClass(storageHal);
+  TEST_ASSERT_EQUAL(ModuleID::configManager, storageHal->getLock());
+  GenericUsersStruct genericUsers(configClass, testName);
+  configClass.loadAllConfigs();
+  TEST_ASSERT_EQUAL(ModuleID::null, storageHal->getLock());
+
+  // reset all notify counts
+  for(auto userIT : genericUsers.userMap){
+    userIT.second.resetCounts();
+  }
+  
+  // Ladies and Gentlmen, our main event!
+  GenericUser deviceTime = genericUsers.userMap.at(ModuleID::deviceTime);
+  TimeConfigsStruct newTimeConfigs = {.timezone = -8*60*60, .DST=30*60};
+  byte newConfigs[maxConfigSize];
+  ConfigStructFncs::serialize(newConfigs, newTimeConfigs);
+
+  // test new configs doesn't match old configs
+  {
+    byte oldConfigs[maxConfigSize];
+    deviceTime.configStruct.copy(oldConfigs);
+    bool isEqual = true;
+    for(
+      uint8_t i = 0;
+      i < getConfigPacketSize(ModuleID::deviceTime);
+      i++
+    ){
+      isEqual &= (newConfigs[i] == oldConfigs[i]);
+    }
+    TEST_ASSERT_FALSE(isEqual);
+  }
+
+  // set the new config
+  deviceTime.configStruct.newDataPacket(newConfigs);
+  TEST_ASSERT_EQUAL_UINT8_ARRAY(newConfigs, deviceTime.configStruct.data(), getConfigPacketSize(ModuleID::deviceTime));
+  
+  configClass.setTimeConfigs(&deviceTime);
+
+  // test config was written without notifying users
+  const byte *storedConfig = storageHal->getConfig(ModuleID::deviceTime);
+  TEST_ASSERT_EQUAL_UINT8_ARRAY(newConfigs, storedConfig, getConfigPacketSize(ModuleID::deviceTime));
+  
+  for(auto userIT : genericUsers.userMap){
+    std::string loopMessage = testName + "; user = " + moduleIDToString(userIT.second.type);
+    TEST_ASSERT_EQUAL_MESSAGE(0, userIT.second.getNewConfigsCount(), loopMessage.c_str());
+  }
+}
 
 void noEmbeddedUnfriendlyLibraries(){
   #ifdef __PRINT_DEBUG_H__
@@ -1025,6 +1078,7 @@ void RUN_UNITY_TESTS(){
   RUN_TEST(testConfigStructSerialization);
   RUN_TEST(testReadConfigs);
   RUN_TEST(setConfigsTest);
+  RUN_TEST(testSetTimeConfigs);
   UNITY_END();
 }
 

@@ -40,28 +40,15 @@ errorCode_t ConfigStorageClass::getDefaultConfig(ModuleID configType, byte *seri
   return errorCode_t::success;
 }
 
-errorCode_t ConfigStorageClass::setConfig(const byte *serializedStruct){
-  using namespace ConfigStructFncs;
-  const ModuleID type = static_cast<ModuleID>(serializedStruct[0]);
-  // TODO: some mechanism to avoid re-writing identical packets
-
-  if(!_storedConfigs.contains(type)){
-    return errorCode_t::IDNotInUse;
-  }
-
-  // does config pass validation?
-  errorCode_t error = validator->isValid(serializedStruct);
-  if(errorCode_t::success != error){return error;}
-
-  // notify user
-  _alertUser(type, serializedStruct);
-  
+errorCode_t ConfigStorageClass::_writeConfigToStorage(const byte *serializedStruct){
+  ModuleID type = static_cast<ModuleID>(serializedStruct[0]);
   // get the address to write to
   storageAddress_t address = _metadataMap.getConfigAddress(type);
   if(storageOutOfBounds == address){
     address = _metadataMap.getNextConfigAddress();
   }
 
+  errorCode_t error;
   // attempt to write to storage
   for(uint16_t attempt = 0; attempt < 10; attempt++){
     if(address == storageOutOfBounds){
@@ -88,6 +75,25 @@ errorCode_t ConfigStorageClass::setConfig(const byte *serializedStruct){
 
   _storage->close(ID);
   return errorCode_t::wearAttemptLimitReached;
+}
+
+errorCode_t ConfigStorageClass::setConfig(const byte *serializedStruct){
+  using namespace ConfigStructFncs;
+  const ModuleID type = static_cast<ModuleID>(serializedStruct[0]);
+  // TODO: some mechanism to avoid re-writing identical packets
+
+  if(!_storedConfigs.contains(type)){
+    return errorCode_t::IDNotInUse;
+  }
+
+  // does config pass validation?
+  errorCode_t error = validator->isValid(serializedStruct);
+  if(errorCode_t::success != error){return error;}
+
+  // notify user
+  _alertUser(type, serializedStruct);
+  
+  return _writeConfigToStorage(serializedStruct);
 };
 
 void ConfigStorageClass::loadAllConfigs(){
@@ -152,4 +158,14 @@ void ConfigStorageClass::loadAllConfigs(){
   }
   
   _storage->close(ID);
+}
+
+errorCode_t ConfigStorageClass::setTimeConfigs(ConfigUser *deviceTime)
+{
+  if(deviceTime->type != ModuleID::deviceTime){
+    return errorCode_t::illegalAddress;
+  }
+  byte serialized[maxConfigSize];
+  deviceTime->getConfigs(serialized);
+  return _writeConfigToStorage(serialized);
 }

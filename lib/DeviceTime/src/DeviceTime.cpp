@@ -18,11 +18,11 @@ bool DeviceTimeClass::setUTCTimestamp2000(uint64_t newTimestamp, int32_t timezon
 {
   const uint64_t newUTCTimestamp_uS = newTimestamp*secondsToMicros;
   if(
-    newTimestamp * secondsToMicros < BUILD_TIMESTAMP
-    || newTimestamp >= ONBOARD_TIMESTAMP_OVERFLOW
-    || newUTCTimestamp_uS >= ONBOARD_TIMESTAMP_OVERFLOW
-    || !isTimezoneValid(timezone)
-    || !isDSTValid(DST)
+    (newTimestamp * secondsToMicros < BUILD_TIMESTAMP)
+    || (newTimestamp >= ONBOARD_TIMESTAMP_OVERFLOW)
+    || (newUTCTimestamp_uS >= ONBOARD_TIMESTAMP_OVERFLOW)
+    || (!isTimezoneValid(timezone))
+    || (!isDSTValid(DST))
   ){
     return false;
   }
@@ -30,7 +30,7 @@ bool DeviceTimeClass::setUTCTimestamp2000(uint64_t newTimestamp, int32_t timezon
   const uint64_t oldUTCTimestamp_uS = _onboardTimestamp->getTimestamp_uS();
   _onboardTimestamp->setTimestamp_S(newTimestamp);
 
-  int64_t oldOffset = _offset;
+  const int64_t oldOffset = _offset;
   if(
     _configs.DST != DST
     || _configs.timezone != timezone
@@ -38,7 +38,6 @@ bool DeviceTimeClass::setUTCTimestamp2000(uint64_t newTimestamp, int32_t timezon
     _configs.DST = DST;
     _configs.timezone = timezone;
     _setOffset();
-    _configManager->setRTCConfigs(_configs);
   }
   
   _timeofLastSync_uS = newUTCTimestamp_uS;
@@ -51,6 +50,10 @@ bool DeviceTimeClass::setUTCTimestamp2000(uint64_t newTimestamp, int32_t timezon
     .currentLocalTime_uS = newUTCTimestamp_uS + _offset
   };
   notify_observers(timeUpdates);
+  
+  if(oldOffset != _offset){
+    _configStorage->setTimeConfigs(this);
+  }
   return true;
 }
 
@@ -152,4 +155,37 @@ uint64_t DeviceTimeClass::convertLocalToUTCMicros(uint64_t localTimestamp_uS)
     return 0;
   }
   return localTimestamp_uS - _offset;
+}
+
+void DeviceTimeClass::newConfigs(const byte newConfig[maxConfigSize]){
+  TimeConfigsStruct newConfigStruct;
+  ConfigStructFncs::deserialize(newConfig, newConfigStruct);
+
+  // handle offsets
+  if(
+    _configs.DST != newConfigStruct.DST
+    || _configs.timezone != newConfigStruct.timezone
+  ){
+    const int64_t oldOffset = _offset;
+    
+    // update _configs
+    _configs.DST = newConfigStruct.DST;
+    _configs.timezone = newConfigStruct.timezone;
+    _setOffset();
+
+    // notify observers
+    const TimeUpdateStruct timeUpdates{
+      .utcTimeChange_uS = 0,
+      .localTimeChange_uS = 0 + _offset - oldOffset,
+      .currentLocalTime_uS = getLocalTimestampMicros()
+    };
+    notify_observers(timeUpdates);
+  }
+  
+  // handle maxSecondsBetweenSyncs
+  if(_configs.maxSecondsBetweenSyncs != newConfigStruct.maxSecondsBetweenSyncs){
+    _timeOfNextSync_uS = _timeofLastSync_uS + _configs.maxSecondsBetweenSyncs*secondsToMicros;
+
+    _configs.maxSecondsBetweenSyncs = newConfigStruct.maxSecondsBetweenSyncs;
+  }
 }
