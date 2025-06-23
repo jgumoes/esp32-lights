@@ -5,21 +5,21 @@
 #include <etl/flat_map.h>
 
 #include "ProjectDefines.h"
-#include "ConfigManager.h"
+#include "ConfigStorageClass.hpp"
 
 #include "ModalLights.h"
 #include "DeviceTime.h"
 
 #include "EventSupervisor.h"
 
-class EventManager : public TimeObserver
+class EventManager : public TimeObserver, public ConfigUser
 {
 private:
   std::shared_ptr<ModalLightsInterface> _modalLights;
   std::shared_ptr<DeviceTimeClass> _deviceTime;
   std::shared_ptr<DataStorageClass> _storage;
   
-  std::shared_ptr<ConfigManagerClass> _configManager;
+  std::shared_ptr<ConfigStorageClass> _configManager;
   EventManagerConfigsStruct _configs;
 
   std::unique_ptr<ActiveEventSupervisor> _active;
@@ -31,20 +31,28 @@ public:
   // TODO: integrate ErrorManager
   EventManager(
     std::shared_ptr<ModalLightsInterface> modalLights,
-    std::shared_ptr<ConfigManagerClass> configManager,
+    std::shared_ptr<ConfigStorageClass> configManager,
     std::shared_ptr<DeviceTimeClass> deviceTime,
     std::shared_ptr<DataStorageClass> storage
   );
-  ~EventManager(){};
+  ~EventManager(){
+    _deviceTime->remove_observer(*this);
+  };
+
+  /**
+   * @brief loads the events from storage. should be called AFTER ConfigStorage loads configs, and AFTER ModalLights loads modes
+   * 
+   */
+  void loadAllEvents();
 
   /**
    * @brief checks the validity of the new event data packet, and returns the first error it runs in to. the final check is if the storage is full
    * 
    * @param newEvent 
    * @param updating if true, eventID should already exist. if false, it shouldn't
-   * @return eventError_t 
+   * @return errorCode_t 
    */
-  eventError_t isEventDataPacketValid(const EventDataPacket &newEvent, const bool updating);
+  errorCode_t isEventDataPacketValid(const EventDataPacket &newEvent, const bool updating);
   
   /**
    * @brief Get the ID and time of the next event
@@ -64,18 +72,18 @@ public:
    * TODO: adds the event to storage
    * 
    * @param newEvent 
-   * @return eventError_t 
+   * @return errorCode_t 
    */
-  eventError_t addEvent(const EventDataPacket& newEvent);
+  errorCode_t addEvent(const EventDataPacket& newEvent);
   
   /**
    * @brief removes an event from the map, and re-builds trigger times.
    * TODO: also removes event from storage
    * 
    * @param eventID 
-   * @return eventError_t 
+   * @return errorCode_t 
    */
-  eventError_t removeEvent(eventUUID eventID);
+  errorCode_t removeEvent(eventUUID eventID);
 
   /**
    * @brief removes a list of events.
@@ -90,9 +98,9 @@ public:
    * @brief checks an event and updates it. updates trigger times, then checks for triggers.
    * 
    * @param event 
-   * @return eventError_t 
+   * @return errorCode_t 
    */
-  eventError_t updateEvent(EventDataPacket event);
+  errorCode_t updateEvent(EventDataPacket event);
   
   /**
    * @brief loops through a list of events and calls updateEvent()
@@ -102,7 +110,7 @@ public:
    * @param eventErrors 
    * @param number 
    */
-  void updateEvents(EventDataPacket *events, eventError_t *eventErrors, nEvents_t number);
+  void updateEvents(EventDataPacket *events, errorCode_t *eventErrors, nEvents_t number);
   
   /**
    * @brief rebuilds the trigger times, checking for missed active events, then checks for triggering events. can cause background modes to retrigger, but how that gets handled is mode-dependant so really its a ModalController problem.
@@ -117,19 +125,20 @@ public:
   EventManagerConfigsStruct getConfigs(){
     return _configs;
   }
-  
-  eventError_t setConfigs(EventManagerConfigsStruct newConfigs){
-    if(newConfigs.defaultEventWindow_S == 0){
-      return EventManagerErrors::bad_time;
-    }
-    _configs = newConfigs;
+
+  void newConfigs(const byte newConfig[maxConfigSize]) override {
+    ConfigStructFncs::deserialize(newConfig, _configs);
     const uint64_t timestamp = _deviceTime->getLocalTimestampSeconds();
     _active->rebuildTriggerTimes(timestamp);
     _background->rebuildTriggerTimes(timestamp);
     _check(timestamp);
-    _configManager->setEventManagerConfigs(_configs);
-    return EventManagerErrors::success;
   }
+
+  packetSize_t getConfigs(byte config[maxConfigSize]) override {
+    ConfigStructFncs::serialize(config, _configs);
+    return _configs.rawDataSize+1;
+  }
+
 };
 
 #endif

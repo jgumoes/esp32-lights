@@ -1,30 +1,38 @@
 #include "EventManager.h"
 
-EventManager::EventManager(std::shared_ptr<ModalLightsInterface> modalLights, std::shared_ptr<ConfigManagerClass> configManager, std::shared_ptr<DeviceTimeClass> deviceTime, std::shared_ptr<DataStorageClass> storage)
-  : _modalLights(modalLights), _configManager(configManager), _configs(configManager->getEventManagerConfigs()),
+EventManager::EventManager(
+  std::shared_ptr<ModalLightsInterface> modalLights,
+  std::shared_ptr<ConfigStorageClass> configManager,
+  std::shared_ptr<DeviceTimeClass> deviceTime,
+  std::shared_ptr<DataStorageClass> storage
+) : _modalLights(modalLights), _configManager(configManager), ConfigUser(ModuleID::eventManager),
     _active(std::make_unique<ActiveEventSupervisor>(_configs)),
     _background(std::make_unique<BackgroundEventSupervisor>(_configs)), _deviceTime(deviceTime),
     _storage(storage)
 {
+  _configManager->registerUser(this, _configs);
+  _deviceTime->add_observer(*this);
+}
+
+void EventManager::loadAllEvents(){
   const uint64_t timestamp_S = _deviceTime->getLocalTimestampSeconds();
   EventStorageIterator events = _storage->getAllEvents(); 
   while(events.hasMore()){
     EventDataPacket event = events.getNext();
-    eventError_t error = isEventDataPacketValid(event, false);
-    if(error == EventManagerErrors::success){
+    errorCode_t error = isEventDataPacketValid(event, false);
+    if(error == errorCode_t::success){
       error = event.isActive
             ? _active->addEvent(timestamp_S, event)
             : _background->addEvent(timestamp_S, event);
     }
-    if(error != EventManagerErrors::success){
+    if(error != errorCode_t::success){
       // TODO: alert server of the error
     };
   };
-  _deviceTime->add_observer(*this);
   _check(timestamp_S);
 }
 
-eventError_t EventManager::isEventDataPacketValid(const EventDataPacket &newEvent, const bool updating){
+errorCode_t EventManager::isEventDataPacketValid(const EventDataPacket &newEvent, const bool updating){
   const bool duplicateEventID =
     _active->doesEventExist(newEvent.eventID)
     || _background->doesEventExist(newEvent.eventID);
@@ -33,20 +41,20 @@ eventError_t EventManager::isEventDataPacketValid(const EventDataPacket &newEven
     || newEvent.modeID == 0
     || (duplicateEventID != updating)
   ){
-    return EventManagerErrors::bad_uuid;
+    return errorCode_t::bad_uuid;
   }
   if(newEvent.timeOfDay > maxTimeOfDay
     || newEvent.eventWindow > maxTimeOfDay
     || (newEvent.daysOfWeek & daysOfWeekMask) == 0
   ){
-    return EventManagerErrors::bad_time;
+    return errorCode_t::bad_time;
   }
 
   // IMPORTANT! this MUST be the final check, as it has nothing to with the EventDataPacket
   if(_active->getNumberOfEvents() + _background->getNumberOfEvents() >= MAX_NUMBER_OF_EVENTS){
-    return EventManagerErrors::storage_full;
+    return errorCode_t::storage_full;
   }
-  return EventManagerErrors::success;
+  return errorCode_t::success;
 }
 
 void EventManager::_check(const uint64_t timestamp_S){
@@ -82,9 +90,9 @@ EventTimeStruct EventManager::getNextEvent(){
   return nextBackground;
 };
 
-eventError_t EventManager::addEvent(const EventDataPacket& newEvent){
-  eventError_t error = isEventDataPacketValid(newEvent, false);
-  if(error != EventManagerErrors::success){
+errorCode_t EventManager::addEvent(const EventDataPacket& newEvent){
+  errorCode_t error = isEventDataPacketValid(newEvent, false);
+  if(error != errorCode_t::success){
     return error;
   }
   uint64_t timestamp_S = _deviceTime->getLocalTimestampSeconds();
@@ -97,10 +105,10 @@ eventError_t EventManager::addEvent(const EventDataPacket& newEvent){
   return error;
 };
 
-eventError_t EventManager::removeEvent(eventUUID eventID){
+errorCode_t EventManager::removeEvent(eventUUID eventID){
   const uint64_t timestamp_S = _deviceTime->getLocalTimestampSeconds();
-  eventError_t error = _active->removeEvent(timestamp_S, eventID);
-  if(error != EventManagerErrors::success){
+  errorCode_t error = _active->removeEvent(timestamp_S, eventID);
+  if(error != errorCode_t::success){
     error = _background->removeEvent(timestamp_S, eventID);
   }
   // TODO: remove from device storage
@@ -114,18 +122,18 @@ void EventManager::removeEvents(eventUUID *eventIDs, nEvents_t number){
   }
 };
 
-eventError_t EventManager::updateEvent(EventDataPacket event){
-  eventError_t error = isEventDataPacketValid(event, true);
-  if(error != EventManagerErrors::success){
+errorCode_t EventManager::updateEvent(EventDataPacket event){
+  errorCode_t error = isEventDataPacketValid(event, true);
+  if(error != errorCode_t::success){
     return error;
   }
 
   const uint64_t timestamp_S = _deviceTime->getLocalTimestampSeconds();
   if(event.isActive){
     error = _active->updateEvent(timestamp_S, event);
-    if(error == EventManagerErrors::event_not_found){
+    if(error == errorCode_t::event_not_found){
       // if changing background to active
-      if(_background->removeEvent(timestamp_S, event.eventID) == EventManagerErrors::success){
+      if(_background->removeEvent(timestamp_S, event.eventID) == errorCode_t::success){
         error = _active->addEvent(timestamp_S, event);
       }
     }
@@ -133,7 +141,7 @@ eventError_t EventManager::updateEvent(EventDataPacket event){
   else{
     // if event is background
     error = _background->updateEvent(timestamp_S, event);
-    if(error == EventManagerErrors::event_not_found){
+    if(error == errorCode_t::event_not_found){
       // if changing active to background
       if(_active->removeEvent(timestamp_S, event.eventID)){
         error = _background->addEvent(timestamp_S, event);
@@ -145,7 +153,7 @@ eventError_t EventManager::updateEvent(EventDataPacket event){
   return error;
 };
 
-void EventManager::updateEvents(EventDataPacket *events, eventError_t *eventErrors, nEvents_t number){
+void EventManager::updateEvents(EventDataPacket *events, errorCode_t *eventErrors, nEvents_t number){
   for(int i = 0; i < number; i++){
     eventErrors[i] = updateEvent(events[i]);
   }
@@ -178,8 +186,7 @@ void EventManager::notification(const TimeUpdateStruct& timeUpdates){
     if positive adjustment:
       - under event window gets ignored, but check for triggers
       - over event window gets rebuilt
-    */
-   
+  */
   if(bigChange){
     _active->updateTime(newTimestamp_S);
   }

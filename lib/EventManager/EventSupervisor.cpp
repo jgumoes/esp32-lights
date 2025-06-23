@@ -131,10 +131,10 @@ TriggeringModeStruct BackgroundEventSupervisor::check(uint64_t timestamp_S){
   return triggeringMode;
 }
 
-eventError_t BackgroundEventSupervisor::addEvent(uint64_t timestamp_S, const EventDataPacket &newEvent){
+errorCode_t BackgroundEventSupervisor::addEvent(uint64_t timestamp_S, const EventDataPacket &newEvent){
   eventUUID newEventID = newEvent.eventID;
   if(_events.count(newEventID) != 0){
-    return EventManagerErrors::bad_uuid;
+    return errorCode_t::bad_uuid;
   }
 
   const UsefulTimeStruct uts = UsefulTimeStruct(timestamp_S);
@@ -144,7 +144,7 @@ eventError_t BackgroundEventSupervisor::addEvent(uint64_t timestamp_S, const Eve
   event->nextTriggerTime = _findPreviousTriggerTime(*event, uts);
   _shouldEventBeNext(newEventID, event, uts);
 
-  return EventManagerErrors::success;
+  return errorCode_t::success;
 }
 
 void BackgroundEventSupervisor::_rebuildTriggerTimes(uint64_t timestamp_S){
@@ -166,10 +166,10 @@ void BackgroundEventSupervisor::_rebuildTriggerTimes(uint64_t timestamp_S){
   }
 }
 
-eventError_t BackgroundEventSupervisor::updateEvent(uint64_t timestamp_S, const EventDataPacket &eventPacket){
+errorCode_t BackgroundEventSupervisor::updateEvent(uint64_t timestamp_S, const EventDataPacket &eventPacket){
   eventUUID eventID = eventPacket.eventID;
   if(_events.count(eventID) == 0){
-    return EventManagerErrors::event_not_found;
+    return errorCode_t::event_not_found;
   }
   UsefulTimeStruct uts = UsefulTimeStruct(timestamp_S);
   auto pair = _events.find(eventID);
@@ -177,18 +177,18 @@ eventError_t BackgroundEventSupervisor::updateEvent(uint64_t timestamp_S, const 
   *event = EventMappingStruct(eventPacket);
 
   rebuildTriggerTimes(timestamp_S);
-  return EventManagerErrors::success;
+  return errorCode_t::success;
 }
 
-eventError_t BackgroundEventSupervisor::removeEvent(uint64_t timestamp_S, eventUUID eventID)
+errorCode_t BackgroundEventSupervisor::removeEvent(uint64_t timestamp_S, eventUUID eventID)
 {
   if(_events.count(eventID) == 0){
-    return EventManagerErrors::event_not_found;
+    return errorCode_t::event_not_found;
   }
 
   _events.erase(eventID);
   rebuildTriggerTimes(timestamp_S);
-  return EventManagerErrors::success;
+  return errorCode_t::success;
 }
 
 
@@ -244,10 +244,10 @@ TriggeringModeStruct ActiveEventSupervisor::check(uint64_t timestamp_S){
   return triggeringMode;
 }
 
-eventError_t ActiveEventSupervisor::addEvent(uint64_t timestamp_S, const EventDataPacket &newEvent){
+errorCode_t ActiveEventSupervisor::addEvent(uint64_t timestamp_S, const EventDataPacket &newEvent){
   eventUUID newEventID = newEvent.eventID;
   if(_events.count(newEventID) != 0){
-    return EventManagerErrors::bad_uuid;
+    return errorCode_t::bad_uuid;
   }
 
   const UsefulTimeStruct uts = UsefulTimeStruct(timestamp_S);
@@ -258,7 +258,7 @@ eventError_t ActiveEventSupervisor::addEvent(uint64_t timestamp_S, const EventDa
   
   _shouldEventBeNext(newEventID, event, uts);
 
-  return EventManagerErrors::success;
+  return errorCode_t::success;
 }
 
 void ActiveEventSupervisor::rebuildTriggerTimes(uint64_t timestamp_S){
@@ -280,10 +280,10 @@ void ActiveEventSupervisor::rebuildTriggerTimes(uint64_t timestamp_S){
   }
 }
 
-eventError_t ActiveEventSupervisor::updateEvent(uint64_t timestamp_S, const EventDataPacket &eventPacket){
+errorCode_t ActiveEventSupervisor::updateEvent(uint64_t timestamp_S, const EventDataPacket &eventPacket){
   eventUUID eventID = eventPacket.eventID;
   if(_events.count(eventID) == 0){
-    return EventManagerErrors::event_not_found;
+    return errorCode_t::event_not_found;
   }
 
   UsefulTimeStruct uts = UsefulTimeStruct(timestamp_S);
@@ -304,17 +304,17 @@ eventError_t ActiveEventSupervisor::updateEvent(uint64_t timestamp_S, const Even
     event->nextTriggerTime = findNextTriggerTime(uts, event);
   };
   _shouldEventBeNext(eventID, event, uts);
-  return EventManagerErrors::success;
+  return errorCode_t::success;
 }
 
-eventError_t ActiveEventSupervisor::removeEvent(uint64_t timestamp_S, eventUUID eventID){
+errorCode_t ActiveEventSupervisor::removeEvent(uint64_t timestamp_S, eventUUID eventID){
   if(_events.count(eventID) == 0){
-    return EventManagerErrors::event_not_found;
+    return errorCode_t::event_not_found;
   }
 
   _events.erase(eventID);
   rebuildTriggerTimes(timestamp_S);
-  return EventManagerErrors::success;
+  return errorCode_t::success;
 }
 
 uint64_t ActiveEventSupervisor::_findNextTriggerWithWindow(const uint64_t timestamp_S, const EventMappingStruct *event){

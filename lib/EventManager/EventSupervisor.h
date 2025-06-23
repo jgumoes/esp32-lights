@@ -28,17 +28,6 @@ struct EventMappingStruct {
 
 typedef etl::flat_map<eventUUID, EventMappingStruct, MAX_NUMBER_OF_EVENTS> EventMap_t;
 
-typedef int8_t eventError_t;
-
-namespace EventManagerErrors {
-  constexpr eventError_t storage_full = -4;
-  constexpr eventError_t event_not_found = -3;
-  constexpr eventError_t bad_time = -2;
-  constexpr eventError_t bad_uuid = -1;
-  constexpr eventError_t error = 0;
-  constexpr eventError_t success = 1;
-};
-
 struct NextEventStruct{
   eventUUID ID = 0;
   EventMappingStruct* data = nullptr;
@@ -70,10 +59,10 @@ public:
 
   virtual TriggeringModeStruct check(uint64_t timestamp_S) = 0;
 
-  virtual eventError_t addEvent(uint64_t timestamp_S, const EventDataPacket &newEventPacket) = 0;
+  virtual errorCode_t addEvent(uint64_t timestamp_S, const EventDataPacket &newEventPacket) = 0;
   virtual void rebuildTriggerTimes(uint64_t timestamp_S) = 0;
-  virtual eventError_t updateEvent(uint64_t timestamp_S, const EventDataPacket &event) = 0;
-  virtual eventError_t removeEvent(uint64_t timestamp_S, eventUUID eventID) = 0;
+  virtual errorCode_t updateEvent(uint64_t timestamp_S, const EventDataPacket &event) = 0;
+  virtual errorCode_t removeEvent(uint64_t timestamp_S, eventUUID eventID) = 0;
 
   virtual EventTimeStruct getNextEvent() = 0;
 
@@ -133,9 +122,9 @@ public:
    * 
    * @param timestamp_S 
    * @param newEventPacket 
-   * @return eventError_t 
+   * @return errorCode_t 
    */
-  eventError_t addEvent(uint64_t timestamp_S, const EventDataPacket &newEventPacket);
+  errorCode_t addEvent(uint64_t timestamp_S, const EventDataPacket &newEventPacket);
 
   /**
    * @brief rebuilds the trigger times and sets the next event. resets previousTriggerTime which can lead to re-triggering a mode, but how this gets handled is dependant on the mode, so it's really a ModalController problem
@@ -153,18 +142,18 @@ public:
    * 
    * @param timestamp_S 
    * @param event 
-   * @return eventError_t 
+   * @return errorCode_t 
    */
-  eventError_t updateEvent(uint64_t timestamp_S, const EventDataPacket &event);
+  errorCode_t updateEvent(uint64_t timestamp_S, const EventDataPacket &event);
 
   /**
    * @brief removes the event, and rebuilds the trigger times.
    * 
    * @param timestamp_S 
    * @param eventID 
-   * @return eventError_t 
+   * @return errorCode_t 
    */
-  eventError_t removeEvent(uint64_t timestamp_S, eventUUID eventID);
+  errorCode_t removeEvent(uint64_t timestamp_S, eventUUID eventID);
 
   EventTimeStruct getNextEvent(){
     if(_events.size() == 0){
@@ -250,9 +239,9 @@ public:
    * 
    * @param timestamp_S 
    * @param newEventPacket 
-   * @return eventError_t 
+   * @return errorCode_t 
    */
-  eventError_t addEvent(uint64_t timestamp_S, const EventDataPacket &newEventPacket);
+  errorCode_t addEvent(uint64_t timestamp_S, const EventDataPacket &newEventPacket);
 
   /**
    * @brief rebuilds trigger times, checking for missed events and checking against previousEventTime.
@@ -266,18 +255,18 @@ public:
    * 
    * @param timestamp_S 
    * @param event 
-   * @return eventError_t 
+   * @return errorCode_t 
    */
-  eventError_t updateEvent(uint64_t timestamp_S, const EventDataPacket &event);
+  errorCode_t updateEvent(uint64_t timestamp_S, const EventDataPacket &event);
 
   /**
    * @brief remove an event and rebuild the trigger times using event windows. previousEvent is unchanged, even if it's the removed event
    * 
    * @param timestamp_S 
    * @param eventID 
-   * @return eventError_t 
+   * @return errorCode_t 
    */
-  eventError_t removeEvent(uint64_t timestamp_S, eventUUID eventID);
+  errorCode_t removeEvent(uint64_t timestamp_S, eventUUID eventID);
 
   EventTimeStruct getNextEvent(){
     return EventTimeStruct{_nextEvent.ID,_nextEvent.getNextTriggerTime()};

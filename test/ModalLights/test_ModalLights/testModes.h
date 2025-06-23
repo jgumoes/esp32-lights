@@ -80,6 +80,8 @@ ModeDataStruct convertTestModeStruct(TestModeDataStruct testStruct, TestChannels
   return dataStruct;
 }
 
+typedef etl::vector<ModeDataStruct, 255> modesVector;
+
 /**
  * @brief converts a vector array of TestModeDataStructs to a vector array of ModeDataStructs
  * 

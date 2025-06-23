@@ -192,6 +192,37 @@ void testOneButtonConfigs(){
   }
 }
 
+void testEventManagerConfigs(){
+  using namespace ConfigManagerTestObjects;
+  const std::string testName = "Event Manager configs";
+  auto storageHal = std::make_shared<FakeStorageAdapter>();
+  ConfigStorageClass configClass(storageHal);
+  TEST_ASSERT_EQUAL(ModuleID::configManager, storageHal->getLock());
+  GenericUser user(configClass, makeGenericConfigStruct(EventManagerConfigsStruct{}), testName);
+  configClass.loadAllConfigs();
+  TEST_ASSERT_EQUAL(ModuleID::null, storageHal->getLock());
+
+  user.resetCounts();
+
+  etl::vector<ExpectedErrorStruct, UINT8_MAX> errors = {
+    {
+      errorCode_t::bad_time,
+      makeGenericConfigStruct(EventManagerConfigsStruct{.defaultEventWindow_S = 0}),
+      "defaultEventWindow_S == 0"
+    },
+  };
+
+  for(ExpectedErrorStruct errorStruct : errors){
+    errorCode_t expectedError = errorStruct.expectedError;
+    const byte *badConfig = errorStruct.genericStruct.data();
+    std::string message = errorStruct.message;
+
+    TEST_ASSERT_ERROR(expectedError, configClass.setConfig(badConfig), message.c_str());
+    TEST_ASSERT_ERROR(expectedError, EventManagerConfigsStruct::isDataValid(badConfig), message.c_str());
+    TEST_ASSERT_EQUAL_MESSAGE(0, user.getNewConfigsCount(), message.c_str());
+  }
+}
+
 void noEmbeddedUnfriendlyLibraries(){
   #ifdef __PRINT_DEBUG_H__
     TEST_ASSERT_MESSAGE(false, "did you forget to remove the print debugs?");
@@ -212,6 +243,7 @@ void RUN_UNITY_TESTS(){
   RUN_TEST(testDeviceTimeConfigs);
   RUN_TEST(testModalLightsConfigs);
   RUN_TEST(testOneButtonConfigs);
+  RUN_TEST(testEventManagerConfigs);
   UNITY_END();
 }
 

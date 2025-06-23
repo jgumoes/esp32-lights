@@ -1,10 +1,12 @@
 #ifndef __TESTEVENTARRAY_H__
 #define __TESTEVENTARRAY_H__
 
-#include <vector>
+#include <etl/vector.h>
 
 #include "ProjectDefines.h"
 #include "DeviceTime.h"
+
+typedef etl::vector<EventDataPacket, 255> eventsVector;
 
 const uint32_t oneHour = 60*60;
 const uint64_t mondayAtMidnight = 794275200;
@@ -29,8 +31,8 @@ const struct EventDataPacket testEvent11 = {11, 10, timeToSeconds(8, 30, 0), 0b0
 
 const struct EventDataPacket testEvent12 = {8, 7 /*wakeup alarm*/, 36000 /*10am*/, 0b01111111 /*everyday*/, oneHour, false};
 
-std::vector<EventDataPacket> getAllTestEvents() {
-  std::vector<EventDataPacket> allEvents;
+eventsVector getAllTestEvents() {
+  eventsVector allEvents;
   EventDataPacket event1 = testEvent1;
   allEvents.push_back(event1);
   EventDataPacket event2 = testEvent2;
