@@ -5,8 +5,7 @@
 
 #include "ProjectDefines.h"
 #include "DeviceTime.h"
-
-typedef etl::vector<EventDataPacket, 255> eventsVector;
+#include "../../nativeMocksAndHelpers/GlobalTestHelpers.hpp"
 
 const uint32_t oneHour = 60*60;
 const uint64_t mondayAtMidnight = 794275200;
@@ -31,8 +30,8 @@ const struct EventDataPacket testEvent11 = {11, 10, timeToSeconds(8, 30, 0), 0b0
 
 const struct EventDataPacket testEvent12 = {8, 7 /*wakeup alarm*/, 36000 /*10am*/, 0b01111111 /*everyday*/, oneHour, false};
 
-eventsVector getAllTestEvents() {
-  eventsVector allEvents;
+eventsVector_t getAllTestEvents() {
+  eventsVector_t allEvents;
   EventDataPacket event1 = testEvent1;
   allEvents.push_back(event1);
   EventDataPacket event2 = testEvent2;

@@ -42,7 +42,7 @@ struct TestObjectsStruct {
   // this is to test ModalLights getting a mode from storage
   std::shared_ptr<MockStorageHAL> mockStorageHAL; // TODO: delete
 
-  const std::vector<ModeDataStruct> initialModes;
+  const modesVector_t initialModes;
   std::shared_ptr<ModalLightsController> modalLights;
 
   errorCode_t setConfigs(const ModalConfigsStruct newConfigs) const {
@@ -52,7 +52,7 @@ struct TestObjectsStruct {
   }
 };
 
-TestObjectsStruct modalLightsFactory(TestChannels channel, const std::vector<TestModeDataStruct> modes, uint64_t startTime_S, ModalConfigsStruct initialConfigs){
+TestObjectsStruct modalLightsFactory(TestChannels channel, const etl::vector<TestModeDataStruct, UINT8_MAX> modes, uint64_t startTime_S, ModalConfigsStruct initialConfigs){
   TestObjectsStruct testObjects = {.initialModes = makeModeDataStructArray(modes, channel)};
   
   // set the configs
@@ -89,7 +89,7 @@ TestObjectsStruct modalLightsFactory(TestChannels channel, const std::vector<Tes
 }
 
 TestObjectsStruct modalLightsFactoryAllModes(TestChannels channel, uint64_t startTime_S, ModalConfigsStruct initialConfigs){
-  std::vector<TestModeDataStruct> modes = getAllTestingModes();
+  etl::vector<TestModeDataStruct, UINT8_MAX> modes = getAllTestingModes();
   return modalLightsFactory(channel, modes, startTime_S, initialConfigs);
 }
 

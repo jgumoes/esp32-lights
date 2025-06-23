@@ -5,6 +5,8 @@
 #include <ModalLights.h>
 #include <etl/flat_map.h>
 
+#include "../../nativeMocksAndHelpers/GlobalTestHelpers.hpp"
+
 enum class TestChannels : channelID {
   white = static_cast<channelID>(Channels::white),
   // warm = static_cast<channelID>(Channels::warm),
@@ -80,17 +82,15 @@ ModeDataStruct convertTestModeStruct(TestModeDataStruct testStruct, TestChannels
   return dataStruct;
 }
 
-typedef etl::vector<ModeDataStruct, 255> modesVector;
-
 /**
  * @brief converts a vector array of TestModeDataStructs to a vector array of ModeDataStructs
  * 
  * @param testArray 
  * @param channel 
- * @return std::vector<ModeDataStruct> 
+ * @return modesVector_t 
  */
-std::vector<ModeDataStruct> makeModeDataStructArray(std::vector<TestModeDataStruct> testArray, TestChannels channel){
-  std::vector<ModeDataStruct> dataArray;
+modesVector_t makeModeDataStructArray(etl::vector<TestModeDataStruct, UINT8_MAX> testArray, TestChannels channel){
+  modesVector_t dataArray;
   for(auto& testStruct : testArray){
     dataArray.push_back(convertTestModeStruct(testStruct, channel));
   }
@@ -155,8 +155,8 @@ static etl::flat_map<std::string, TestModeDataStruct, 255> testModesMap = {
 };
 
 // chuck all the mvp and test modes into a single vector array
-std::vector<TestModeDataStruct> getAllTestingModes(){
-  std::vector<TestModeDataStruct> modeArray;
+etl::vector<TestModeDataStruct, UINT8_MAX> getAllTestingModes(){
+  etl::vector<TestModeDataStruct, UINT8_MAX> modeArray;
   for(const auto& pair : testModesMap){
     TestModeDataStruct mode = pair.second;
     modeArray.push_back(mode);

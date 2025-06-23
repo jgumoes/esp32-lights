@@ -31,7 +31,7 @@ public:
   // TODO: integrate ErrorManager
   EventManager(
     std::shared_ptr<ModalLightsInterface> modalLights,
-    std::shared_ptr<ConfigStorageClass> configManager,
+    std::shared_ptr<ConfigStorageClass> configStorage,
     std::shared_ptr<DeviceTimeClass> deviceTime,
     std::shared_ptr<DataStorageClass> storage
   );

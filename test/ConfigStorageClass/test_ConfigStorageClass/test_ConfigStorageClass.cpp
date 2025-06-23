@@ -3,9 +3,12 @@
 #include <etl/list.h>
 #include <etl/map.h>
 
+#include "../../nativeMocksAndHelpers/GlobalTestHelpers.hpp"
 #include "ConfigStorageClass.hpp"
 #include "../testObjects.hpp"
 #include "../MetadataFileReader.hpp"
+
+#include "test_badConfigs.hpp"
 
 #define ETL_CHECK_PUSH_POP
 
@@ -25,7 +28,7 @@ void tearDown(void) {
     // clean stuff up here
 }
 
-namespace ConfigTestHelpers
+namespace ConfigManagerTestObjects
 {
   void TEST_EQUAL_TIME_CONFIGS(TimeConfigsStruct &expected, TimeConfigsStruct &actual, std::string message = ""){
     TEST_ASSERT_EQUAL_MESSAGE(expected.DST, actual.DST, message.c_str());
@@ -42,6 +45,40 @@ namespace ConfigTestHelpers
       ConfigStructFncs::serialize(_actualBuffer, actual);
       TEST_ASSERT_EQUAL_UINT8_ARRAY_MESSAGE(_expectedBuffer, _actualBuffer, _bufferSize, message.c_str());
     }
+  };
+
+  TestHelperStruct onlyUserWasNotified(
+    const ModuleID notifiedUser,
+    GenericUsersStruct &genericUsers,
+    const std::string message
+  ){
+    for(
+      auto userIT = genericUsers.userMap.begin();
+      userIT != genericUsers.userMap.end();
+      userIT++
+    ){
+      if(userIT->first == notifiedUser){
+        if(userIT->second.getNewConfigsCount() == 0){
+          return TestHelperStruct{
+            .success = false,
+            .message = message + "; user " + moduleIDToString(userIT->first) + "wasn't notified"
+          };
+        }
+        if(userIT->second.getNewConfigsCount() > 1){
+          return TestHelperStruct{
+            .success = false,
+            .message = message + "; user " + moduleIDToString(userIT->first) + "was notified too many times (" + std::to_string(userIT->second.getNewConfigsCount()) + ")"
+          };
+        }
+      }
+      else if(userIT->second.getNewConfigsCount() != 0){
+        return TestHelperStruct{
+          .success = false,
+          .message = message + "; user " + moduleIDToString(userIT->first) + " was notified " + std::to_string(userIT->second.getNewConfigsCount()) + " times but shouldn't have been"
+        };
+      }
+    }
+    return TestHelperStruct{.success = true};
   }
 } // namespace ConfigTestHelpers
 
@@ -640,7 +677,6 @@ void testConfigStructSerialization(){
 
 void testReadConfigs(){
   using namespace ConfigManagerTestObjects;
-  using namespace ConfigTestHelpers;
   // TODO: test with and without checksum
   
   // read configs from storage
@@ -649,7 +685,7 @@ void testReadConfigs(){
     auto storageHal = std::make_shared<FakeStorageAdapter>(goodConfigs, true, "testReadConfigs");
     ConfigStorageClass configClass(storageHal);
     TEST_ASSERT_EQUAL(0, storageHal->closeCount);
-    TEST_ASSERT_EQUAL(ModuleID::configManager, storageHal->getLock());
+    TEST_ASSERT_EQUAL(ModuleID::configStorage, storageHal->getLock());
     GenericUsersStruct genericUsers(configClass, testName);
     configClass.loadAllConfigs();
 
@@ -662,7 +698,7 @@ void testReadConfigs(){
     // check the metadata size bytes
     {
       byte sizeBuffer[2];
-      storageHal->readMetadataSize(ModuleID::configManager, sizeBuffer);
+      storageHal->readMetadataSize(ModuleID::configStorage, sizeBuffer);
       TEST_ASSERT_EQUAL(maxNumberOfModules, sizeBuffer[0]);
       TEST_ASSERT_EQUAL(UINT8_MAX, sizeBuffer[0] ^ sizeBuffer[1]);
     }
@@ -712,7 +748,7 @@ void testReadConfigs(){
     const std::string testName = "read configs from storage";
     auto storageHal = std::make_shared<FakeStorageAdapter>();
     ConfigStorageClass configClass(storageHal);
-    TEST_ASSERT_EQUAL(ModuleID::configManager, storageHal->getLock());
+    TEST_ASSERT_EQUAL(ModuleID::configStorage, storageHal->getLock());
 
     GenericUsersStruct genericUsers(configClass, testName);
     configClass.loadAllConfigs();
@@ -726,7 +762,7 @@ void testReadConfigs(){
     // check the metadata size bytes
     {
       byte sizeBuffer[2];
-      storageHal->readMetadataSize(ModuleID::configManager, sizeBuffer);
+      storageHal->readMetadataSize(ModuleID::configStorage, sizeBuffer);
       TEST_ASSERT_EQUAL(maxNumberOfModules, sizeBuffer[0]);
       TEST_ASSERT_EQUAL(UINT8_MAX, sizeBuffer[0] ^ sizeBuffer[1]);
     }
@@ -777,7 +813,7 @@ void testReadConfigs(){
     const std::string testName = "reading invalid configs";
     auto storageHal = std::make_shared<FakeStorageAdapter>(badConfigs, false, testName);
     ConfigStorageClass configClass(storageHal);
-    TEST_ASSERT_EQUAL(ModuleID::configManager, storageHal->getLock());
+    TEST_ASSERT_EQUAL(ModuleID::configStorage, storageHal->getLock());
 
     GenericUsersStruct genericUsers(configClass, testName);
     configClass.loadAllConfigs();
@@ -845,7 +881,7 @@ void setConfigsTest(){
     const std::string testName = "setting good configs storage";
     auto storageHal = std::make_shared<FakeStorageAdapter>();
     ConfigStorageClass configClass(storageHal);
-    TEST_ASSERT_EQUAL(ModuleID::configManager, storageHal->getLock());
+    TEST_ASSERT_EQUAL(ModuleID::configStorage, storageHal->getLock());
     GenericUsersStruct genericUsers(configClass, testName);
     configClass.loadAllConfigs();
     TEST_ASSERT_EQUAL(ModuleID::null, storageHal->getLock());
@@ -864,7 +900,8 @@ void setConfigsTest(){
         TEST_ASSERT_EQUAL_UINT8_ARRAY_MESSAGE(defaultConfig.data(), user->configStruct.data(), defaultConfig.packetSize, loopMessage.c_str());
       }
 
-      user->resetCounts();
+      // user->resetCounts();
+      genericUsers.resetCounts();
       storageHal->metadataWriteCount = 0;
       storageHal->writeCount = 0;
       
@@ -872,7 +909,7 @@ void setConfigsTest(){
       TEST_ASSERT_SUCCESS(configClass.setConfig(expected.data()), loopMessage);
 
       // user was notified and config updated
-      TEST_ASSERT_EQUAL_MESSAGE(1, user->getNewConfigsCount(), loopMessage.c_str());
+      TEST_WRAPPER(onlyUserWasNotified(user->type, genericUsers, loopMessage));
       TEST_ASSERT_EQUAL_UINT8_ARRAY_MESSAGE(expected.data(), user->configStruct.data(), expected.packetSize, loopMessage.c_str());
 
       // config and metadata was written
@@ -903,7 +940,7 @@ void setConfigsTest(){
     const std::string testName = "test updating valid configs";
     auto storageHal = std::make_shared<FakeStorageAdapter>(goodConfigs, true, testName);
     ConfigStorageClass configClass(storageHal);
-    TEST_ASSERT_EQUAL(ModuleID::configManager, storageHal->getLock());
+    TEST_ASSERT_EQUAL(ModuleID::configStorage, storageHal->getLock());
     GenericUsersStruct genericUsers(configClass, testName);
     configClass.loadAllConfigs();
     TEST_ASSERT_EQUAL(ModuleID::null, storageHal->getLock());
@@ -922,7 +959,7 @@ void setConfigsTest(){
         TEST_ASSERT_EQUAL_UINT8_ARRAY_MESSAGE(initialConfigs.data(), user->configStruct.data(), initialConfigs.packetSize, loopMessage.c_str());
       }
 
-      user->resetCounts();
+      genericUsers.resetCounts();
       storageHal->metadataWriteCount = 0;
       storageHal->writeCount = 0;
       
@@ -930,7 +967,7 @@ void setConfigsTest(){
       TEST_ASSERT_SUCCESS(configClass.setConfig(expected.data()), loopMessage);
 
       // user was notified and config updated
-      TEST_ASSERT_EQUAL_MESSAGE(1, user->getNewConfigsCount(), loopMessage.c_str());
+      TEST_WRAPPER(onlyUserWasNotified(user->type, genericUsers, loopMessage));
       TEST_ASSERT_EQUAL_UINT8_ARRAY_MESSAGE(expected.data(), user->configStruct.data(), expected.packetSize, loopMessage.c_str());
 
       // read config from storage
@@ -961,7 +998,7 @@ void setConfigsTest(){
     const std::string testName = "configs for modules that aren't used get rejected";
     auto storageHal = std::make_shared<FakeStorageAdapter>(goodConfigs, true, "testReadConfigs");
     ConfigStorageClass configClass(storageHal);
-    TEST_ASSERT_EQUAL(ModuleID::configManager, storageHal->getLock());
+    TEST_ASSERT_EQUAL(ModuleID::configStorage, storageHal->getLock());
     
     // only device time is registered
     GenericUser timeClass(configClass, makeGenericConfigStruct(TimeConfigsStruct{}), testName + "; timeClass");
@@ -1009,7 +1046,7 @@ void testSetTimeConfigs(){
   const std::string testName = "setting time configs";
   auto storageHal = std::make_shared<FakeStorageAdapter>();
   ConfigStorageClass configClass(storageHal);
-  TEST_ASSERT_EQUAL(ModuleID::configManager, storageHal->getLock());
+  TEST_ASSERT_EQUAL(ModuleID::configStorage, storageHal->getLock());
   GenericUsersStruct genericUsers(configClass, testName);
   configClass.loadAllConfigs();
   TEST_ASSERT_EQUAL(ModuleID::null, storageHal->getLock());
@@ -1079,6 +1116,8 @@ void RUN_UNITY_TESTS(){
   RUN_TEST(testReadConfigs);
   RUN_TEST(setConfigsTest);
   RUN_TEST(testSetTimeConfigs);
+
+  RUN_TEST(ConfigStorage_badConfigsTests::run_badConfigsTests);
   UNITY_END();
 }
 

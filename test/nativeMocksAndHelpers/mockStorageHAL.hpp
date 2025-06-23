@@ -4,11 +4,12 @@
 #include "ProjectDefines.h"
 #include "DataStorageClass.h"
 #include "../ModalLights/test_ModalLights/testModes.h"
+#include "GlobalTestHelpers.hpp"
 
 class MockStorageHAL : public StorageHALInterface{
   private:
-    modesVector _storedModes;
-    eventsVector _storedEvents;
+    modesVector_t _storedModes;
+    eventsVector_t _storedEvents;
 
   public:
     EventDataPacket eventBuffer[DataPreloadChunkSize];
@@ -16,8 +17,8 @@ class MockStorageHAL : public StorageHALInterface{
     uint8_t fillEventChunkCallCount = 0;
         
     MockStorageHAL(
-      const modesVector modeDataPackets,
-      const eventsVector eventDataPackets
+      const modesVector_t modeDataPackets,
+      const eventsVector_t eventDataPackets
     // ) : _storedModes(modeDataPackets), _storedEvents(eventDataPackets){
     ){
       // ModeDataPacket emptyMode;

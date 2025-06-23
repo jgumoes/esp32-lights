@@ -3,8 +3,8 @@
 #include <unity.h>
 
 #include "../RTCMocksAndHelpers/setTimeTestArray.h"
-#include "../../ConfigStorageClass/testObjects.hpp"
 #include "../RTCMocksAndHelpers/helpers.h"
+#include "../../ConfigStorageClass/testObjects.hpp"
 
 #include "DeviceTime.h"
 #include "onboardTimestamp.h"

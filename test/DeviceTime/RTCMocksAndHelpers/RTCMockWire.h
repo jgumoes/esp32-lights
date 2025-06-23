@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#include <vector>
+#include <etl/vector.h>
 
 #include "./helpers.h"
 
@@ -63,7 +63,7 @@ public:
   bool writeHasModifiedBuffer = false;
   uint8_t readHasBeenCalledTimes = 0;
   uint8_t changeBufferAfterRead = 0;  // change the buffer before the nth time read has been called. i.e. =0 won't change the buffer, =1 will change the buffer after the first time read() is called, 2 for the 2nd time, etc.
-  std::vector<uint8_t> writeBuffer;
+  etl::vector<uint8_t, 255> writeBuffer;
 
   uint8_t nextMockBuffer[13];
   

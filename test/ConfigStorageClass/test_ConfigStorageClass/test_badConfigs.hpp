@@ -1,3 +1,6 @@
+#ifndef __BAD_CONFIGS_TESTS_HPP__
+#define __BAD_CONFIGS_TESTS_HPP__
+
 #include <unity.h>
 
 #include <etl/list.h>
@@ -10,13 +13,8 @@
 
 #define ETL_CHECK_PUSH_POP
 
-void setUp(void) {
-    // set stuff up here
-}
-
-void tearDown(void) {
-    // clean stuff up here
-}
+namespace ConfigStorage_badConfigsTests
+{
 
 struct ExpectedErrorStruct{
   errorCode_t expectedError;
@@ -29,7 +27,7 @@ void testDeviceTimeConfigs(){
   const std::string testName = "Device Time configs";
   auto storageHal = std::make_shared<FakeStorageAdapter>();
   ConfigStorageClass configClass(storageHal);
-  TEST_ASSERT_EQUAL(ModuleID::configManager, storageHal->getLock());
+  TEST_ASSERT_EQUAL(ModuleID::configStorage, storageHal->getLock());
   GenericUser timeUser(configClass, makeGenericConfigStruct(TimeConfigsStruct{}), testName);
   configClass.loadAllConfigs();
   TEST_ASSERT_EQUAL(ModuleID::null, storageHal->getLock());
@@ -98,7 +96,7 @@ void testModalLightsConfigs(){
   const std::string testName = "Modal Lights configs";
   auto storageHal = std::make_shared<FakeStorageAdapter>();
   ConfigStorageClass configClass(storageHal);
-  TEST_ASSERT_EQUAL(ModuleID::configManager, storageHal->getLock());
+  TEST_ASSERT_EQUAL(ModuleID::configStorage, storageHal->getLock());
   GenericUser modalUser(configClass, makeGenericConfigStruct(ModalConfigsStruct{}), testName);
   configClass.loadAllConfigs();
   TEST_ASSERT_EQUAL(ModuleID::null, storageHal->getLock());
@@ -145,7 +143,7 @@ void testOneButtonConfigs(){
   const std::string testName = "One Button Interface configs";
   auto storageHal = std::make_shared<FakeStorageAdapter>();
   ConfigStorageClass configClass(storageHal);
-  TEST_ASSERT_EQUAL(ModuleID::configManager, storageHal->getLock());
+  TEST_ASSERT_EQUAL(ModuleID::configStorage, storageHal->getLock());
   GenericUser oneButtonUser(configClass, makeGenericConfigStruct(OneButtonConfigStruct{}), testName);
   configClass.loadAllConfigs();
   TEST_ASSERT_EQUAL(ModuleID::null, storageHal->getLock());
@@ -197,7 +195,7 @@ void testEventManagerConfigs(){
   const std::string testName = "Event Manager configs";
   auto storageHal = std::make_shared<FakeStorageAdapter>();
   ConfigStorageClass configClass(storageHal);
-  TEST_ASSERT_EQUAL(ModuleID::configManager, storageHal->getLock());
+  TEST_ASSERT_EQUAL(ModuleID::configStorage, storageHal->getLock());
   GenericUser user(configClass, makeGenericConfigStruct(EventManagerConfigsStruct{}), testName);
   configClass.loadAllConfigs();
   TEST_ASSERT_EQUAL(ModuleID::null, storageHal->getLock());
@@ -223,23 +221,8 @@ void testEventManagerConfigs(){
   }
 }
 
-void noEmbeddedUnfriendlyLibraries(){
-  #ifdef __PRINT_DEBUG_H__
-    TEST_ASSERT_MESSAGE(false, "did you forget to remove the print debugs?");
-  #else
-    TEST_ASSERT(true);
-  #endif
-
-  #ifdef _GLIBCXX_MAP
-    TEST_ASSERT_MESSAGE(false, "std::map is included");
-  #else
-    TEST_ASSERT(true);
-  #endif
-}
-
-void RUN_UNITY_TESTS(){
+void run_badConfigsTests(){
   UNITY_BEGIN();
-  RUN_TEST(noEmbeddedUnfriendlyLibraries);
   RUN_TEST(testDeviceTimeConfigs);
   RUN_TEST(testModalLightsConfigs);
   RUN_TEST(testOneButtonConfigs);
@@ -247,8 +230,5 @@ void RUN_UNITY_TESTS(){
   UNITY_END();
 }
 
-#ifdef native_env
-void WinMain(){
-  RUN_UNITY_TESTS();
-}
+} // namespace ConfigStorage_badConfigsTests
 #endif

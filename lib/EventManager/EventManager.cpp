@@ -2,10 +2,10 @@
 
 EventManager::EventManager(
   std::shared_ptr<ModalLightsInterface> modalLights,
-  std::shared_ptr<ConfigStorageClass> configManager,
+  std::shared_ptr<ConfigStorageClass> configStorage,
   std::shared_ptr<DeviceTimeClass> deviceTime,
   std::shared_ptr<DataStorageClass> storage
-) : _modalLights(modalLights), _configManager(configManager), ConfigUser(ModuleID::eventManager),
+) : _modalLights(modalLights), _configManager(configStorage), ConfigUser(ModuleID::eventManager),
     _active(std::make_unique<ActiveEventSupervisor>(_configs)),
     _background(std::make_unique<BackgroundEventSupervisor>(_configs)), _deviceTime(deviceTime),
     _storage(storage)

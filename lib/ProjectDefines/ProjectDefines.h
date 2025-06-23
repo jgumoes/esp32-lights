@@ -25,6 +25,20 @@ struct EmptyArray{
 #include "moduleIDs.h"
 #include "configStructs.hpp"
 
+/* Storage Adapter */
+typedef uint16_t storageAddress_t;
+// final address is reserved for storageOutOfBounds
+const storageAddress_t storageOutOfBounds = UINT16_MAX;
+
+typedef uint8_t packetSize_t;
+
+struct StorageReservationSizeStruct{
+  storageAddress_t reservationSize = 0; // size in bytes
+  storageAddress_t metadataSize = 0;    // size in bytes
+};
+
+typedef etl::flat_map<ModuleID, StorageReservationSizeStruct, 3> storageReservationMap_t;
+
 /* ModalLights*/
 #ifndef MAX_NUMBER_OF_MODES
 // the maximum number of stored modes, not including defaultConstantBrightness as that's baked into progmem
@@ -69,11 +83,22 @@ typedef uint8_t eventUUID;
 struct EventDataPacket {
   eventUUID eventID = 0;
   modeUUID modeID = 0;
+  // TODO: this could be compressed to [seconds][minutes][hours]
   uint32_t timeOfDay = 0;
   uint8_t daysOfWeek = 0; // lsb = Monday, msb-1 = Sunday, msb is reserved, i.e. 0b01100000 = saturday and sunday
+  // TODO: compress
   uint32_t eventWindow = 0; // how long (in seconds) after the time should the event trigger? should equal
   bool isActive = 0;
 };
+
+// size of EventDataPacket
+constexpr packetSize_t eventPacketSize
+  = sizeof(eventUUID)
+  + sizeof(modeUUID)
+  + sizeof(uint32_t)
+  + sizeof(uint8_t)
+  + sizeof(uint32_t)
+  + sizeof(bool);
 
 /* Data Storage Class */
 typedef modeUUID nModes_t;

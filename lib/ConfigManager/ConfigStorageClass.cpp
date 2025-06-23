@@ -56,7 +56,7 @@ errorCode_t ConfigStorageClass::_writeConfigToStorage(const byte *serializedStru
     }
 
     error = _storage->writeData(
-      address, ModuleID::configManager, serializedStruct, getConfigPacketSize(type)
+      address, ModuleID::configStorage, serializedStruct, getConfigPacketSize(type)
     );
 
     // set metadata if successful

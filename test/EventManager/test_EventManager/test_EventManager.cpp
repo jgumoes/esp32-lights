@@ -32,17 +32,17 @@ namespace EventManagerTestHelpers
 
   struct TestEventsStruct{
   private:
-    eventsVector _events;
+    eventsVector_t _events;
   public:
-    void set(eventsVector newEvents){
+    void set(eventsVector_t newEvents){
       _events = newEvents;
     }
 
-    const eventsVector get(){
+    const eventsVector_t get(){
       return _events;
     }
 
-    TestEventsStruct(eventsVector initialEvents) : _events(initialEvents){}
+    TestEventsStruct(eventsVector_t initialEvents) : _events(initialEvents){}
   };
   
   struct TestObjects{
@@ -64,7 +64,7 @@ namespace EventManagerTestHelpers
      * @param initialModes 
      * @param initialConfigs 
      */
-    TestObjects(TimeStruct initialTime, eventsVector initialEvents, modesVector initialModes, EventManagerConfigsStruct initialConfigs){
+    TestObjects(TimeStruct initialTime, eventsVector_t initialEvents, modesVector_t initialModes, EventManagerConfigsStruct initialConfigs){
       using namespace ConfigManagerTestObjects;
       etl::map<ModuleID, GenericConfigStruct, 255> initialConfigMap = {
         {ModuleID::modalLights, makeGenericConfigStruct(
@@ -130,7 +130,7 @@ void InitialisingWithNoEvents(void){
   using namespace EventManagerTestHelpers;
 
   EventManagerConfigsStruct configStruct;
-  eventsVector emptyEvents = {};
+  eventsVector_t emptyEvents = {};
   TestObjects testObjects(
     TimeStruct{.localTimestamp_S = mondayAtMidnight},
     emptyEvents,
@@ -180,7 +180,7 @@ void EventManagerFindsNextEventOnConstruction(void){
       {5, {expectedTimestamp + 7 * secondsInDay, 0}},
       {6, {expectedTimestamp + 7 * secondsInDay, 0}},
     };
-    eventsVector testEvents = {testEvent1};
+    eventsVector_t testEvents = {testEvent1};
     for(int i = 0; i < 7; i++){
       const std::string loopMessage = testMessage + "; day = " + std::to_string(i);
       TestObjects testObjects(
@@ -211,7 +211,7 @@ void EventManagerFindsNextEventOnConstruction(void){
       {5, {expectedTimestamp + 7 * secondsInDay, 0}},
       {6, {expectedTimestamp + 7 * secondsInDay, 0}},
     };
-    eventsVector testEvents = {testEvent1};
+    eventsVector_t testEvents = {testEvent1};
     for(int i = 0; i < 5; i++){
       const std::string loopMessage = testName + "; day = " + std::to_string(i);
       TestObjects testObjects(
@@ -245,7 +245,7 @@ void EventManagerFindsNextEventOnConstruction(void){
       {5, {firstExpTime + 7 * secondsInDay, 0}},
       {6, {firstExpTime + 7 * secondsInDay, 0}},
     };
-    eventsVector testEvents = {testEvent1};
+    eventsVector_t testEvents = {testEvent1};
     for(int i = 0; i < 7; i++){
       const std::string loopMessage = testName + "; day = " + std::to_string(i);
       TestObjects testObjects(
@@ -275,7 +275,7 @@ void EventManagerSelectsCorrectBackgroundMode(void){
   EventManagerConfigsStruct configStruct;
 
   // shove in some background modes only, test accross different times of day on different days
-  eventsVector testEvents = {testEvent3, testEvent4, testEvent5};
+  eventsVector_t testEvents = {testEvent3, testEvent4, testEvent5};
 
   etl::flat_map<uint32_t, modeUUID, 100> testTimesAndExpectedModes = {
     {timeToSeconds(0, 0, 0), 3},
@@ -376,7 +376,7 @@ void onlyMostRecentActiveModeIsTriggered(void){
   EventManagerConfigsStruct configStruct;
   // on construction
   {
-    eventsVector testEvents = {testEvent1, testEvent3, testEvent4, testEvent5, testEvent6};
+    eventsVector_t testEvents = {testEvent1, testEvent3, testEvent4, testEvent5, testEvent6};
     const uint64_t testTimestamp = mondayAtMidnight + timeToSeconds(7, 0, 0);
     TestObjects testObjects(
       TimeStruct{.localTimestamp_S = testTimestamp},
@@ -395,7 +395,7 @@ void onlyMostRecentActiveModeIsTriggered(void){
 
   // every day of the week
   {
-    eventsVector testEvents = {testEvent1, testEvent2, testEvent3, testEvent4, testEvent5, testEvent6, testEvent10};
+    eventsVector_t testEvents = {testEvent1, testEvent2, testEvent3, testEvent4, testEvent5, testEvent6, testEvent10};
     const uint64_t testTimestamp = mondayAtMidnight;
     TestObjects testObjects(
       TimeStruct{.localTimestamp_S = testTimestamp},
@@ -445,7 +445,7 @@ void activeAndBackgroundModesAreBothTriggered(void){
   using namespace EventManagerTestHelpers;
 
   // the active mode should be called first, then the background mode
-  eventsVector testEvents = {testEvent1, testEvent3, testEvent4, testEvent5, testEvent6, testEvent7};
+  eventsVector_t testEvents = {testEvent1, testEvent3, testEvent4, testEvent5, testEvent6, testEvent7};
   OnboardTimestamp onboardTimestamp;
   EventManagerConfigsStruct configStruct;
 
@@ -488,7 +488,7 @@ void activeAndBackgroundModesAreBothTriggered(void){
   // when background mode has trigger time before active mode
   {
     // on construction
-    eventsVector testEvents2 = {testEvent1, testEvent3, testEvent4, testEvent5, testEvent10};
+    eventsVector_t testEvents2 = {testEvent1, testEvent3, testEvent4, testEvent5, testEvent10};
     TestObjects testObjects(
       TimeStruct{.localTimestamp_S = testTimestamp},
       testEvents2,
@@ -513,7 +513,7 @@ void activeAndBackgroundModesAreBothTriggered(void){
 void missedActiveEventsAreSkippedAfterTimeWindowClosses(void){
   using namespace EventManagerTestHelpers;
 
-  eventsVector testEvents = {testEvent1, testEvent7};
+  eventsVector_t testEvents = {testEvent1, testEvent7};
   OnboardTimestamp onboardTimestamp;
   EventManagerConfigsStruct configStruct;
 
@@ -547,7 +547,7 @@ void addEventChecksTheNewEvent(void){
 
   {
     const uint64_t testTimestamp = mondayAtMidnight + timeToSeconds(6, 46, 0);
-    eventsVector testEvents = {testEvent7};
+    eventsVector_t testEvents = {testEvent7};
     TestObjects testObjects(
       TimeStruct{.localTimestamp_S = testTimestamp},
       testEvents,
@@ -607,7 +607,7 @@ void addEventChecksTheNewEvent(void){
 
   // start with an active event that's just triggered. add an active event that should have triggered after the existing active event. the new event should be active
   {
-    eventsVector testEvents = {testEvent1, testEvent2, testEvent3, testEvent4};
+    eventsVector_t testEvents = {testEvent1, testEvent2, testEvent3, testEvent4};
     const uint64_t testTimestamp = mondayAtMidnight+timeToSeconds(7, 0, 1);
     TestObjects testObjects(
       TimeStruct{.localTimestamp_S = testTimestamp},
@@ -632,7 +632,7 @@ void addEventChecksTheNewEvent(void){
 
   // start with an active event that's just triggered. add an active event that's still within its event window, but before the current active event. the new active event should not have triggered
   {
-    eventsVector testEvents = {testEvent2, testEvent3, testEvent6, testEvent7};
+    eventsVector_t testEvents = {testEvent2, testEvent3, testEvent6, testEvent7};
     const uint64_t testTimestamp = mondayAtMidnight+timeToSeconds(7, 0, 1);
     TestObjects testObjects(
       TimeStruct{.localTimestamp_S = testTimestamp},
@@ -669,7 +669,7 @@ void eventWindow0ShouldUseSystemDefault(void){
 
   EventDataPacket testDefaultActiveEvent = testEvent1;
   testDefaultActiveEvent.eventWindow = 0;
-  eventsVector testEvents = {testDefaultActiveEvent};
+  eventsVector_t testEvents = {testDefaultActiveEvent};
 
   const uint64_t testTimestamp = mondayAtMidnight + testDefaultActiveEvent.timeOfDay - 1;
   // constructor should use default event window
@@ -715,7 +715,7 @@ void eventWindow0ShouldUseSystemDefault(void){
   // addEvent should use default event window
   {
 
-    eventsVector testEvents2 = {testEvent4};
+    eventsVector_t testEvents2 = {testEvent4};
     
     // should trigger during eventWindow
     {
@@ -1533,7 +1533,7 @@ void testEventLimit(){
   TEST_ASSERT_TRUE(MAX_NUMBER_OF_EVENTS > 10);
   TEST_ASSERT_TRUE(MAX_NUMBER_OF_EVENTS < 254);
   
-  eventsVector testEvents = {};
+  eventsVector_t testEvents = {};
   EventManagerConfigsStruct configStruct;
   
   // background events can't exceed limit
@@ -1630,7 +1630,7 @@ void testEventLimit(){
 
   // total events can't exceed limit
   {
-    eventsVector testEvents = {};
+    eventsVector_t testEvents = {};
     const uint64_t testTimestamp = mondayAtMidnight;
     TestObjects testObjects(
       TimeStruct{.localTimestamp_S = testTimestamp},
@@ -1681,7 +1681,7 @@ void testEventWindowLimits(){
 
   EventManagerConfigsStruct configStruct;
 
-  eventsVector testEvents = getAllTestEvents();
+  eventsVector_t testEvents = getAllTestEvents();
   const uint64_t testTimestamp = mondayAtMidnight;
   TestObjects testObjects(
       TimeStruct{.localTimestamp_S = testTimestamp},

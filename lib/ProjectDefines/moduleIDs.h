@@ -16,7 +16,7 @@ enum class ModuleID : ModuleID_t{
   modalLights = 2,
   eventManager = 3,
   dataStorageClass = 4,
-  configManager,  // note: make this the last mandatory module
+  configStorage,  // note: make this the last mandatory module
 
   /* optional modules: these may or may not be included, depending on physical implementation */
   oneButtonInterface,

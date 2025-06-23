@@ -26,7 +26,7 @@ let convert2000To1970 = (localTimestamp, offset) => {
 #pragma once
 
 #include <ArduinoFake.h>
-#include <vector>
+#include <etl/vector.h>
 
 struct TestTimeParamsStruct
 {
@@ -49,7 +49,7 @@ TestTimeParamsStruct const buildTimeParams = { "Time Fault", buildTimestampS, 38
 TestTimeParamsStruct const beginningOfTime = {"at_the_beginning_of_time", 0, 0, 0, 0, 6, 1, 1, 0, -60*60*11, 0};
 TestTimeParamsStruct const badTime = { "bad time", buildTimestampS - 1, 37, 41, 17, 7, 15, 3, 20, 60*60*11, 60*60};
 
-std::vector<TestTimeParamsStruct> const testArray = {
+etl::vector<TestTimeParamsStruct, UINT16_MAX> const testArray = {
   {"during_british_winter_time_2023", 729082742, 2, 59, 10, 2, 7, 2, 23, 0, 0},
   {"during_british_summer_time_2023", 743102001, 21, 13, 17, 3, 19, 7, 23, 0, 60*60},
   {"feb_28_2023", 730925880, 0, 58, 18, 2, 28, 2, 23, 0, 0},

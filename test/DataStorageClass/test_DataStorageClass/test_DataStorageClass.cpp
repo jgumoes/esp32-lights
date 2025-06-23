@@ -8,8 +8,8 @@ void setUp(void){}
 void tearDown(void){}
 
 std::shared_ptr<DataStorageClass> DataStorageFactory(
-    std::vector<ModeDataStruct> testModes,
-    std::vector<EventDataPacket> eventDataPackets
+    modesVector_t testModes,
+    eventsVector_t eventDataPackets
 ){
   // auto mockStorageHAL = std::make_shared<MockStorageHAL>(modeDataPackets, eventDataPackets);
   // auto testModes = makeModeDataStructArray(testModeDataStructs, channel);
@@ -36,8 +36,8 @@ void testIterableEventCollection(void){
   // using 5 means 1 full chunk and 1 partial chunk
   TEST_ASSERT_EQUAL(5, DataPreloadChunkSize);
   
-  std::vector<ModeDataStruct> storedModes = {};
-  std::vector<EventDataPacket> storedEvents = {testEvent1, testEvent2, testEvent3, testEvent4, testEvent5, testEvent6, testEvent7, testEvent8};
+  modesVector_t storedModes = {};
+  eventsVector_t storedEvents = {testEvent1, testEvent2, testEvent3, testEvent4, testEvent5, testEvent6, testEvent7, testEvent8};
   auto mockStorageHAL = std::make_shared<MockStorageHAL>(storedModes, storedEvents);
 
   IterableCollection<nEvents_t, EventDataPacket> testCollection(mockStorageHAL, 8);
@@ -83,8 +83,8 @@ void testIterableModeCollection(void){
 }
 
 void testEventGetters(void){
-  std::vector<ModeDataStruct> storedModes = {};
-  std::vector<EventDataPacket> storedEvents = {testEvent1, testEvent2, testEvent3, testEvent4, testEvent5, testEvent6, testEvent7, testEvent8};
+  modesVector_t storedModes = {};
+  eventsVector_t storedEvents = {testEvent1, testEvent2, testEvent3, testEvent4, testEvent5, testEvent6, testEvent7, testEvent8};
 
   std::shared_ptr<DataStorageClass> testClass = DataStorageFactory(storedModes, storedEvents);
 
@@ -128,8 +128,8 @@ void testModeGetters(void){
   TestChannels channel = TestChannels::RGB; // TODO: iterate over all TestChannels
   // test that ID=1 always returns default constant brightness, even when no data is given
   {
-    std::vector<ModeDataStruct> storedModes = {};
-    std::vector<EventDataPacket> storedEvents = {testEvent1, testEvent2, testEvent3, testEvent4, testEvent5, testEvent6, testEvent7, testEvent8};
+    modesVector_t storedModes = {};
+    eventsVector_t storedEvents = {testEvent1, testEvent2, testEvent3, testEvent4, testEvent5, testEvent6, testEvent7, testEvent8};
 
     const ModeDataStruct defaultConst = convertTestModeStruct(defaultConstantBrightness, channel);
     
@@ -144,10 +144,9 @@ void testModeGetters(void){
     TEST_ASSERT_FALSE(testClass->getMode(2, buffer));
   }
 
-  // std::vector<TestModeDataStruct> testModeStructs = {warmConstBrightness, purpleConstBrightness};
-  std::vector<TestModeDataStruct> testModeStructs = getAllTestingModes();
+  etl::vector<TestModeDataStruct, 255> testModeStructs = getAllTestingModes();
   auto testModes = makeModeDataStructArray(testModeStructs, channel);
-  std::vector<EventDataPacket> storedEvents = {testEvent1, testEvent2, testEvent3, testEvent4, testEvent5, testEvent6, testEvent7, testEvent8};
+  eventsVector_t storedEvents = {testEvent1, testEvent2, testEvent3, testEvent4, testEvent5, testEvent6, testEvent7, testEvent8};
   auto testClass = DataStorageFactory(testModes, storedEvents);
   
   // test getting arbitrary modes

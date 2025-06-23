@@ -4,7 +4,7 @@
 #include <Arduino.h>
 #include <memory>
 
-#include "../DeviceTime/include/DeviceTime.h"
+#include "DeviceTime.h"
 #include "modes.h"
 #include "ProjectDefines.h"
 #include "DataStorageClass.h"

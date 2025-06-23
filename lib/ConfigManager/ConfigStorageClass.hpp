@@ -179,7 +179,7 @@ class MetadataMapClass{
       #endif
       errorCode_t error;
       for(uint8_t attempt = 0; attempt < wearLevelAttempts; attempt++){
-        error = storage->writeMetadata(writer.metadataAddress(), ModuleID::configManager, writer.getPacket(), writer.size);
+        error = storage->writeMetadata(writer.metadataAddress(), ModuleID::configStorage, writer.getPacket(), writer.size);
         
         if(
           (errorCode_t::writeFailed != error)
@@ -289,7 +289,7 @@ class ConfigStorageClass {
     
   public:
 
-    static const ModuleID ID = ModuleID::configManager;
+    static const ModuleID ID = ModuleID::configStorage;
     
     ConfigStorageClass(
       std::shared_ptr<IStorageAdapter> storageAdapter

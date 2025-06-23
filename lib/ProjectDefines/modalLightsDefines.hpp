@@ -33,11 +33,6 @@ enum class Channels : channelID {
   uv = 1 << 5
 };
 
-// size of the header, i.e. modeUUID and ModeTypes
-const uint8_t modePacketHeaderSize = 2;
-// size of all of the stored mode data and header
-const uint8_t modePacketSize = 9 + 2*nChannels;
-
 // the position in the mode data array should match the position in ModeDataStruct
 struct ModeDataStruct {
   modeUUID ID = 0;
@@ -54,6 +49,18 @@ struct ModeDataStruct {
                     // [initialPeriod][finalPeriod][chirpDuration]
                     // [timeWindow MSB][timeWindow LSB][0]
 };
+
+// size of all of the stored mode data and header
+constexpr packetSize_t modePacketSize
+  = sizeof(modeUUID)
+  + sizeof(ModeTypes)
+  + sizeof(duty_t) * nChannels
+  + sizeof(duty_t) * nChannels
+  + sizeof(duty_t)
+  + sizeof(duty_t)
+  + sizeof(duty_t)
+  + sizeof(duty_t)
+  + sizeof(uint8_t) * 3;
 
 void static serializeModeDataStruct(ModeDataStruct dataStruct, uint8_t buffer[modePacketSize]){
   uint8_t i = 0;

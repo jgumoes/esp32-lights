@@ -11,137 +11,15 @@
 #include "ConfigStorageClass.hpp"
 #include "MetadataFileReader.hpp"
 #include "testConfigs.hpp"
+#include "../nativeMocksAndHelpers/GlobalTestHelpers.hpp"
 
 /*
 When adding new configs or modules, ctrl+f the line below
 "add new configs here"
 */
 
-#define TEST_ASSERT_ERROR(expectedError, functionCall, message) (\
-  {\
-    errorCode_t _private_error_code_pls_dont_use_this_name_anywhere_else_ = functionCall;\
-    TEST_ASSERT_EQUAL_MESSAGE(\
-      expectedError,\
-      _private_error_code_pls_dont_use_this_name_anywhere_else_,\
-      ConfigManagerTestObjects::addErrorToMessage(_private_error_code_pls_dont_use_this_name_anywhere_else_, message).c_str()\
-    );\
-  }\
-)
-
-// #define TEST_ASSERT_SUCCESS(functionCall, message) (\
-//   {\
-//     errorCode_t _private_error_code_pls_dont_use_this_name_anywhere_else_ = functionCall;\
-//     TEST_ASSERT_EQUAL_MESSAGE(\
-//       errorCode_t::success,\
-//       _private_error_code_pls_dont_use_this_name_anywhere_else_,\
-//       addErrorToMessage(_private_error_code_pls_dont_use_this_name_anywhere_else_, message).c_str()\
-//     );\
-//   }\
-// )
-
-#define TEST_ASSERT_SUCCESS(functionCall, message) (TEST_ASSERT_ERROR(errorCode_t::success, functionCall, message))
-
 namespace ConfigManagerTestObjects
 {  
-  /**
-   * @brief i.e. null -> "ModuleID::null"
-   * 
-   * @param moduleID 
-   * @return std::string 
-   */
-  std::string moduleIDToString(ModuleID moduleID){
-    switch (moduleID)
-    {
-    case ModuleID::null:
-      return "ModuleID::null";
-
-    case ModuleID::deviceTime:
-      return "ModuleID::deviceTime";
-
-    case ModuleID::modalLights:
-      return "ModuleID::modalLights";
-
-    case ModuleID::eventManager:
-      return "ModuleID::eventManager";
-
-    case ModuleID::dataStorageClass:
-      return "ModuleID::dataStorageClass";
-
-    case ModuleID::configManager:
-      return "ModuleID::configManager";
-
-    /* optional modules: these may or may not be included, depending on physical implementation */
-
-    case ModuleID::oneButtonInterface:
-      return "ModuleID::oneButtonInterface";
-
-    case ModuleID::max:
-      return "ModuleID::max";
-    
-    /* add new Module here */
-    default:
-      throw("ModuleID doesn't exist: " + std::to_string(static_cast<uint16_t>(moduleID)));
-      return "ModuleID doesn't exist";
-    }
-  }
-
-  std::string errorCodeToString(errorCode_t error){
-    switch (error)
-    {
-    case errorCode_t::failed:
-      return "failed";
-    case errorCode_t::success:
-      return "success";
-    case errorCode_t::badValue:
-      return "badValue";
-    case errorCode_t::bad_time:
-      return "badTime";
-    case errorCode_t::badID:
-      return "badID";
-    case errorCode_t::bad_uuid:
-      return "badUUID";
-
-    case errorCode_t::event_not_found:
-      return "eventNotFound";
-    case errorCode_t::modeNotFound:
-      return "modeNotFound";
-    case errorCode_t::IDNotInUse:
-      return "IDNotInUse";
-    case errorCode_t::notFound:
-      return "notFound";
-
-    case errorCode_t::readFailed:
-      return "readFailed";
-    case errorCode_t::writeFailed:
-      return "writeFailed";
-    case errorCode_t::wearAttemptLimitReached:
-      return "wearAttemptLimitReached";
-    case errorCode_t::storage_full:
-      return "storageFull";
-    case errorCode_t::outOfBounds:
-      return "outOfBounds";
-    case errorCode_t::illegalAddress:
-      return "illegalAddress";
-
-    case errorCode_t::checksumFailed:
-      return "checksumFailed";
-    case errorCode_t::busy:
-      return "busy";
-    
-    
-    default:
-      return "unknown error code: " + std::to_string(error);
-    }
-  }
-
-  std::string addErrorToMessage(errorCode_t error, std::string message){
-    return message + "; error = " + errorCodeToString(error);
-  }
-
-  
-  
-
-  
 
   struct MetadataPacket{
     byte *rawPacket;
@@ -238,7 +116,7 @@ namespace ConfigManagerTestObjects
      * @brief write a byte array to the storage area reserved for `reservation` type. location is a reference, so that if the read-back fails, location is changed to (address of last failed byte)+1. the accessor can then re-attempt at this hopeful un-worn location. This function should add a checksum, and perform multiple write-read attempts before returning an unsuccsessful error code
      * 
      * @param location relative address within the reservation
-     * @param reservation i.e. a config value would be ModuleID::configManager
+     * @param reservation i.e. a config value would be ModuleID::configStorage
      * @param dataArray pointer to the serialized data array to be read from
      * @param size size of the byte array
      * @param attempts number of write-read attempts before writeFailed error
@@ -249,7 +127,7 @@ namespace ConfigManagerTestObjects
         return errorCode_t::busy;
       }
       writeCount++;
-      if(ModuleID::configManager != reservation){
+      if(ModuleID::configStorage != reservation){
         throw("wrong reservation");
       }
       setAccessLock(reservation);
@@ -264,7 +142,7 @@ namespace ConfigManagerTestObjects
      * @brief read a byte array in the storage area reserved for `reservation` type. performs a checksum on the data and, if fails, attempts to re-read the bytes. use this method when you know what to expect at the address
      * 
      * @param location relative location
-     * @param reservation i.e. a config value would be ModuleID::configManager
+     * @param reservation i.e. a config value would be ModuleID::configStorage
      * @param dataArray pointer to the serialized data array to be written to
      * @param size size of the byte array, not including checksum bytes
      * @param attempts number of read attempts before checksumFailed error
@@ -275,7 +153,7 @@ namespace ConfigManagerTestObjects
         return errorCode_t::busy;
       }
       readCount++;
-      if(ModuleID::configManager != reservation){
+      if(ModuleID::configStorage != reservation){
         throw("wrong reservation");
       }
       setAccessLock(reservation);
@@ -293,16 +171,15 @@ namespace ConfigManagerTestObjects
      * @param reservation 
      * @param metadataArray 
      * @param size 
-     * @param offset offset the address relative to the size bytes? or, +2 to the address? ignore if you don't want the size bytes
      * @param attempts re-read attempts before failed
      * @return errorCode_t 
      */
-    errorCode_t readMetadata(const storageAddress_t address, const ModuleID reservation, byte *metadataArray, const packetSize_t size, uint8_t attempts=3) override {
+    errorCode_t readMetadata(const storageAddress_t address, const ModuleID reservation, byte *metadataArray, const storageAddress_t size, uint8_t attempts=3) override {
       if(!setAccessLock(reservation)){
         return errorCode_t::busy;
       }
       readMetadataCount++;
-      if(ModuleID::configManager != reservation){
+      if(ModuleID::configStorage != reservation){
         throw("wrong reservation");
       }
       setAccessLock(reservation);
@@ -319,7 +196,6 @@ namespace ConfigManagerTestObjects
      * @param reservation 
      * @param metadataPacket 
      * @param size 
-     * @param offset offset the address relative to the size bytes? or, +2 to the address?
      * @param attempts number of write-read attempts before writeFailed error
      * @return errorCode_t 
      */
@@ -328,7 +204,7 @@ namespace ConfigManagerTestObjects
         return errorCode_t::busy;
       }
       metadataWriteCount++;
-      if(ModuleID::configManager != reservation){
+      if(ModuleID::configStorage != reservation){
         throw("wrong reservation");
       }
       memcpy(&_configMetadataArray[address], metadataPacket, size);
@@ -340,7 +216,7 @@ namespace ConfigManagerTestObjects
         return errorCode_t::busy;
       }
       metadataWriteCount++;
-      if(ModuleID::configManager != reservation){
+      if(ModuleID::configStorage != reservation){
         throw("wrong reservation");
       }
       memcpy(_metaFileSize, sizeBytes, 2);
@@ -352,7 +228,7 @@ namespace ConfigManagerTestObjects
         return errorCode_t::busy;
       }
       readMetadataCount++;
-      if(ModuleID::configManager != reservation){
+      if(ModuleID::configStorage != reservation){
         throw("wrong reservation");
       }
       memcpy(sizeBytes, _metaFileSize, 2);
@@ -377,12 +253,11 @@ namespace ConfigManagerTestObjects
       return errorCode_t::success;
     };
 
-
     /*================================
 
-              Testing methods
-    
-    ================================== */
+                Testing methods
+
+      ================================== */
     ModuleID getLock(){return currentAccessor;}
 
     void resetCounts(){
@@ -480,7 +355,6 @@ namespace ConfigManagerTestObjects
       void newConfigs(const byte newConfig[maxConfigSize]){
         newConfigsCount++;
         configStruct.newDataPacket(newConfig);
-        // TEST_ASSERT_SUCCESS(configStruct.isValid(newConfig), testMessage());
       };
 
       packetSize_t getConfigs(byte config[maxConfigSize]){
@@ -524,6 +398,16 @@ namespace ConfigManagerTestObjects
         throw("type is not in the map");
       }
       return userMap.at(type).getConfigs(outBuffer);
+    }
+
+    void resetCounts(){
+      for(
+        auto mapIT = userMap.begin();
+        mapIT != userMap.end();
+        mapIT++
+      ){
+        mapIT->second.resetCounts();
+      }
     }
   };
 } // namespace ConfigManagerTestObjects

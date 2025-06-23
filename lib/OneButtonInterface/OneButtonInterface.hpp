@@ -263,6 +263,7 @@ class OneButtonInterface : public ConfigUser {
 
   packetSize_t getConfigs(byte config[maxConfigSize]) override {
     ConfigStructFncs::serialize(config, _configs);
+    return getConfigPacketSize(this->type);
   }
 };
 
