@@ -37,6 +37,16 @@ namespace ConfigManagerTestObjects
   
   typedef etl::map<ModuleID, GenericConfigStruct, 255> genConfMap_t;
   
+  storageReservationMap_t defaultConfigTestReservation = {
+    {
+      ModuleID::configStorage,
+      StorageReservationSizeStruct{
+        .reservationSize = maxNumberOfModules*maxConfigSize,
+        .metadataSize = maxNumberOfModules*MetadataPacketWriter::size
+      }
+    }
+  };
+
   class FakeStorageAdapter : public IStorageAdapter{
   public:
     static const uint8_t configMetaOutOfRange = maxNumberOfModules;
@@ -46,7 +56,6 @@ namespace ConfigManagerTestObjects
   private:
     byte _storedConfigArray[configOutOfRange];
     
-    byte _metaFileSize[2] = {255, 255};
     byte _configMetadataArray[metadataArraySizeBytes] = {255, 255};
     MetadataFileReader metadataFile;
     
@@ -57,26 +66,17 @@ namespace ConfigManagerTestObjects
       uint16_t writeMetadataCalls = 69;
     } testingVars;
     
-    FakeStorageAdapter() : IStorageAdapter(126, 0), metadataFile(_metaFileSize, _configMetadataArray){};
+    FakeStorageAdapter()
+    : IStorageAdapter(defaultConfigTestReservation, 0), metadataFile(metadataArraySizeBytes, _configMetadataArray){};
 
     FakeStorageAdapter(
       genConfMap_t storedConfigsList,
       bool checkStoredAreValid,
       std::string testMessage,
-      uint8_t metadataSize = maxNumberOfModules
-    ) : IStorageAdapter(126, 0), metadataFile(_metaFileSize, _configMetadataArray) {
-      metadataFile.setSize(metadataSize);
-      std::string message = "FakeStorageAdapter: " + testMessage;
-      // test the size
-      {
-        uint8_t compSize = ~metadataSize;
-        TEST_ASSERT_EQUAL_MESSAGE(metadataSize, _metaFileSize[0], message.c_str());
-        TEST_ASSERT_EQUAL_MESSAGE(compSize, _metaFileSize[1], message.c_str());
-        TEST_ASSERT_EQUAL_MESSAGE(0, (metadataSize & compSize), message.c_str());
-        TEST_ASSERT_EQUAL_MESSAGE(UINT8_MAX, (metadataSize ^ compSize), message.c_str());
-        TEST_ASSERT_EQUAL_MESSAGE(metadataSize, metadataFile.getSize(), message.c_str());
-      }
+      const storageReservationMap_t storageReservations = defaultConfigTestReservation
+    ) : IStorageAdapter(storageReservations, 0), metadataFile(metadataArraySizeBytes, _configMetadataArray) {
 
+      std::string message = "FakeStorageAdapter: " + testMessage;
       
       storageAddress_t address = 0;
       uint8_t metaIndex = 0;
@@ -210,30 +210,6 @@ namespace ConfigManagerTestObjects
       memcpy(&_configMetadataArray[address], metadataPacket, size);
       return errorCode_t::success;
     };
-
-    errorCode_t writeMetadataSize(const ModuleID reservation, const byte sizeBytes[2], uint8_t attempts=3) override {
-      if(!setAccessLock(reservation)){
-        return errorCode_t::busy;
-      }
-      metadataWriteCount++;
-      if(ModuleID::configStorage != reservation){
-        throw("wrong reservation");
-      }
-      memcpy(_metaFileSize, sizeBytes, 2);
-      return errorCode_t::success;
-    }
-
-    errorCode_t readMetadataSize(const ModuleID reservation, byte sizeBytes[2], uint8_t attempts=3) override {
-      if(!setAccessLock(reservation)){
-        return errorCode_t::busy;
-      }
-      readMetadataCount++;
-      if(ModuleID::configStorage != reservation){
-        throw("wrong reservation");
-      }
-      memcpy(sizeBytes, _metaFileSize, 2);
-      return errorCode_t::success;
-    }
 
     uint8_t closeCount = 0;
 

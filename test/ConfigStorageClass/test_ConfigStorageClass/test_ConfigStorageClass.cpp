@@ -307,12 +307,11 @@ void testMetadata(){
   // test metadata file reader with random packets
   {
     using namespace ConfigManagerTestObjects;
-    const uint8_t size = static_cast<uint8_t>(maxNumberOfModules);
-    byte metadataSize[2] = {size, (uint8_t)~size};
-    byte metadataArray[maxNumberOfModules * MetadataPacketWriter::size];
+    const uint8_t metadataSize = maxNumberOfModules * MetadataPacketWriter::size;
+    byte metadataArray[metadataSize];
     MetadataFileReader metaFile(metadataSize, metadataArray);
 
-    TEST_ASSERT_EQUAL(maxNumberOfModules, metaFile.getSize());
+    TEST_ASSERT_EQUAL(maxNumberOfModules, metaFile.getEndIndex());
     const byte expectedMetaArray[4][4] = {
       {1, 2, 3, 0},
       {4, 2, 6, 1},
@@ -340,9 +339,8 @@ void testMetadata(){
   // test metadata file with default configs
   {
     using namespace ConfigManagerTestObjects;
-    const uint8_t size = static_cast<uint8_t>(maxNumberOfModules);
-    byte metadataSize[2] = {size, (uint8_t)~size};
-    byte metadataArray[maxNumberOfModules * MetadataPacketWriter::size];
+    const uint8_t metadataSize = maxNumberOfModules * MetadataPacketWriter::size;
+    byte metadataArray[metadataSize];
     MetadataFileReader metaFile(metadataSize, metadataArray);
 
     struct PacketContainer{
@@ -697,10 +695,8 @@ void testReadConfigs(){
 
     // check the metadata size bytes
     {
-      byte sizeBuffer[2];
-      storageHal->readMetadataSize(ModuleID::configStorage, sizeBuffer);
-      TEST_ASSERT_EQUAL(maxNumberOfModules, sizeBuffer[0]);
-      TEST_ASSERT_EQUAL(UINT8_MAX, sizeBuffer[0] ^ sizeBuffer[1]);
+      const uint8_t metaSize = storageHal->getReservationSize(ModuleID::configStorage).metadataSize;
+      TEST_ASSERT_EQUAL(maxNumberOfModules*MetadataPacketWriter::size, metaSize);
     }
 
     for(auto userIterator : genericUsers.userMap){
@@ -756,15 +752,10 @@ void testReadConfigs(){
     // the lock should have been released
     TEST_ASSERT_EQUAL(ModuleID::null, storageHal->getLock());
 
-    // size bytes should have been written
-    TEST_ASSERT_EQUAL(1, storageHal->metadataWriteCount);
-
     // check the metadata size bytes
     {
-      byte sizeBuffer[2];
-      storageHal->readMetadataSize(ModuleID::configStorage, sizeBuffer);
-      TEST_ASSERT_EQUAL(maxNumberOfModules, sizeBuffer[0]);
-      TEST_ASSERT_EQUAL(UINT8_MAX, sizeBuffer[0] ^ sizeBuffer[1]);
+      const uint8_t metaSize = storageHal->getReservationSize(ModuleID::configStorage).metadataSize;
+      TEST_ASSERT_EQUAL(maxNumberOfModules*MetadataPacketWriter::size, metaSize);
     }
 
     storageHal->resetCounts();

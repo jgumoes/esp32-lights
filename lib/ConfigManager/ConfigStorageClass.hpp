@@ -60,7 +60,7 @@ static packetSize_t findMaxConfigSize(){
 
 class MetadataMapClass{
   private:
-    uint8_t _metadataSize = 0;
+    storageAddress_t _metadataSize = 0;
 
     etl::flat_map<ModuleID, MetadataPacketContainer, maxNumberOfModules> _metadataMap;
 
@@ -72,8 +72,12 @@ class MetadataMapClass{
 
     MetadataMapClass(uint8_t nOfChecksumBytes) : checksumSize(nOfChecksumBytes){};
   
-    uint8_t getSize(){return _metadataSize;}
-    void setSize(uint8_t size){_metadataSize = size;}
+    /**
+     * @brief Get the size of the metadata array in bytes
+     * 
+     * @return uint8_t 
+     */
+    storageAddress_t getSize(){return _metadataSize;}
 
     /**
      * @brief Set the packet in the map. there are no checks
@@ -90,7 +94,7 @@ class MetadataMapClass{
     }
 
     /**
-     * @brief reads the metadata to find the next availlable config address
+     * @brief reads the metadata to find the next available config address
      * 
      * @return storageAddress_t 
      */
@@ -190,7 +194,7 @@ class MetadataMapClass{
 
         // increment the metaIndex (i.e. meta address) before moving on
         writer.setMetaIndex(max(writer.metaIndex()+1, getNextIndex()));
-        if(writer.metaIndex() >= _metadataSize){
+        if(writer.metadataAddress() >= _metadataSize){
           return errorCode_t::storage_full;
         }
       }
@@ -364,7 +368,7 @@ class ConfigStorageClass {
       ConfigStructFncs::serialize(packet, defaultConfig);
       
       registerUser(thisRef, packet, size, ConfigStructType::isDataValid);
-    }
+    };
     
     /**
      * @brief gets the bitflag of registered config users

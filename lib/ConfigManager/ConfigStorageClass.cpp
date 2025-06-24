@@ -97,32 +97,13 @@ errorCode_t ConfigStorageClass::setConfig(const byte *serializedStruct){
 };
 
 void ConfigStorageClass::loadAllConfigs(){
-  // check metadata size first
-  // TODO: shouldn't the storage adapter already know the reservation sizes?
-  byte sizeBytes[2];
-  errorCode_t error = _storage->readMetadataSize(ID, sizeBytes);
-  if(
-    ((sizeBytes[0] ^ sizeBytes[1]) != UINT8_MAX)
-  ){
-    // if size bytes aren't set
-    sizeBytes[0] = maxNumberOfModules;
-    sizeBytes[1] = ~maxNumberOfModules;
-    error = _storage->writeMetadataSize(ID, sizeBytes);
-    if(errorCode_t::success == error){
-      _metadataMap.setSize(sizeBytes[0]);
-    }
-    _storage->close(ID);
-    return;
-  }
-
   // load metadata
-  // TODO: get size from storage adapter instead
   const uint16_t metadataBufferSize = max(
     maxNumberOfModules*MetadataPacketWriter::size,
     _metadataMap.getSize()
   );
   byte metadataBuffer[metadataBufferSize];
-  error = _storage->readMetadata(0, ID, metadataBuffer, metadataBufferSize);
+  errorCode_t error = _storage->readMetadata(0, ID, metadataBuffer, metadataBufferSize);
 
   // scan the metadata
   byte configBuffer[maxConfigSize];

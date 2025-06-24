@@ -28,14 +28,15 @@ class MetadataFileIterator{
 
 class MetadataFileReader{
 private:
-  byte *_sizeArray;
+  const storageAddress_t _metaSize;
+  const uint8_t _endIndex;
   byte *_metadata;  // matches the metadata array in storage
 
   const uint8_t _packetSize = MetadataPacketWriter::size;
   byte emptyPacket[MetadataPacketWriter::size] = {0, 0, 0, 0};
 
 public:
-  MetadataFileReader(byte *sizeArray, byte *metadata) : _sizeArray(sizeArray), _metadata(metadata) {}
+  MetadataFileReader(storageAddress_t metadataSize, byte *metadata) : _metaSize(metadataSize), _endIndex(metadataSize / MetadataPacketWriter::size), _metadata(metadata) {}
 
   MetadataFileIterator getIterator(){
     return MetadataFileIterator(this);
@@ -44,35 +45,14 @@ public:
   /**
    * @brief Get the size set in the file. if the sizes don't match, returns 0
    * 
-   * @return uint8_t max number of metadata packets that can be stored
+   * @return storageAddress_t size of the metadata array in bytes
    */
-  uint8_t getSize(){
-    const uint8_t size = _sizeArray[0];
-    const uint8_t compSize = _sizeArray[1];
-    if(
-      ((size & compSize) != 0)
-      || ((size ^ compSize) != UINT8_MAX)
-    ){
-      return 0;
-    }
-    return size;
+  storageAddress_t getSize(){
+    return _metaSize;
   }
 
-  /**
-   * @brief Get the size set in the file. if the sizes don't match, returns 0
-   * 
-   * @return uint16_t size of the stored metadata array in bytes
-   */
-  uint16_t getSizeInBytes(){return getSize()*_packetSize;}
-
-  /**
-   * @brief Set the size array with no checks
-   * 
-   * @param newSize 
-   */
-  void setSize(const uint8_t newSize){
-    _sizeArray[0] = newSize;
-    _sizeArray[1] = ~newSize;
+  uint8_t getEndIndex(){
+    return _endIndex;
   }
 
   /**
@@ -82,11 +62,11 @@ public:
    * @return uint8_t 
    */
   uint8_t getMetaPacketIndex(ModuleID ID){
-    const uint8_t metaSize = getSize();
-    if(metaSize == 0){return UINT8_MAX;}
+    const uint8_t maxIndex = getEndIndex();
+    if(maxIndex == 0){return UINT8_MAX;}
 
     uint8_t foundIndex = UINT8_MAX;
-    for(uint16_t index = 0; index < metaSize; index++){
+    for(uint16_t index = 0; index < maxIndex; index++){
       if(
         static_cast<ModuleID>(_metadata[index*_packetSize]) == ID
         && (isPacketValid(index) == errorCode_t::success)
@@ -107,7 +87,7 @@ public:
     if(storageOutOfBounds <= packet.address()){
       return errorCode_t::outOfBounds;
     }
-    if(getSize() <= packet.metaIndex()){
+    if(getEndIndex() <= packet.metaIndex()){
       return errorCode_t::outOfBounds;
     }
     return errorCode_t::success;
@@ -143,12 +123,12 @@ public:
    * @return uint8_t 
    */
   uint8_t findNextMetaIndex(){
-    const uint8_t size = getSize();
+    const uint8_t maxIndex = getEndIndex();
     // if(size == 0){return UINT8_MAX;}
 
     uint8_t nextIndex = 0;
 
-    for(uint8_t index = 0; index < size; index++){
+    for(uint8_t index = 0; index < maxIndex; index++){
       errorCode_t error = isPacketValid(index);
       if(
         (errorCode_t::success == error)
@@ -169,7 +149,7 @@ public:
   MetadataPacketReader getPacket(uint8_t index){
     MetadataPacketReader mpStruct(emptyPacket);
     if(
-      (index < getSize())
+      (index < getEndIndex())
       && isPacketValid(index)
     ){
       mpStruct.setPacket(&_metadata[index*_packetSize]);
@@ -245,7 +225,7 @@ public:
 
     MetadataPacketReader largestPacket(emptyPacket);
     MetadataPacketReader currentPacket(emptyPacket);
-    for(uint8_t index = 0; index < getSize(); index++){
+    for(uint8_t index = 0; index < getEndIndex(); index++){
       currentPacket.setPacket(&_metadata[index*_packetSize]);
       if(
         (isPacketValid(currentPacket, index) == errorCode_t::success)
@@ -269,7 +249,7 @@ inline MetadataPacketReader MetadataFileIterator::getNext(){
 
 inline bool MetadataFileIterator::hasMore(){
   errorCode_t error = errorCode_t::failed;
-  for(currentIndex; currentIndex < meta->getSize(); currentIndex++){
+  for(currentIndex; currentIndex < meta->getEndIndex(); currentIndex++){
     if(errorCode_t::success == meta->isPacketValid(currentIndex)){
       return true;
     }
