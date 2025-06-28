@@ -31,9 +31,10 @@ class S3TouchButton : public OneButtonInterface {
     S3TouchButton(
       std::shared_ptr<DeviceTimeClass> deviceTime,
       std::shared_ptr<ModalLightsController> modalLights,
+      std::shared_ptr<ConfigStorageClass> configStorage,
       touch_pad_t touchPin = TOUCH_PAD_NUM7,
       uint32_t touchThreshold = 50000
-    ) : OneButtonInterface(deviceTime, modalLights), _touchPin(touchPin), _touchThreshold(touchThreshold) {
+    ) : OneButtonInterface(deviceTime, modalLights, configStorage), _touchPin(touchPin), _touchThreshold(touchThreshold) {
       // setup touch peripheral
       touch_pad_init();
       touch_pad_set_fsm_mode(TOUCH_FSM_MODE_TIMER);

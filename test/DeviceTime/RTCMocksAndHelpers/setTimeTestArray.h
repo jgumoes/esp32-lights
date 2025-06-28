@@ -25,7 +25,7 @@ let convert2000To1970 = (localTimestamp, offset) => {
 */
 #pragma once
 
-#include <ArduinoFake.h>
+#include <Arduino.h>
 #include <etl/vector.h>
 
 struct TestTimeParamsStruct
