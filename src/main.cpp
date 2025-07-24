@@ -1,9 +1,11 @@
 #include <Arduino.h>
 
-#include "CurtainLights.hpp"
+// #include "CurtainLights.hpp"
+#include "UmbrellaLamp.hpp"
 
 void setup(){
-  run_CurtainLights();
+  // run_CurtainLights();
+  run_UmbrellaLamp();
 };
 
 bool pinState = true;
